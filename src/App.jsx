@@ -14,6 +14,25 @@ export const getLvlPct = xp => { const l=getLevel(xp)-1; const s=XP_THRESH[l]||0
 export const DIFF_C = { Easy:"#34c759", Medium:"#ff9500", Hard:"#ff3b30" };
 export const CAT_C  = { Sales:"#5856d6", Teamwork:"#007aff", Admin:"#af52de", Creativity:"#ff2d55", Cash:"#34c759","Time Off":"#007aff", Experience:"#ff9500", Shopping:"#ff2d55", Merch:"#5856d6" };
 
+const TWLogo = ({size=72}) => (
+  <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style={{width:size,height:size,borderRadius:size*0.22,boxShadow:`0 8px 24px rgba(28,50,88,.25)`,display:"block"}}>
+    <rect width="80" height="80" rx={size*0.22} fill="#1c3258"/>
+    <circle cx="40" cy="40" r="27" fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="1.5"/>
+    <circle cx="40" cy="40" r="20" fill="rgba(246,146,25,.12)"/>
+    <text x="40" y="29" textAnchor="middle" fill="rgba(255,255,255,.5)" fontSize="8" fontWeight="600" fontFamily="-apple-system,sans-serif" letterSpacing="3">TW</text>
+    <text x="29" y="51" textAnchor="middle" fill="white" fontSize="24" fontWeight="800" fontFamily="-apple-system,sans-serif" fontStyle="italic">T</text>
+    <text x="51" y="51" textAnchor="middle" fill="#f69219" fontSize="24" fontWeight="800" fontFamily="-apple-system,sans-serif" fontStyle="italic">W</text>
+  </svg>
+);
+
+const TWLogoSmall = ({size=28}) => (
+  <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" style={{width:size,height:size,borderRadius:size*0.25,display:"block"}}>
+    <rect width="28" height="28" rx={size*0.25} fill="#1c3258"/>
+    <text x="8"  y="20" fill="white"   fontSize="11" fontWeight="800" fontFamily="-apple-system,sans-serif" fontStyle="italic">T</text>
+    <text x="16" y="20" fill="#f69219" fontSize="11" fontWeight="800" fontFamily="-apple-system,sans-serif" fontStyle="italic">W</text>
+  </svg>
+);
+
 export default function App() {
   const [session,       setSession]       = useState(null);
   const [profile,       setProfile]       = useState(null);
@@ -178,7 +197,8 @@ export default function App() {
     </div>
   );
   const PrimaryBtn = ({children,onClick,disabled,loading:l}) => (
-    <button onClick={onClick} disabled={disabled||l} style={{width:"100%",background:disabled||l?"#e5e5ea":ACC,color:disabled||l?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,letterSpacing:"-.3px",cursor:disabled?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:SF}}>
+    <button onClick={onClick} disabled={disabled||l}
+      style={{width:"100%",background:disabled||l?"#e5e5ea":ACC,color:disabled||l?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,letterSpacing:"-.3px",cursor:disabled?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:SF}}>
       {l&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
       {children}
     </button>
@@ -194,43 +214,71 @@ export default function App() {
     ? <textarea value={value} onChange={onChange} placeholder={placeholder} rows={3} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",padding:0,lineHeight:1.45,fontFamily:SF}}/>
     : <input value={value} onChange={onChange} placeholder={placeholder} type={type} onKeyDown={onKeyDown} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>;
 
-  const shared = { profile, allProfiles, missions, myClaims, prizes, myRedemptions, announcements, today, lv, pct, checkedIn, doCheckIn, doClaimMission, doComplete, doRedeem, addMission, addAnnouncement, addPrize, mForm, setMForm, aForm, setAForm, pForm, setPForm, Section, Row, PrimaryBtn, Chip, FormRow, StyledInput, SF, BG, BG2, SEP, LBL, LB2, LB3, ACC, ORG };
+  const shared = {
+    profile, allProfiles, missions, myClaims, prizes, myRedemptions, announcements,
+    today, lv, pct, checkedIn,
+    doCheckIn, doClaimMission, doComplete, doRedeem,
+    addMission, addAnnouncement, addPrize,
+    mForm, setMForm, aForm, setAForm, pForm, setPForm,
+    Section, Row, PrimaryBtn, Chip, FormRow, StyledInput,
+    SF, BG, BG2, SEP, LBL, LB2, LB3, ACC, ORG,
+    getLevel, getLvlPct, CAT_C, DIFF_C
+  };
 
+  // ── LOADING ──
   if (loading) return (
     <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,fontFamily:SF}}>
-      <div style={{width:56,height:56,background:`linear-gradient(145deg,${ACC},${ORG})`,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>⚡</div>
+      <TWLogo size={56}/>
       <div style={{width:24,height:24,border:`2px solid ${SEP}`,borderTop:`2px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>
-      <div style={{fontSize:15,color:LB3}}>Loading TechWide Hub…</div>
+      <div style={{fontSize:15,color:LB3}}>Loading Techwide Hub…</div>
     </div>
   );
 
+  // ── LOGIN ──
   if (!session || !profile) return (
     <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
       <div className="fade" style={{textAlign:"center",marginBottom:36}}>
-        <div style={{width:72,height:72,background:`linear-gradient(145deg,${ACC},${ORG})`,borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px",boxShadow:`0 8px 24px ${ORG}40`}}>⚡</div>
-        <div style={{fontSize:28,fontWeight:700,color:LBL,letterSpacing:"-.6px"}}>TechWide Hub</div>
-        <div style={{fontSize:16,color:LB3,marginTop:4}}>Sign in to continue</div>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+          <TWLogo size={80}/>
+        </div>
+        <div style={{fontSize:28,fontWeight:700,color:LBL,letterSpacing:"-.6px"}}>Techwide Hub</div>
+        <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:1.8,letterSpacing:"-.1px"}}>
+          Sincerity · Love · Responsible · Respectful
+        </div>
       </div>
       <div className="fade" style={{width:"100%",maxWidth:360}}>
-        <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
+        <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
             <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Email</div>
-            <input value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="your@email.com" type="email" autoComplete="email"
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
+            <input
+              value={loginEmail}
+              onChange={e=>setLoginEmail(e.target.value)}
+              placeholder="your@email.com"
+              type="email"
+              autoComplete="email"
+              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}
+            />
           </div>
           <div style={{padding:"11px 16px"}}>
             <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Password</div>
-            <input value={loginPass} onChange={e=>setLoginPass(e.target.value)} placeholder="Password" type="password" autoComplete="current-password" onKeyDown={e=>e.key==="Enter"&&doLogin()}
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
+            <input
+              value={loginPass}
+              onChange={e=>setLoginPass(e.target.value)}
+              placeholder="Password"
+              type="password"
+              autoComplete="current-password"
+              onKeyDown={e=>e.key==="Enter"&&doLogin()}
+              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}
+            />
           </div>
         </div>
-        {loginErr&&<div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12}}>{loginErr}</div>}
+        {loginErr&&<div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,letterSpacing:"-.2px"}}>{loginErr}</div>}
         <PrimaryBtn onClick={doLogin} loading={loginLoading}>Sign In</PrimaryBtn>
-        <div style={{textAlign:"center",fontSize:13,color:LB3,marginTop:20}}>Contact admin to get your login details</div>
       </div>
     </div>
   );
 
+  // ── TABS ──
   const TABS = [
     {id:"home",     label:"Home",     emoji:"🏠"},
     {id:"missions", label:"Missions", emoji:"🎯"},
@@ -242,34 +290,40 @@ export default function App() {
 
   return (
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
+
+      {/* iOS nav bar */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px 10px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:28,height:28,background:`linear-gradient(145deg,${ACC},${ORG})`,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚡</div>
-            <div style={{fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px"}}>TechWide Hub</div>
+            <TWLogoSmall size={28}/>
+            <div style={{fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px"}}>Techwide Hub</div>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <div style={{fontSize:14,fontWeight:600,color:ACC}}>{profile.xp.toLocaleString()} XP</div>
+            <div style={{fontSize:14,fontWeight:600,color:ACC,letterSpacing:"-.2px"}}>{profile.xp.toLocaleString()} XP</div>
             <button onClick={doLogout} style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
           </div>
         </div>
         <div style={{fontSize:28,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginTop:6}}>
-          {tab==="home"&&`Hello, ${profile.name.split(" ")[0]} 👋`}
-          {tab==="missions"&&"Missions"}
-          {tab==="prizes"&&"Prize Shop"}
-          {tab==="board"&&"Leaderboard"}
-          {tab==="news"&&"Announcements"}
-          {tab==="admin"&&"Admin Panel"}
+          {tab==="home"     && `Hello, ${profile.name.split(" ")[0]} 👋`}
+          {tab==="missions" && "Missions"}
+          {tab==="prizes"   && "Prize Shop"}
+          {tab==="board"    && "Leaderboard"}
+          {tab==="news"     && "Announcements"}
+          {tab==="admin"    && "Admin Panel"}
         </div>
       </div>
+
+      {/* Content */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 0 82px"}}>
-        {tab==="home"     && <HomeTab     {...shared}/>}
-        {tab==="missions" && <MissionsTab {...shared}/>}
-        {tab==="prizes"   && <PrizesTab   {...shared}/>}
+        {tab==="home"     && <HomeTab        {...shared}/>}
+        {tab==="missions" && <MissionsTab    {...shared}/>}
+        {tab==="prizes"   && <PrizesTab      {...shared}/>}
         {tab==="board"    && <LeaderboardTab {...shared}/>}
-        {tab==="news"     && <NewsTab     {...shared}/>}
-        {tab==="admin"    && <AdminTab    {...shared}/>}
+        {tab==="news"     && <NewsTab        {...shared}/>}
+        {tab==="admin"    && <AdminTab       {...shared}/>}
       </div>
+
+      {/* iOS tab bar */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"8px 4px 12px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer"}}>
@@ -278,6 +332,8 @@ export default function App() {
           </button>
         ))}
       </div>
+
+      {/* Toast */}
       {toast&&(
         <div className="toast-in" style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.78)",backdropFilter:"blur(16px)",borderRadius:99,padding:"10px 20px",fontSize:14,color:"#fff",fontWeight:500,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"85vw",textAlign:"center"}}>
           {toast.msg}

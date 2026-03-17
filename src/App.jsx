@@ -325,11 +325,3 @@ export default function App() {
     </div>
   );
 }
-```
-
----
-
-## ✅ Summary of Both Steps
-```
-Step 1 → Upload TECHWIDE_LOGO.png to GitHub root ✅
-Step 2 → Replace App.jsx with code above ✅

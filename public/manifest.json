@@ -1,0 +1,47 @@
+{
+  "name": "Techwide Hub",
+  "short_name": "Techwide",
+  "description": "Techwide Marketing Staff Engagement App",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1c3258",
+  "theme_color": "#1c3258",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/TECHWIDE_LOGO.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/TECHWIDE_LOGO.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+```
+
+5. Click **"Commit new file"** ✅
+
+---
+
+## ✅ What This Does
+
+| Where | Result |
+|---|---|
+| **Browser tab** | Shows Techwide logo as favicon |
+| **iPhone home screen** | Techwide logo as app icon |
+| **Android home screen** | Techwide logo as app icon |
+| **App name** | Shows "Techwide Hub" |
+| **Status bar** | Navy `#1c3258` colour |
+
+---
+
+## 📋 Your `public` folder should now have:
+```
+📁 public
+├── 📄 TECHWIDE_LOGO.png   ✅
+└── 📄 manifest.json       ✅ new

@@ -22,26 +22,3 @@
     }
   ]
 }
-```
-
-5. Click **"Commit new file"** ✅
-
----
-
-## ✅ What This Does
-
-| Where | Result |
-|---|---|
-| **Browser tab** | Shows Techwide logo as favicon |
-| **iPhone home screen** | Techwide logo as app icon |
-| **Android home screen** | Techwide logo as app icon |
-| **App name** | Shows "Techwide Hub" |
-| **Status bar** | Navy `#1c3258` colour |
-
----
-
-## 📋 Your `public` folder should now have:
-```
-📁 public
-├── 📄 TECHWIDE_LOGO.png   ✅
-└── 📄 manifest.json       ✅ new

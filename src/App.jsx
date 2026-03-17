@@ -14,25 +14,6 @@ export const getLvlPct = xp => { const l=getLevel(xp)-1; const s=XP_THRESH[l]||0
 export const DIFF_C = { Easy:"#34c759", Medium:"#ff9500", Hard:"#ff3b30" };
 export const CAT_C  = { Sales:"#5856d6", Teamwork:"#007aff", Admin:"#af52de", Creativity:"#ff2d55", Cash:"#34c759","Time Off":"#007aff", Experience:"#ff9500", Shopping:"#ff2d55", Merch:"#5856d6" };
 
-const TWLogo = ({size=72}) => (
-  <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style={{width:size,height:size,borderRadius:size*0.22,boxShadow:`0 8px 24px rgba(28,50,88,.25)`,display:"block"}}>
-    <rect width="80" height="80" rx={size*0.22} fill="#1c3258"/>
-    <circle cx="40" cy="40" r="27" fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="1.5"/>
-    <circle cx="40" cy="40" r="20" fill="rgba(246,146,25,.12)"/>
-    <text x="40" y="29" textAnchor="middle" fill="rgba(255,255,255,.5)" fontSize="8" fontWeight="600" fontFamily="-apple-system,sans-serif" letterSpacing="3">TW</text>
-    <text x="29" y="51" textAnchor="middle" fill="white" fontSize="24" fontWeight="800" fontFamily="-apple-system,sans-serif" fontStyle="italic">T</text>
-    <text x="51" y="51" textAnchor="middle" fill="#f69219" fontSize="24" fontWeight="800" fontFamily="-apple-system,sans-serif" fontStyle="italic">W</text>
-  </svg>
-);
-
-const TWLogoSmall = ({size=28}) => (
-  <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" style={{width:size,height:size,borderRadius:size*0.25,display:"block"}}>
-    <rect width="28" height="28" rx={size*0.25} fill="#1c3258"/>
-    <text x="8"  y="20" fill="white"   fontSize="11" fontWeight="800" fontFamily="-apple-system,sans-serif" fontStyle="italic">T</text>
-    <text x="16" y="20" fill="#f69219" fontSize="11" fontWeight="800" fontFamily="-apple-system,sans-serif" fontStyle="italic">W</text>
-  </svg>
-);
-
 export default function App() {
   const [session,       setSession]       = useState(null);
   const [profile,       setProfile]       = useState(null);
@@ -227,10 +208,10 @@ export default function App() {
 
   // ── LOADING ──
   if (loading) return (
-    <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,fontFamily:SF}}>
-      <TWLogo size={56}/>
-      <div style={{width:24,height:24,border:`2px solid ${SEP}`,borderTop:`2px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>
-      <div style={{fontSize:15,color:LB3}}>Loading Techwide Hub…</div>
+    <div style={{minHeight:"100vh",background:ACC,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,fontFamily:SF}}>
+      <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:120,height:120,borderRadius:24,objectFit:"cover"}}/>
+      <div style={{width:24,height:24,border:"2px solid rgba(255,255,255,.3)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>
+      <div style={{fontSize:15,color:"rgba(255,255,255,.6)",letterSpacing:"-.2px"}}>Loading Techwide Hub…</div>
     </div>
   );
 
@@ -238,11 +219,13 @@ export default function App() {
   if (!session || !profile) return (
     <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
       <div className="fade" style={{textAlign:"center",marginBottom:36}}>
-        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
-          <TWLogo size={80}/>
-        </div>
-        <div style={{fontSize:28,fontWeight:700,color:LBL,letterSpacing:"-.6px"}}>Techwide Hub</div>
-        <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:1.8,letterSpacing:"-.1px"}}>
+        <img
+          src="/TECHWIDE_LOGO.png"
+          alt="Techwide Marketing"
+          style={{width:100,height:100,borderRadius:22,objectFit:"cover",margin:"0 auto 16px",display:"block",boxShadow:`0 8px 28px rgba(28,50,88,.2)`}}
+        />
+        <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px"}}>Techwide Hub</div>
+        <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:2,letterSpacing:"-.1px"}}>
           Sincerity · Love · Responsible · Respectful
         </div>
       </div>
@@ -294,8 +277,8 @@ export default function App() {
       {/* iOS nav bar */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px 10px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <TWLogoSmall size={28}/>
+          <div style={{display:"flex",alignItems:"center",gap:9}}>
+            <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:30,height:30,borderRadius:7,objectFit:"cover"}}/>
             <div style={{fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px"}}>Techwide Hub</div>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -342,3 +325,11 @@ export default function App() {
     </div>
   );
 }
+```
+
+---
+
+## ✅ Summary of Both Steps
+```
+Step 1 → Upload TECHWIDE_LOGO.png to GitHub root ✅
+Step 2 → Replace App.jsx with code above ✅

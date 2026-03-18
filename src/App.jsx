@@ -43,9 +43,7 @@ const ISOToDisplay=iso=>{
 };
 const dateToISO=val=>{
   if(!val)return"";
-  // Already ISO
   if(/^\d{4}-\d{2}-\d{2}$/.test(val))return val;
-  // DD/MM/YYYY
   const p=val.split("/");
   if(p.length===3&&p[2].length===4)
     return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
@@ -86,7 +84,6 @@ function SignUpScreen({onBack,onSignedIn}){
   const passOk     = pass.length>=6;
   const matchOk    = confirm.length>0&&pass===confirm;
 
-  // Live email check — fires 700ms after typing stops
   useEffect(()=>{
     clearTimeout(timerRef.current);
     if(!prefix.trim()||!validPrefix(prefix)){
@@ -254,6 +251,7 @@ function OnboardingFlow({user,onComplete}){
     name:user.name||"",
     nickname:"",
     position:"",
+    position_other:"",
     birthday:"",
     joined_date:"",
     contact_number:"",
@@ -277,28 +275,39 @@ function OnboardingFlow({user,onComplete}){
   const validate=()=>{
     const e={};
     if(step===1){
-      if(!form.name.trim())       e.name="Full name is required";
-      if(!form.position)          e.position="Please select your position";
-      if(!form.birthday)          e.birthday="Birthday is required";
-      if(!form.joined_date)       e.joined_date="Joining date is required";
+      if(!form.name.trim())
+        e.name="Full name is required";
+      if(!form.position)
+        e.position="Please select your position";
+      else if(form.position==="Others"&&!form.position_other.trim())
+        e.position_other="Please specify your position";
+      if(!form.birthday)
+        e.birthday="Birthday is required";
+      if(!form.joined_date)
+        e.joined_date="Joining date is required";
     }
     if(step===2){
-      if(!form.contact_number)    e.contact_number="Contact number is required";
+      if(!form.contact_number)
+        e.contact_number="Contact number is required";
       else if(!validateContact(form.contact_number))
-                                  e.contact_number="Enter a valid Malaysian number";
+        e.contact_number="Enter a valid Malaysian number";
     }
     if(step===4){
       const digits=getICDigits(form.ic_number);
-      if(!form.ic_number)         e.ic_number="IC number is required";
-      else if(digits.length!==12) e.ic_number="IC must be exactly 12 digits";
-      if(!form.epf_number.trim()) e.epf_number="EPF number is required";
+      if(!form.ic_number)
+        e.ic_number="IC number is required";
+      else if(digits.length!==12)
+        e.ic_number="IC must be exactly 12 digits";
+      if(!form.epf_number.trim())
+        e.epf_number="EPF number is required";
       if(form.bank_account&&!/^\d+$/.test(form.bank_account))
-                                  e.bank_account="Numbers only";
+        e.bank_account="Numbers only";
       if(form.bank_type==="Others"&&!form.bank_type_other.trim())
-                                  e.bank_type_other="Please specify your bank";
+        e.bank_type_other="Please specify your bank";
     }
     if(step===5){
-      if(!form.avatar_url)        e.avatar_url="Profile photo is required";
+      if(!form.avatar_url)
+        e.avatar_url="Profile photo is required";
     }
     setErrors(e);
     return Object.keys(e).length===0;
@@ -318,27 +327,34 @@ function OnboardingFlow({user,onComplete}){
     setLoading(true);
     try{
       const contact=normalizeContact(form.contact_number);
-      const finalBankType=form.bank_type==="Others"?form.bank_type_other:form.bank_type;
-      const birthdayISO  = dateToISO(form.birthday);
-      const joinedISO    = dateToISO(form.joined_date);
+      const finalBankType=form.bank_type==="Others"?form.bank_type_other.trim():form.bank_type;
+      const finalPosition=form.position==="Others"?form.position_other.trim():form.position;
+      const birthdayISO=dateToISO(form.birthday);
+      const joinedISO=dateToISO(form.joined_date);
+
       const payload={
         ...form,
         contact_number:contact,
         birthday:birthdayISO,
         joined_date:joinedISO,
         bank_type:finalBankType,
+        position:finalPosition,
+        role:finalPosition,
         onboarded:true,
-        role:form.position,
       };
       delete payload.bank_type_other;
+      delete payload.position_other;
+
       await supabase.from("profiles").update(payload).eq("id",user.id);
+
       const reqs=[];
       if(form.ic_number)    reqs.push({user_id:user.id,field_name:"ic_number",   field_value:form.ic_number,   status:"Pending"});
       if(form.epf_number)   reqs.push({user_id:user.id,field_name:"epf_number",  field_value:form.epf_number,  status:"Pending"});
       if(form.bank_account) reqs.push({user_id:user.id,field_name:"bank_account",field_value:form.bank_account,extra_value:finalBankType,status:"Pending"});
-      reqs.push({user_id:user.id,field_name:"position",   field_value:form.position, status:"Pending"});
-      reqs.push({user_id:user.id,field_name:"joined_date",field_value:joinedISO,      status:"Pending"});
+      reqs.push({user_id:user.id,field_name:"position",   field_value:finalPosition,status:"Pending"});
+      reqs.push({user_id:user.id,field_name:"joined_date",field_value:joinedISO,   status:"Pending"});
       if(reqs.length>0)await supabase.from("verification_requests").insert(reqs);
+
       for(const msg of WELCOME){
         await supabase.from("messages").insert({
           user_id:user.id,sender_name:"Techwide Hub",
@@ -369,23 +385,44 @@ function OnboardingFlow({user,onComplete}){
       style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
   );
 
-  // ── Calendar date picker — stores as DD/MM/YYYY ──
+  // Native calendar picker — stores DD/MM/YYYY
   const DateInp=(k)=>(
     <input
       type="date"
       value={dateToISO(form[k])||""}
-      onChange={e=>{
-        const iso=e.target.value;
-        set(k,ISOToDisplay(iso));
-        clearErr(k);
-      }}
-      style={{
-        width:"100%",background:"transparent",border:"none",
-        outline:"none",fontSize:17,
-        color:form[k]?LBL:LB3,
-        cursor:"pointer",
-      }}
+      onChange={e=>{set(k,ISOToDisplay(e.target.value));clearErr(k);}}
+      style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:form[k]?LBL:LB3,cursor:"pointer"}}
     />
+  );
+
+  // Reusable dropdown
+  const DropDown=(k,options,ph,onChange=null)=>(
+    <div style={{position:"relative"}}>
+      <select
+        value={form[k]}
+        onChange={e=>{
+          set(k,e.target.value);
+          clearErr(k);
+          if(onChange)onChange(e.target.value);
+        }}
+        style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:form[k]?LBL:LB3,appearance:"none",WebkitAppearance:"none",paddingRight:24,cursor:"pointer"}}>
+        <option value="" disabled>{ph}</option>
+        {options.map(o=><option key={o} value={o}>{o}</option>)}
+      </select>
+      <div style={{position:"absolute",right:0,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
+    </div>
+  );
+
+  const OtherInput=(k,ph)=>(
+    <div style={{marginTop:10}}>
+      <input
+        value={form[k]}
+        onChange={e=>{set(k,e.target.value);clearErr(k);}}
+        placeholder={ph}
+        style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none"}}
+      />
+      <ErrMsg k={k}/>
+    </div>
   );
 
   return(
@@ -422,7 +459,7 @@ function OnboardingFlow({user,onComplete}){
 
       <div style={{padding:"0 16px 24px"}}>
 
-        {/* ── Step 1 — Basic Info ── */}
+        {/* ── Step 1 ── */}
         {step===1&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
 
@@ -432,54 +469,33 @@ function OnboardingFlow({user,onComplete}){
             {/* Nickname */}
             {FW("Nickname",TI("nickname","e.g. Farid"))}
 
-            {/* Position — Dropdown */}
+            {/* Position — Dropdown + Others text box */}
             {FW("Position",
               <>
-                <div style={{position:"relative"}}>
-                  <select
-                    value={form.position}
-                    onChange={e=>{set("position",e.target.value);clearErr("position");}}
-                    style={{
-                      width:"100%",background:"transparent",border:"none",outline:"none",
-                      fontSize:17,color:form.position?LBL:LB3,
-                      appearance:"none",WebkitAppearance:"none",
-                      paddingRight:24,cursor:"pointer",
-                    }}>
-                    <option value="" disabled>Select your position…</option>
-                    {POSITIONS.map(p=><option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <div style={{position:"absolute",right:0,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
-                </div>
+                {DropDown("position",POSITIONS,"Select your position…",()=>{set("position_other","");clearErr("position_other");})}
+                {form.position==="Others"&&OtherInput("position_other","Please specify your position")}
                 <ErrMsg k="position"/>
               </>,false,true)}
 
-            {/* Birthday — Calendar picker */}
+            {/* Birthday — Calendar */}
             {FW("Birthday",
               <>
                 {DateInp("birthday")}
-                {form.birthday&&(
-                  <div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>
-                    ✓ {form.birthday}
-                  </div>
-                )}
+                {form.birthday&&<div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>✓ {form.birthday}</div>}
                 <ErrMsg k="birthday"/>
               </>,false,true)}
 
-            {/* Joining Date — Calendar picker */}
+            {/* Joining Date — Calendar */}
             {FW("Joining Date",
               <>
                 {DateInp("joined_date")}
-                {form.joined_date&&(
-                  <div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>
-                    ✓ {form.joined_date}
-                  </div>
-                )}
+                {form.joined_date&&<div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>✓ {form.joined_date}</div>}
                 <ErrMsg k="joined_date"/>
               </>,true,true)}
           </div>
         )}
 
-        {/* ── Step 2 — Contact ── */}
+        {/* ── Step 2 ── */}
         {step===2&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
@@ -504,7 +520,7 @@ function OnboardingFlow({user,onComplete}){
           </>
         )}
 
-        {/* ── Step 3 — About ── */}
+        {/* ── Step 3 ── */}
         {step===3&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
@@ -519,86 +535,72 @@ function OnboardingFlow({user,onComplete}){
           </div>
         )}
 
-        {/* ── Step 4 — Private Info ── */}
+        {/* ── Step 4 ── */}
         {step===4&&(
-          <>
-            <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
-              🔒 Only visible to admin.<br/>
-              IC, EPF & Bank require admin verification.
-            </div>
-            <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
+          <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
 
-              {/* IC Number */}
-              {FW("IC Number",
-                <>
-                  <input value={form.ic_number}
-                    onChange={e=>{set("ic_number",formatIC(e.target.value));clearErr("ic_number");}}
-                    placeholder="XXXXXX-XX-XXXX"
-                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,letterSpacing:1}}/>
-                  <div style={{fontSize:12,color:getICDigits(form.ic_number).length===12?"#34c759":LB3,marginTop:4}}>
-                    {getICDigits(form.ic_number).length}/12 digits {getICDigits(form.ic_number).length===12&&"✓"}
-                  </div>
-                  <ErrMsg k="ic_number"/>
-                </>,false,true)}
-
-              {/* EPF Number — Required */}
-              {FW("EPF Number",
-                <>
-                  <input value={form.epf_number}
-                    onChange={e=>{set("epf_number",e.target.value.replace(/\D/g,""));clearErr("epf_number");}}
-                    placeholder="XXXXXXXXXXXX" type="tel"
-                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
-                  <ErrMsg k="epf_number"/>
-                </>,false,true)}
-
-              {/* Bank Account */}
-              {FW("Bank Account Number",
-                <>
-                  <input value={form.bank_account}
-                    onChange={e=>{set("bank_account",e.target.value.replace(/\D/g,""));clearErr("bank_account");}}
-                    placeholder="Numbers only" type="tel"
-                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
-                  <ErrMsg k="bank_account"/>
-                </>)}
-
-              {/* Bank Type — Dropdown */}
-              <div style={{padding:"11px 16px",borderBottom:form.bank_type==="Others"?`1px solid ${SEP}`:"none"}}>
-                <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8}}>Bank Type</div>
-                <div style={{position:"relative"}}>
-                  <select
-                    value={form.bank_type}
-                    onChange={e=>{set("bank_type",e.target.value);clearErr("bank_type_other");}}
-                    style={{
-                      width:"100%",background:"transparent",border:`1px solid ${SEP}`,
-                      borderRadius:9,padding:"10px 32px 10px 12px",
-                      fontSize:16,color:LBL,
-                      appearance:"none",WebkitAppearance:"none",
-                      cursor:"pointer",outline:"none",
-                    }}>
-                    {BANK_TYPES.map(b=><option key={b} value={b}>{b}</option>)}
-                  </select>
-                  <div style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
+            {/* IC Number */}
+            {FW("IC Number",
+              <>
+                <input value={form.ic_number}
+                  onChange={e=>{set("ic_number",formatIC(e.target.value));clearErr("ic_number");}}
+                  placeholder="XXXXXX-XX-XXXX"
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,letterSpacing:1}}/>
+                <div style={{fontSize:12,color:getICDigits(form.ic_number).length===12?"#34c759":LB3,marginTop:4}}>
+                  {getICDigits(form.ic_number).length}/12 digits {getICDigits(form.ic_number).length===12&&"✓"}
                 </div>
-              </div>
+                <ErrMsg k="ic_number"/>
+              </>,false,true)}
 
-              {/* If Others — free text */}
+            {/* EPF Number — Required */}
+            {FW("EPF Number",
+              <>
+                <input value={form.epf_number}
+                  onChange={e=>{set("epf_number",e.target.value.replace(/\D/g,""));clearErr("epf_number");}}
+                  placeholder="XXXXXXXXXXXX" type="tel"
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+                <ErrMsg k="epf_number"/>
+              </>,false,true)}
+
+            {/* Bank Account */}
+            {FW("Bank Account Number",
+              <>
+                <input value={form.bank_account}
+                  onChange={e=>{set("bank_account",e.target.value.replace(/\D/g,""));clearErr("bank_account");}}
+                  placeholder="Numbers only" type="tel"
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+                <ErrMsg k="bank_account"/>
+              </>)}
+
+            {/* Bank Type — Dropdown + Others text box */}
+            <div style={{padding:"11px 16px",borderBottom:form.bank_type==="Others"?`1px solid ${SEP}`:"none"}}>
+              <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8}}>Bank Type</div>
+              <div style={{position:"relative"}}>
+                <select
+                  value={form.bank_type}
+                  onChange={e=>{set("bank_type",e.target.value);clearErr("bank_type_other");set("bank_type_other","");}}
+                  style={{width:"100%",background:"transparent",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 32px 10px 12px",fontSize:16,color:LBL,appearance:"none",WebkitAppearance:"none",cursor:"pointer",outline:"none"}}>
+                  {BANK_TYPES.map(b=><option key={b} value={b}>{b}</option>)}
+                </select>
+                <div style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
+              </div>
+              {/* Others — free text */}
               {form.bank_type==="Others"&&(
-                <div style={{padding:"11px 16px"}}>
-                  <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>
-                    Specify Bank Name <span style={{color:"#ff3b30"}}>*</span>
-                  </div>
-                  <input value={form.bank_type_other}
+                <div style={{marginTop:10}}>
+                  <input
+                    value={form.bank_type_other}
                     onChange={e=>{set("bank_type_other",e.target.value);clearErr("bank_type_other");}}
-                    placeholder="Enter your bank name"
-                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+                    placeholder="Please specify your bank name"
+                    style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none"}}
+                  />
                   <ErrMsg k="bank_type_other"/>
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
 
-        {/* ── Step 5 — Photo ── */}
+        {/* ── Step 5 ── */}
         {step===5&&(
           <div style={{textAlign:"center",marginBottom:24}}>
             <div onClick={()=>document.getElementById("avOnboard").click()} className="btn"

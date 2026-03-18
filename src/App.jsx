@@ -29,34 +29,27 @@ const GLOBAL_CSS=`
   .notif-dot{animation:notifPop .3s cubic-bezier(.34,1.56,.64,1) both;}
   .pulsing{animation:pulse .9s ease infinite;}
   input,textarea,button,select{font-family:${SF};}
+  input[type="date"]{color-scheme:light;}
 `;
 
 const DOMAIN="@techwide.com";
 
-// ── DATE HELPERS (DD/MM/YYYY) ─────────────────────────────────────────
-const fmtDateInput=val=>{
-  const d=val.replace(/\D/g,'').slice(0,8);
-  if(d.length<=2)return d;
-  if(d.length<=4)return`${d.slice(0,2)}/${d.slice(2)}`;
-  return`${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`;
-};
-const dateToISO=val=>{
-  const p=val.split('/');
-  if(p.length===3&&p[2].length===4)return`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-  return'';
-};
+// ── DATE HELPERS ──────────────────────────────────────────────────────
 const ISOToDisplay=iso=>{
-  if(!iso)return'';
-  const p=iso.split('-');
+  if(!iso)return"";
+  const p=iso.split("-");
   if(p.length===3)return`${p[2]}/${p[1]}/${p[0]}`;
   return iso;
 };
-const isValidDate=val=>{
-  if(!val)return false;
-  const p=val.split('/');
-  if(p.length!==3||p[0].length!==2||p[1].length!==2||p[2].length!==4)return false;
-  const d=+p[0],m=+p[1],y=+p[2];
-  return d>=1&&d<=31&&m>=1&&m<=12&&y>=1900&&y<=2100;
+const dateToISO=val=>{
+  if(!val)return"";
+  // Already ISO
+  if(/^\d{4}-\d{2}-\d{2}$/.test(val))return val;
+  // DD/MM/YYYY
+  const p=val.split("/");
+  if(p.length===3&&p[2].length===4)
+    return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
+  return"";
 };
 
 // ── ENSURE PROFILE ────────────────────────────────────────────────────
@@ -66,8 +59,10 @@ const ensureProfile=async(user)=>{
     if(ex)return ex;
     const avatar=(user.email||"").split("@")[0].slice(0,2).toUpperCase()||"??";
     const{data:cr,error}=await supabase.from("profiles").upsert({
-      id:user.id,name:(user.email||"").split("@")[0],
-      email:user.email||"",avatar,xp:0,streak:0,badges:[],
+      id:user.id,
+      name:(user.email||"").split("@")[0],
+      email:user.email||"",
+      avatar,xp:0,streak:0,badges:[],
       is_admin:false,onboarded:false,contribution_score:0,
     },{onConflict:"id"}).select().single();
     if(error){console.error("Profile error:",error);return null;}
@@ -91,6 +86,7 @@ function SignUpScreen({onBack,onSignedIn}){
   const passOk     = pass.length>=6;
   const matchOk    = confirm.length>0&&pass===confirm;
 
+  // Live email check — fires 700ms after typing stops
   useEffect(()=>{
     clearTimeout(timerRef.current);
     if(!prefix.trim()||!validPrefix(prefix)){
@@ -156,7 +152,10 @@ function SignUpScreen({onBack,onSignedIn}){
     }catch(err){setFormErr({general:err.message||"Please try again"});setLoading(false);}
   };
 
-  const emailBorder=emailStatus==="taken"?"#ff3b30":emailStatus==="available"?"#34c759":emailStatus==="error"?"#ff9500":"#e5e5ea";
+  const emailBorder=
+    emailStatus==="taken"    ?"#ff3b30":
+    emailStatus==="available"?"#34c759":
+    emailStatus==="error"    ?"#ff9500":"#e5e5ea";
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
@@ -182,7 +181,7 @@ function SignUpScreen({onBack,onSignedIn}){
             </div>
             <div style={{display:"flex",alignItems:"center",borderRadius:10,overflow:"hidden",border:`1.5px solid ${emailBorder}`,transition:"border-color .2s"}}>
               <input value={prefix}
-                onChange={e=>{setPrefix(e.target.value.toLowerCase().replace(/\s/g,''));setFormErr(p=>({...p,prefix:undefined}));}}
+                onChange={e=>{setPrefix(e.target.value.toLowerCase().replace(/\s/g,""));setFormErr(p=>({...p,prefix:undefined}));}}
                 placeholder="name" type="text" autoCapitalize="none" autoCorrect="off"
                 style={{flex:1,background:"#f9f9f9",border:"none",outline:"none",fontSize:17,color:LBL,padding:"11px 12px"}}/>
               <div style={{padding:"11px 12px",background:ACC,color:"#fff",fontSize:15,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{DOMAIN}</div>
@@ -255,8 +254,8 @@ function OnboardingFlow({user,onComplete}){
     name:user.name||"",
     nickname:"",
     position:"",
-    birthday:"",       // DD/MM/YYYY display
-    joined_date:"",    // DD/MM/YYYY display
+    birthday:"",
+    joined_date:"",
     contact_number:"",
     bio:"",
     hobby:"",
@@ -281,21 +280,22 @@ function OnboardingFlow({user,onComplete}){
       if(!form.name.trim())       e.name="Full name is required";
       if(!form.position)          e.position="Please select your position";
       if(!form.birthday)          e.birthday="Birthday is required";
-      else if(!isValidDate(form.birthday)) e.birthday="Please enter a valid date (DD/MM/YYYY)";
       if(!form.joined_date)       e.joined_date="Joining date is required";
-      else if(!isValidDate(form.joined_date)) e.joined_date="Please enter a valid date (DD/MM/YYYY)";
     }
     if(step===2){
       if(!form.contact_number)    e.contact_number="Contact number is required";
-      else if(!validateContact(form.contact_number)) e.contact_number="Enter a valid Malaysian number";
+      else if(!validateContact(form.contact_number))
+                                  e.contact_number="Enter a valid Malaysian number";
     }
     if(step===4){
       const digits=getICDigits(form.ic_number);
       if(!form.ic_number)         e.ic_number="IC number is required";
       else if(digits.length!==12) e.ic_number="IC must be exactly 12 digits";
       if(!form.epf_number.trim()) e.epf_number="EPF number is required";
-      if(form.bank_account&&!/^\d+$/.test(form.bank_account)) e.bank_account="Numbers only";
-      if(form.bank_type==="Others"&&!form.bank_type_other.trim()) e.bank_type_other="Please specify your bank";
+      if(form.bank_account&&!/^\d+$/.test(form.bank_account))
+                                  e.bank_account="Numbers only";
+      if(form.bank_type==="Others"&&!form.bank_type_other.trim())
+                                  e.bank_type_other="Please specify your bank";
     }
     if(step===5){
       if(!form.avatar_url)        e.avatar_url="Profile photo is required";
@@ -319,9 +319,8 @@ function OnboardingFlow({user,onComplete}){
     try{
       const contact=normalizeContact(form.contact_number);
       const finalBankType=form.bank_type==="Others"?form.bank_type_other:form.bank_type;
-      // Convert DD/MM/YYYY → ISO for storage
-      const birthdayISO   = dateToISO(form.birthday);
-      const joinedISO     = dateToISO(form.joined_date);
+      const birthdayISO  = dateToISO(form.birthday);
+      const joinedISO    = dateToISO(form.joined_date);
       const payload={
         ...form,
         contact_number:contact,
@@ -337,11 +336,14 @@ function OnboardingFlow({user,onComplete}){
       if(form.ic_number)    reqs.push({user_id:user.id,field_name:"ic_number",   field_value:form.ic_number,   status:"Pending"});
       if(form.epf_number)   reqs.push({user_id:user.id,field_name:"epf_number",  field_value:form.epf_number,  status:"Pending"});
       if(form.bank_account) reqs.push({user_id:user.id,field_name:"bank_account",field_value:form.bank_account,extra_value:finalBankType,status:"Pending"});
-      reqs.push({user_id:user.id,field_name:"position",   field_value:form.position,   status:"Pending"});
-      reqs.push({user_id:user.id,field_name:"joined_date",field_value:joinedISO,        status:"Pending"});
+      reqs.push({user_id:user.id,field_name:"position",   field_value:form.position, status:"Pending"});
+      reqs.push({user_id:user.id,field_name:"joined_date",field_value:joinedISO,      status:"Pending"});
       if(reqs.length>0)await supabase.from("verification_requests").insert(reqs);
       for(const msg of WELCOME){
-        await supabase.from("messages").insert({user_id:user.id,sender_name:"Techwide Hub",sender_avatar:"TW",content:msg,is_system:true});
+        await supabase.from("messages").insert({
+          user_id:user.id,sender_name:"Techwide Hub",
+          sender_avatar:"TW",content:msg,is_system:true,
+        });
       }
       onComplete();
     }catch(err){console.error("Onboarding error:",err);}
@@ -352,13 +354,12 @@ function OnboardingFlow({user,onComplete}){
     ?<div style={{fontSize:12,color:"#ff3b30",marginTop:4,fontWeight:500,lineHeight:1.4}}>{errors[k]}</div>
     :null;
 
-  const FW=(label,children,last=false,required=false,note=null)=>(
+  const FW=(label,children,last=false,required=false)=>(
     <div style={{padding:"11px 16px",background:BG2,borderBottom:last?"none":`1px solid ${SEP}`}}>
-      <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:note?2:5}}>
+      <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
         <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>{label}</div>
         {required&&<div style={{fontSize:12,color:"#ff3b30",fontWeight:700}}>*</div>}
       </div>
-      {note&&<div style={{fontSize:11,color:"#ff9500",fontWeight:500,marginBottom:5}}>⏳ {note}</div>}
       {children}
     </div>
   );
@@ -368,40 +369,23 @@ function OnboardingFlow({user,onComplete}){
       style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
   );
 
-  // Date input with DD/MM/YYYY auto-format
-  const DateInp=(k,ph)=>(
+  // ── Calendar date picker — stores as DD/MM/YYYY ──
+  const DateInp=(k)=>(
     <input
-      value={form[k]}
+      type="date"
+      value={dateToISO(form[k])||""}
       onChange={e=>{
-        const formatted=fmtDateInput(e.target.value);
-        set(k,formatted);
+        const iso=e.target.value;
+        set(k,ISOToDisplay(iso));
         clearErr(k);
       }}
-      placeholder={ph||"DD/MM/YYYY"}
-      type="text"
-      inputMode="numeric"
-      maxLength={10}
-      style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,letterSpacing:.5}}
+      style={{
+        width:"100%",background:"transparent",border:"none",
+        outline:"none",fontSize:17,
+        color:form[k]?LBL:LB3,
+        cursor:"pointer",
+      }}
     />
-  );
-
-  // Dropdown select styled iOS-like
-  const Select=(k,options,ph="Select…",onChange=null)=>(
-    <div style={{position:"relative"}}>
-      <select
-        value={form[k]}
-        onChange={e=>{
-          const v=e.target.value;
-          set(k,v);
-          clearErr(k);
-          if(onChange)onChange(v);
-        }}
-        style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:form[k]?LBL:LB3,appearance:"none",WebkitAppearance:"none",paddingRight:24,cursor:"pointer"}}>
-        <option value="" disabled>{ph}</option>
-        {options.map(o=><option key={o} value={o}>{o}</option>)}
-      </select>
-      <div style={{position:"absolute",right:0,top:"50%",transform:"translateY(-50%)",fontSize:12,color:LB3,pointerEvents:"none"}}>›</div>
-    </div>
   );
 
   return(
@@ -413,6 +397,7 @@ function OnboardingFlow({user,onComplete}){
           onCancel={()=>{setShowCrop(false);setRawImg(null);}}
         />
       )}
+
       <div style={{padding:"52px 16px 24px"}}>
         <img src="/TECHWIDE_LOGO.png" alt="" style={{width:36,height:36,borderRadius:8,objectFit:"cover",marginBottom:16}}/>
         <div style={{fontSize:13,color:LB3,marginBottom:6}}>Step {step} of {TOTAL}</div>
@@ -437,48 +422,64 @@ function OnboardingFlow({user,onComplete}){
 
       <div style={{padding:"0 16px 24px"}}>
 
-        {/* ── Step 1 ── */}
+        {/* ── Step 1 — Basic Info ── */}
         {step===1&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
+
+            {/* Full Name */}
             {FW("Full Name",<>{TI("name","Ahmad Farid")}<ErrMsg k="name"/></>,false,true)}
+
+            {/* Nickname */}
             {FW("Nickname",TI("nickname","e.g. Farid"))}
 
-            {/* Position dropdown */}
+            {/* Position — Dropdown */}
             {FW("Position",
               <>
-                {Select("position",POSITIONS,"Select your position…")}
+                <div style={{position:"relative"}}>
+                  <select
+                    value={form.position}
+                    onChange={e=>{set("position",e.target.value);clearErr("position");}}
+                    style={{
+                      width:"100%",background:"transparent",border:"none",outline:"none",
+                      fontSize:17,color:form.position?LBL:LB3,
+                      appearance:"none",WebkitAppearance:"none",
+                      paddingRight:24,cursor:"pointer",
+                    }}>
+                    <option value="" disabled>Select your position…</option>
+                    {POSITIONS.map(p=><option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <div style={{position:"absolute",right:0,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
+                </div>
                 <ErrMsg k="position"/>
               </>,false,true)}
 
-            {/* Birthday DD/MM/YYYY */}
+            {/* Birthday — Calendar picker */}
             {FW("Birthday",
               <>
-                {DateInp("birthday","DD/MM/YYYY")}
-                {form.birthday&&!isValidDate(form.birthday)&&form.birthday.length>0&&(
-                  <div style={{fontSize:12,color:"#ff9500",marginTop:4}}>Format: DD/MM/YYYY (e.g. 01/01/1995)</div>
-                )}
-                {form.birthday&&isValidDate(form.birthday)&&(
-                  <div style={{fontSize:12,color:"#34c759",marginTop:4}}>✓ Valid date</div>
+                {DateInp("birthday")}
+                {form.birthday&&(
+                  <div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>
+                    ✓ {form.birthday}
+                  </div>
                 )}
                 <ErrMsg k="birthday"/>
               </>,false,true)}
 
-            {/* Joining Date DD/MM/YYYY */}
+            {/* Joining Date — Calendar picker */}
             {FW("Joining Date",
               <>
-                {DateInp("joined_date","DD/MM/YYYY")}
-                {form.joined_date&&!isValidDate(form.joined_date)&&form.joined_date.length>0&&(
-                  <div style={{fontSize:12,color:"#ff9500",marginTop:4}}>Format: DD/MM/YYYY (e.g. 15/06/2024)</div>
-                )}
-                {form.joined_date&&isValidDate(form.joined_date)&&(
-                  <div style={{fontSize:12,color:"#34c759",marginTop:4}}>✓ Valid date</div>
+                {DateInp("joined_date")}
+                {form.joined_date&&(
+                  <div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>
+                    ✓ {form.joined_date}
+                  </div>
                 )}
                 <ErrMsg k="joined_date"/>
-             </>,true,true)}
+              </>,true,true)}
           </div>
         )}
 
-        {/* ── Step 2 ── */}
+        {/* ── Step 2 — Contact ── */}
         {step===2&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
@@ -489,7 +490,7 @@ function OnboardingFlow({user,onComplete}){
               {FW("Contact Number",
                 <>
                   <input value={form.contact_number}
-                    onChange={e=>{set("contact_number",e.target.value.replace(/\D/g,''));clearErr("contact_number");}}
+                    onChange={e=>{set("contact_number",e.target.value.replace(/\D/g,""));clearErr("contact_number");}}
                     placeholder="0123456789" type="tel"
                     style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
                   {form.contact_number&&(
@@ -503,7 +504,7 @@ function OnboardingFlow({user,onComplete}){
           </>
         )}
 
-        {/* ── Step 3 ── */}
+        {/* ── Step 3 — About ── */}
         {step===3&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
@@ -511,14 +512,14 @@ function OnboardingFlow({user,onComplete}){
               <textarea value={form.bio} onChange={e=>set("bio",e.target.value)}
                 placeholder="Describe about yourself in short..."
                 rows={3}
-                style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",lineHeight:1.45}}/>
+                style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",lineHeight:1.45,fontFamily:SF}}/>
             </div>
             {FW("Hobby",TI("hobby","e.g. Gaming, Reading"))}
             {FW("Favourite Food",TI("favorite_food","e.g. Nasi Lemak"),true)}
           </div>
         )}
 
-        {/* ── Step 4 ── */}
+        {/* ── Step 4 — Private Info ── */}
         {step===4&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
@@ -540,11 +541,11 @@ function OnboardingFlow({user,onComplete}){
                   <ErrMsg k="ic_number"/>
                 </>,false,true)}
 
-              {/* EPF Number — REQUIRED */}
+              {/* EPF Number — Required */}
               {FW("EPF Number",
                 <>
                   <input value={form.epf_number}
-                    onChange={e=>{set("epf_number",e.target.value.replace(/\D/g,''));clearErr("epf_number");}}
+                    onChange={e=>{set("epf_number",e.target.value.replace(/\D/g,""));clearErr("epf_number");}}
                     placeholder="XXXXXXXXXXXX" type="tel"
                     style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
                   <ErrMsg k="epf_number"/>
@@ -554,30 +555,38 @@ function OnboardingFlow({user,onComplete}){
               {FW("Bank Account Number",
                 <>
                   <input value={form.bank_account}
-                    onChange={e=>{set("bank_account",e.target.value.replace(/\D/g,''));clearErr("bank_account");}}
+                    onChange={e=>{set("bank_account",e.target.value.replace(/\D/g,""));clearErr("bank_account");}}
                     placeholder="Numbers only" type="tel"
                     style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
                   <ErrMsg k="bank_account"/>
                 </>)}
 
-              {/* Bank Type Dropdown */}
+              {/* Bank Type — Dropdown */}
               <div style={{padding:"11px 16px",borderBottom:form.bank_type==="Others"?`1px solid ${SEP}`:"none"}}>
                 <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8}}>Bank Type</div>
                 <div style={{position:"relative"}}>
                   <select
                     value={form.bank_type}
                     onChange={e=>{set("bank_type",e.target.value);clearErr("bank_type_other");}}
-                    style={{width:"100%",background:"transparent",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 32px 10px 12px",fontSize:16,color:LBL,appearance:"none",WebkitAppearance:"none",cursor:"pointer",outline:"none"}}>
+                    style={{
+                      width:"100%",background:"transparent",border:`1px solid ${SEP}`,
+                      borderRadius:9,padding:"10px 32px 10px 12px",
+                      fontSize:16,color:LBL,
+                      appearance:"none",WebkitAppearance:"none",
+                      cursor:"pointer",outline:"none",
+                    }}>
                     {BANK_TYPES.map(b=><option key={b} value={b}>{b}</option>)}
                   </select>
                   <div style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
                 </div>
               </div>
 
-              {/* If Others — let them type */}
+              {/* If Others — free text */}
               {form.bank_type==="Others"&&(
                 <div style={{padding:"11px 16px"}}>
-                  <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Specify Bank Name <span style={{color:"#ff3b30"}}>*</span></div>
+                  <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>
+                    Specify Bank Name <span style={{color:"#ff3b30"}}>*</span>
+                  </div>
                   <input value={form.bank_type_other}
                     onChange={e=>{set("bank_type_other",e.target.value);clearErr("bank_type_other");}}
                     placeholder="Enter your bank name"
@@ -589,12 +598,17 @@ function OnboardingFlow({user,onComplete}){
           </>
         )}
 
-        {/* ── Step 5 ── */}
+        {/* ── Step 5 — Photo ── */}
         {step===5&&(
           <div style={{textAlign:"center",marginBottom:24}}>
             <div onClick={()=>document.getElementById("avOnboard").click()} className="btn"
               style={{width:160,height:160,borderRadius:"50%",margin:"0 auto 16px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border:`2px dashed ${form.avatar_url?"transparent":errors.avatar_url?"#ff3b30":ACC}`,background:form.avatar_url?`url(${form.avatar_url}) center/cover`:`${ACC}10`}}>
-              {!form.avatar_url&&<div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:6}}>📸</div><div style={{fontSize:13,color:ACC,fontWeight:600}}>Tap to Upload</div></div>}
+              {!form.avatar_url&&(
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:36,marginBottom:6}}>📸</div>
+                  <div style={{fontSize:13,color:ACC,fontWeight:600}}>Tap to Upload</div>
+                </div>
+              )}
             </div>
             <input id="avOnboard" type="file" accept="image/*" onChange={handleFileSelect} style={{display:"none"}}/>
             {form.avatar_url&&(
@@ -649,7 +663,8 @@ export default function App(){
     const el=document.createElement("style");
     el.textContent=GLOBAL_CSS;
     document.head.appendChild(el);
-    if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
+    if("serviceWorker" in navigator)
+      navigator.serviceWorker.register("/sw.js").catch(()=>{});
     return()=>document.head.removeChild(el);
   },[]);
 
@@ -672,7 +687,10 @@ export default function App(){
       const p=await ensureProfile(sess.user);
       if(p)setProfile(p);
       else await supabase.auth.signOut();
-    }catch(err){console.error("Load profile error:",err);await supabase.auth.signOut();}
+    }catch(err){
+      console.error("Load profile error:",err);
+      await supabase.auth.signOut();
+    }
     setLoading(false);
   };
 
@@ -681,21 +699,30 @@ export default function App(){
     if(!loginPass){setLoginErr("Please enter your password");return;}
     setLoginErr("");setLoginLoading(true);
     try{
-      const{data,error}=await supabase.auth.signInWithPassword({email:loginEmail.trim().toLowerCase(),password:loginPass});
+      const{data,error}=await supabase.auth.signInWithPassword({
+        email:loginEmail.trim().toLowerCase(),
+        password:loginPass,
+      });
       if(error){
         const msg=error.message.toLowerCase();
         if(msg.includes("invalid login")||msg.includes("invalid credentials"))
           setLoginErr("Incorrect email or password. Please try again.");
         else if(msg.includes("email not confirmed"))
           setLoginErr("Email not confirmed. Please contact your admin.");
-        else setLoginErr(error.message);
+        else
+          setLoginErr(error.message);
         setLoginLoading(false);return;
       }
       if(!data?.user){setLoginErr("Login failed. Please try again.");setLoginLoading(false);return;}
       const p=await ensureProfile(data.user);
       if(!p){setLoginErr("Could not load your profile. Please contact admin.");setLoginLoading(false);return;}
-      setSession(data.session);setProfile(p);setLoginLoading(false);
-    }catch(err){setLoginErr("Connection error. Please check your internet and try again.");setLoginLoading(false);}
+      setSession(data.session);
+      setProfile(p);
+      setLoginLoading(false);
+    }catch(err){
+      setLoginErr("Connection error. Please check your internet and try again.");
+      setLoginLoading(false);
+    }
   };
 
   // ── Loading ──
@@ -709,8 +736,15 @@ export default function App(){
   // ── Sign Up ──
   if(screen==="signup")return(
     <SignUpScreen
-      onBack={(prefillEmail)=>{if(prefillEmail)setLoginEmail(prefillEmail);setScreen("login");}}
-      onSignedIn={(sess,prof)=>{setSession(sess);setProfile(prof);setScreen("login");}}
+      onBack={(prefillEmail)=>{
+        if(prefillEmail)setLoginEmail(prefillEmail);
+        setScreen("login");
+      }}
+      onSignedIn={(sess,prof)=>{
+        setSession(sess);
+        setProfile(prof);
+        setScreen("login");
+      }}
     />
   );
 
@@ -720,19 +754,23 @@ export default function App(){
       <div className="fade" style={{textAlign:"center",marginBottom:36}}>
         <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:100,height:100,borderRadius:22,objectFit:"cover",margin:"0 auto 16px",display:"block",boxShadow:"0 8px 28px rgba(28,50,88,.2)"}}/>
         <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px"}}>Techwide Hub</div>
-        <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:2}}>Sincerity · Love · Responsible · Respectful</div>
+        <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:2}}>
+          Sincerity · Love · Responsible · Respectful
+        </div>
       </div>
       <div className="fade" style={{width:"100%",maxWidth:360}}>
         <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
             <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Email</div>
-            <input value={loginEmail} onChange={e=>{setLoginEmail(e.target.value);setLoginErr("");}}
+            <input value={loginEmail}
+              onChange={e=>{setLoginEmail(e.target.value);setLoginErr("");}}
               placeholder="name@techwide.com" type="email" autoComplete="email"
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
           </div>
           <div style={{padding:"11px 16px"}}>
             <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Password</div>
-            <input value={loginPass} onChange={e=>{setLoginPass(e.target.value);setLoginErr("");}}
+            <input value={loginPass}
+              onChange={e=>{setLoginPass(e.target.value);setLoginErr("");}}
               placeholder="Password" type="password" autoComplete="current-password"
               onKeyDown={e=>e.key==="Enter"&&doLogin()}
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>

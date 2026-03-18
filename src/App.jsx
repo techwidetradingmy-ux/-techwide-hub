@@ -14,7 +14,7 @@ const GLOBAL_CSS=`
   @keyframes barFill{from{width:0}to{width:var(--w)}}
   @keyframes toastIn{from{opacity:0;transform:translateY(10px)scale(.95)}to{opacity:1;transform:translateY(0)scale(1)}}
   @keyframes notifPop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   .fade{animation:fadeUp .28s cubic-bezier(.4,0,.2,1) both}
   .bar{animation:barFill .7s cubic-bezier(.4,0,.2,1) both}
   .toast-in{animation:toastIn .3s cubic-bezier(.34,1.2,.64,1) both}
@@ -33,48 +33,70 @@ const GLOBAL_CSS=`
 
 const DOMAIN="@techwide.com";
 
-// ── SIGNUP SCREEN ────────────────────────────────────────────────────────
-function SignUpScreen({onBack,onSuccess}){
-  const [prefix,  setPrefix]  = useState("");
-  const [pass,    setPass]    = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [errors,  setErrors]  = useState({});
-  const [loading, setLoading] = useState(false);
-  const [checking,setChecking]= useState(false);
-  const [emailStatus,setEmailStatus]=useState(null); // null | "available" | "taken"
-  const [done,    setDone]    = useState(false);
-  const checkTimer = useRef(null);
-
-  const fullEmail = ()=>`${prefix.trim().toLowerCase()}${DOMAIN}`;
-
-  const validatePrefix = val=>{
-    // Only letters, numbers, dots, underscores, hyphens
-    return /^[a-zA-Z0-9._-]+$/.test(val);
+// ── ENSURE PROFILE EXISTS ─────────────────────────────────────────────
+const ensureProfile=async(user)=>{
+  // Check if profile exists
+  const{data:existing}=await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id",user.id)
+    .maybeSingle();
+  if(existing)return existing;
+  // Create profile if missing
+  const avatar=(user.email||"").split("@")[0].slice(0,2).toUpperCase()||"??";
+  const newProfile={
+    id:user.id,
+    name:(user.email||"").split("@")[0],
+    email:user.email||"",
+    avatar,
+    xp:0,
+    streak:0,
+    badges:[],
+    is_admin:false,
+    onboarded:false,
+    contribution_score:0,
   };
+  const{data:created,error}=await supabase
+    .from("profiles")
+    .upsert(newProfile,{onConflict:"id"})
+    .select()
+    .single();
+  if(error){console.error("Profile create error:",error);return null;}
+  return created;
+};
 
-  // Real-time email existence check (debounced 800ms)
+// ── SIGNUP SCREEN ─────────────────────────────────────────────────────
+function SignUpScreen({onBack,onSignedIn}){
+  const [prefix,      setPrefix]      = useState("");
+  const [pass,        setPass]        = useState("");
+  const [confirm,     setConfirm]     = useState("");
+  const [errors,      setErrors]      = useState({});
+  const [loading,     setLoading]     = useState(false);
+  const [checking,    setChecking]    = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
+  const checkTimer=useRef(null);
+
+  const fullEmail=()=>`${prefix.trim().toLowerCase()}${DOMAIN}`;
+
+  const validPrefix=val=>/^[a-zA-Z0-9._-]+$/.test(val);
+
+  // Live email check (debounced 800ms)
   useEffect(()=>{
-    if(!prefix.trim()||!validatePrefix(prefix)){
-      setEmailStatus(null);
-      setChecking(false);
-      clearTimeout(checkTimer.current);
-      return;
+    if(!prefix.trim()||!validPrefix(prefix)){
+      setEmailStatus(null);setChecking(false);
+      clearTimeout(checkTimer.current);return;
     }
-    setEmailStatus(null);
-    setChecking(true);
+    setEmailStatus(null);setChecking(true);
     clearTimeout(checkTimer.current);
     checkTimer.current=setTimeout(async()=>{
       try{
-        // Check if email exists in profiles table
         const{data}=await supabase
           .from("profiles")
           .select("id")
           .eq("email",fullEmail())
           .maybeSingle();
         setEmailStatus(data?"taken":"available");
-      }catch{
-        setEmailStatus("available"); // assume available if check fails
-      }
+      }catch{setEmailStatus("available");}
       setChecking(false);
     },800);
     return()=>clearTimeout(checkTimer.current);
@@ -84,12 +106,14 @@ function SignUpScreen({onBack,onSuccess}){
     const e={};
     if(!prefix.trim())
       e.prefix="Username is required";
-    else if(!validatePrefix(prefix))
-      e.prefix="Only letters, numbers, dots, underscores and hyphens allowed";
+    else if(!validPrefix(prefix))
+      e.prefix="Only letters, numbers, dots and hyphens allowed";
+    else if(checking)
+      e.prefix="Please wait — checking email availability";
     else if(emailStatus==="taken")
-      e.prefix="This email is already registered";
+      e.prefix="This email is already registered. Please sign in.";
     else if(emailStatus!=="available")
-      e.prefix="Please wait for email check to complete";
+      e.prefix="Unable to verify email. Please try again.";
     if(!pass)
       e.pass="Password is required";
     else if(pass.length<6)
@@ -107,30 +131,56 @@ function SignUpScreen({onBack,onSuccess}){
     setLoading(true);
     try{
       const email=fullEmail();
-      // Create auth account
-      const{data,error}=await supabase.auth.signUp({
+
+      // Step 1 — Create auth account
+      const{data:signUpData,error:signUpError}=await supabase.auth.signUp({
         email,
         password:pass,
       });
-      if(error){
-        if(error.message.toLowerCase().includes("already registered")||
-           error.message.toLowerCase().includes("already been registered")){
+
+      if(signUpError){
+        const msg=signUpError.message.toLowerCase();
+        if(msg.includes("already registered")||msg.includes("already been registered")){
           setErrors({prefix:"This email is already registered. Please sign in."});
+        } else if(msg.includes("password")){
+          setErrors({pass:signUpError.message});
         } else {
-          setErrors({prefix:error.message});
+          setErrors({prefix:signUpError.message});
         }
         setLoading(false);
         return;
       }
-      if(!data?.user){
+
+      if(!signUpData?.user){
         setErrors({prefix:"Account creation failed. Please try again."});
         setLoading(false);
         return;
       }
-      // Create basic profile
+
+      const uid=signUpData.user.id;
+
+      // Step 2 — Confirm email immediately (internal app)
+      await supabase.rpc("confirm_user_email_by_id",{uid}).catch(()=>{});
+
+      // Step 3 — Force sign in immediately
+      const{data:signInData,error:signInError}=await supabase.auth.signInWithPassword({
+        email,
+        password:pass,
+      });
+
+      if(signInError||!signInData?.user){
+        // Sign in failed — show success and ask them to sign in manually
+        setLoading(false);
+        setErrors({prefix:""});
+        // Navigate to login with email prefilled
+        onBack(email);
+        return;
+      }
+
+      // Step 4 — Create profile
       const avatar=prefix.trim().slice(0,2).toUpperCase();
-      const{error:profileError}=await supabase.from("profiles").insert({
-        id:data.user.id,
+      await supabase.from("profiles").upsert({
+        id:uid,
         name:prefix.trim(),
         email,
         avatar,
@@ -140,110 +190,95 @@ function SignUpScreen({onBack,onSuccess}){
         is_admin:false,
         onboarded:false,
         contribution_score:0,
-      });
-      if(profileError&&!profileError.message.includes("duplicate")){
-        // Profile might already exist, that's okay
-        console.log("Profile insert note:",profileError.message);
+      },{onConflict:"id"});
+
+      // Step 5 — Load profile and go to onboarding
+      const profile=await ensureProfile(signInData.user);
+      if(profile){
+        onSignedIn(signInData.session,profile);
+      } else {
+        onBack(email);
       }
-      setDone(true);
+
     }catch(err){
-      // Show specific error, never generic "something went wrong"
       setErrors({prefix:`Error: ${err.message||"Please try again"}`});
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const ErrMsg=({k})=>errors[k]
-    ?<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500,paddingLeft:2,lineHeight:1.4}}>{errors[k]}</div>
+    ?<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500,lineHeight:1.4}}>{errors[k]}</div>
     :null;
 
-  // ── Success screen ──
-  if(done)return(
-    <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
-      <div className="fade" style={{textAlign:"center",maxWidth:360,width:"100%"}}>
-        <div style={{fontSize:64,marginBottom:20}}>🎉</div>
-        <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px",marginBottom:10}}>Account Created!</div>
-        <div style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:20,textAlign:"left"}}>
-          <div style={{fontSize:13,color:LB3,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:".3px"}}>Your login email</div>
-          <div style={{fontSize:17,color:ACC,fontWeight:600}}>{fullEmail()}</div>
-        </div>
-        <div style={{fontSize:15,color:LB3,lineHeight:1.7,marginBottom:32}}>
-          Sign in now to complete your profile setup. You'll be guided through a quick onboarding process.
-        </div>
-        <button onClick={()=>onSuccess(fullEmail())} className="btn-primary"
-          style={{width:"100%",background:ACC,color:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-          Sign In Now →
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── Sign up form ──
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
       <div style={{padding:"52px 16px 24px"}}>
-        <button onClick={onBack} className="btn"
+        <button onClick={()=>onBack()} className="btn"
           style={{display:"flex",alignItems:"center",gap:6,color:ACC,fontSize:16,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF,marginBottom:24,padding:0}}>
           ← Back to Sign In
         </button>
         <img src="/TECHWIDE_LOGO.png" alt="" style={{width:44,height:44,borderRadius:10,objectFit:"cover",marginBottom:16}}/>
-        <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginBottom:6}}>First Time Login 👋</div>
+        <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginBottom:6}}>
+          First Time Login 👋
+        </div>
         <div style={{fontSize:15,color:LB3,lineHeight:1.6}}>
-          Create your Techwide Hub account using your work email.
+          Create your Techwide Hub account.<br/>
+          Your email will be <strong>yourname{DOMAIN}</strong>
         </div>
       </div>
 
       <div style={{padding:"0 16px 40px"}}>
-        {/* Email field with @techwide.com suffix */}
         <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
+
+          {/* Email input */}
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
             <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:8}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Work Email</div>
               <div style={{fontSize:12,color:"#ff3b30",fontWeight:700}}>*</div>
             </div>
-
-            {/* Email input with domain suffix */}
-            <div style={{display:"flex",alignItems:"center",background:"#f2f2f7",borderRadius:10,overflow:"hidden",border:`1.5px solid ${
+            {/* Input with domain suffix */}
+            <div style={{display:"flex",alignItems:"center",borderRadius:10,overflow:"hidden",border:`1.5px solid ${
               emailStatus==="taken"?"#ff3b30":
               emailStatus==="available"?"#34c759":
-              SEP}`}}>
+              "#e5e5ea"
+            }`,transition:"border-color .2s"}}>
               <input
                 value={prefix}
                 onChange={e=>{
                   setPrefix(e.target.value.toLowerCase().replace(/\s/g,''));
                   setErrors(p=>({...p,prefix:undefined}));
                 }}
-                placeholder="yourname"
+                placeholder="name"
                 type="text"
                 autoCapitalize="none"
                 autoCorrect="off"
-                style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF,padding:"10px 12px"}}
+                style={{flex:1,background:"#f9f9f9",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF,padding:"11px 12px"}}
               />
-              <div style={{padding:"10px 12px",background:ACC,color:"#fff",fontSize:15,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>
+              <div style={{padding:"11px 12px",background:ACC,color:"#fff",fontSize:15,fontWeight:600,whiteSpace:"nowrap",flexShrink:0,letterSpacing:"-.2px"}}>
                 {DOMAIN}
               </div>
             </div>
 
-            {/* Full email preview */}
+            {/* Preview */}
             {prefix&&(
-              <div style={{fontSize:13,marginTop:6,color:LB3}}>
+              <div style={{fontSize:13,marginTop:6,color:LB3,letterSpacing:"-.1px"}}>
                 Full email: <span style={{color:ACC,fontWeight:600}}>{fullEmail()}</span>
               </div>
             )}
 
-            {/* Email check status */}
-            {prefix&&validatePrefix(prefix)&&(
-              <div style={{fontSize:12,marginTop:6,fontWeight:500,display:"flex",alignItems:"center",gap:5}}>
+            {/* Availability status */}
+            {prefix&&validPrefix(prefix)&&(
+              <div style={{fontSize:12,marginTop:5,fontWeight:500,display:"flex",alignItems:"center",gap:5}}>
                 {checking&&<>
-                  <div className="checking" style={{width:8,height:8,borderRadius:"50%",background:"#ff9500"}}/>
+                  <div className="checking" style={{width:7,height:7,borderRadius:"50%",background:"#ff9500"}}/>
                   <span style={{color:"#ff9500"}}>Checking availability…</span>
                 </>}
-                {!checking&&emailStatus==="available"&&<>
+                {!checking&&emailStatus==="available"&&(
                   <span style={{color:"#34c759"}}>✓ Email is available</span>
-                </>}
-                {!checking&&emailStatus==="taken"&&<>
-                  <span style={{color:"#ff3b30"}}>✕ This email is already registered</span>
-                </>}
+                )}
+                {!checking&&emailStatus==="taken"&&(
+                  <span style={{color:"#ff3b30"}}>✕ Already registered — please sign in instead</span>
+                )}
               </div>
             )}
             <ErrMsg k="prefix"/>
@@ -263,13 +298,12 @@ function SignUpScreen({onBack,onSuccess}){
               autoComplete="new-password"
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}
             />
-            {/* Password strength */}
             {pass&&(
               <div style={{display:"flex",gap:5,marginTop:8,flexWrap:"wrap"}}>
                 {[
-                  {label:"6+ chars",  ok:pass.length>=6},
-                  {label:"Uppercase", ok:/[A-Z]/.test(pass)},
-                  {label:"Number",    ok:/[0-9]/.test(pass)},
+                  {label:"6+ chars", ok:pass.length>=6},
+                  {label:"Uppercase",ok:/[A-Z]/.test(pass)},
+                  {label:"Number",   ok:/[0-9]/.test(pass)},
                 ].map(x=>(
                   <div key={x.label} style={{background:x.ok?"#34c75918":"rgba(0,0,0,.06)",color:x.ok?"#34c759":LB3,fontSize:11,fontWeight:600,padding:"3px 8px",borderRadius:99,transition:"all .2s"}}>
                     {x.ok?"✓ ":""}{x.label}
@@ -280,7 +314,7 @@ function SignUpScreen({onBack,onSuccess}){
             <ErrMsg k="pass"/>
           </div>
 
-          {/* Confirm password */}
+          {/* Confirm */}
           <div style={{padding:"11px 16px"}}>
             <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Confirm Password</div>
@@ -302,32 +336,32 @@ function SignUpScreen({onBack,onSuccess}){
           </div>
         </div>
 
-        {/* Info note */}
+        {/* Info */}
         <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:20,fontSize:13,color:ACC,lineHeight:1.7}}>
-          📋 After creating your account, you'll complete your profile setup including your name, position, contact details and more.
+          📋 After creating your account, you'll be guided through profile setup — name, position, contact info and more.
         </div>
 
-        {/* Create Account button */}
+        {/* Create button */}
         <button
           onClick={handleSignUp}
-          disabled={loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm}
+          disabled={loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm||pass!==confirm}
           className="btn-primary"
           style={{
             width:"100%",
-            background:loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm?"#e5e5ea":ACC,
-            color:loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm?LB3:"#fff",
+            background:loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm||pass!==confirm?"#e5e5ea":ACC,
+            color:loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm||pass!==confirm?LB3:"#fff",
             border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,
             cursor:loading||checking?"default":"pointer",
-            display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:SF,
-            marginBottom:12
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+            fontFamily:SF,marginBottom:12,
           }}>
           {loading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
-          {loading?"Creating Account…":checking?"Checking email…":"Create Account"}
+          {loading?"Creating & Signing In…":checking?"Checking email…":"Create Account"}
         </button>
 
         <div style={{textAlign:"center",fontSize:13,color:LB3}}>
           Already have an account?{" "}
-          <button onClick={onBack} className="btn"
+          <button onClick={()=>onBack()} className="btn"
             style={{color:ACC,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF,fontSize:13}}>
             Sign In
           </button>
@@ -337,7 +371,7 @@ function SignUpScreen({onBack,onSuccess}){
   );
 }
 
-// ── ONBOARDING ────────────────────────────────────────────────────────────
+// ── ONBOARDING ────────────────────────────────────────────────────────
 function OnboardingFlow({user,onComplete}){
   const [step,   setStep]   = useState(1);
   const [errors, setErrors] = useState({});
@@ -391,27 +425,34 @@ function OnboardingFlow({user,onComplete}){
   const handleSubmit=async()=>{
     if(!validate())return;
     setLoading(true);
-    const contact=normalizeContact(form.contact_number);
-    const payload={...form,contact_number:contact,onboarded:true,role:form.position};
-    await supabase.from("profiles").update(payload).eq("id",user.id);
-    const reqs=[];
-    if(form.ic_number)reqs.push({user_id:user.id,field_name:"ic_number",field_value:form.ic_number,status:"Pending"});
-    if(form.epf_number)reqs.push({user_id:user.id,field_name:"epf_number",field_value:form.epf_number,status:"Pending"});
-    if(form.bank_account)reqs.push({user_id:user.id,field_name:"bank_account",field_value:form.bank_account,extra_value:form.bank_type,status:"Pending"});
-    reqs.push({user_id:user.id,field_name:"position",field_value:form.position,status:"Pending"});
-    if(reqs.length>0)await supabase.from("verification_requests").insert(reqs);
-    for(const msg of WELCOME){
-      await supabase.from("messages").insert({user_id:user.id,sender_name:"Techwide Hub",sender_avatar:"TW",content:msg,is_system:true});
+    try{
+      const contact=normalizeContact(form.contact_number);
+      const payload={...form,contact_number:contact,onboarded:true,role:form.position};
+      await supabase.from("profiles").update(payload).eq("id",user.id);
+      const reqs=[];
+      if(form.ic_number)reqs.push({user_id:user.id,field_name:"ic_number",field_value:form.ic_number,status:"Pending"});
+      if(form.epf_number)reqs.push({user_id:user.id,field_name:"epf_number",field_value:form.epf_number,status:"Pending"});
+      if(form.bank_account)reqs.push({user_id:user.id,field_name:"bank_account",field_value:form.bank_account,extra_value:form.bank_type,status:"Pending"});
+      reqs.push({user_id:user.id,field_name:"position",field_value:form.position,status:"Pending"});
+      if(reqs.length>0)await supabase.from("verification_requests").insert(reqs);
+      for(const msg of WELCOME){
+        await supabase.from("messages").insert({
+          user_id:user.id,sender_name:"Techwide Hub",
+          sender_avatar:"TW",content:msg,is_system:true
+        });
+      }
+      onComplete();
+    }catch(err){
+      console.error("Onboarding error:",err);
     }
     setLoading(false);
-    onComplete();
   };
 
   const ErrMsg=({k})=>errors[k]
     ?<div style={{fontSize:12,color:"#ff3b30",marginTop:4,fontWeight:500}}>{errors[k]}</div>
     :null;
 
-  const FieldWrap=(label,children,last=false,required=false)=>(
+  const FW=(label,children,last=false,required=false)=>(
     <div style={{padding:"11px 16px",background:BG2,borderBottom:last?"none":`1px solid ${SEP}`}}>
       <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
         <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>{label}</div>
@@ -420,8 +461,7 @@ function OnboardingFlow({user,onComplete}){
       {children}
     </div>
   );
-
-  const TextInp=(k,ph,type="text")=>(
+  const TI=(k,ph,type="text")=>(
     <input value={form[k]} onChange={e=>{set(k,e.target.value);clearErr(k);}} placeholder={ph} type={type}
       style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
   );
@@ -456,13 +496,12 @@ function OnboardingFlow({user,onComplete}){
           {step===5&&"A clear photo helps your team recognise you"}
         </div>
       </div>
-
       <div style={{padding:"0 16px 24px"}}>
         {step===1&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
-            {FieldWrap("Full Name",<>{TextInp("name","Ahmad Farid")}<ErrMsg k="name"/></>,false,true)}
-            {FieldWrap("Nickname",TextInp("nickname","e.g. Farid"))}
-            {FieldWrap("Position",
+            {FW("Full Name",<>{TI("name","Ahmad Farid")}<ErrMsg k="name"/></>,false,true)}
+            {FW("Nickname",TI("nickname","e.g. Farid"))}
+            {FW("Position",
               <>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginTop:4}}>
                   {POSITIONS.map(p=>(
@@ -474,11 +513,10 @@ function OnboardingFlow({user,onComplete}){
                 </div>
                 <ErrMsg k="position"/>
               </>,false,true)}
-            {FieldWrap("Birthday",<>{TextInp("birthday","","date")}<ErrMsg k="birthday"/></>,false,true)}
-            {FieldWrap("Joining Date",TextInp("joined_date","","date"),true)}
+            {FW("Birthday",<>{TI("birthday","","date")}<ErrMsg k="birthday"/></>,false,true)}
+            {FW("Joining Date",TI("joined_date","","date"),true)}
           </div>
         )}
-
         {step===2&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
@@ -486,23 +524,20 @@ function OnboardingFlow({user,onComplete}){
               Example: <strong>0123456789</strong> or <strong>01112345678</strong>
             </div>
             <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
-              {FieldWrap("Contact Number",
+              {FW("Contact Number",
                 <>
                   <input value={form.contact_number}
                     onChange={e=>{set("contact_number",e.target.value.replace(/\D/g,''));clearErr("contact_number");}}
                     placeholder="0123456789" type="tel"
                     style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
-                  {form.contact_number&&(
-                    <div style={{fontSize:13,color:ACC,marginTop:4,fontWeight:500}}>
-                      Preview: {formatContact(normalizeContact(form.contact_number))}
-                    </div>
-                  )}
+                  {form.contact_number&&<div style={{fontSize:13,color:ACC,marginTop:4,fontWeight:500}}>
+                    Preview: {formatContact(normalizeContact(form.contact_number))}
+                  </div>}
                   <ErrMsg k="contact_number"/>
                 </>,true,true)}
             </div>
           </>
         )}
-
         {step===3&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
@@ -510,11 +545,10 @@ function OnboardingFlow({user,onComplete}){
               <textarea value={form.bio} onChange={e=>set("bio",e.target.value)} placeholder="Write something about yourself…" rows={3}
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",lineHeight:1.45,fontFamily:SF}}/>
             </div>
-            {FieldWrap("Hobby",TextInp("hobby","e.g. Gaming, Reading"))}
-            {FieldWrap("Favourite Food",TextInp("favorite_food","e.g. Nasi Lemak"),true)}
+            {FW("Hobby",TI("hobby","e.g. Gaming, Reading"))}
+            {FW("Favourite Food",TI("favorite_food","e.g. Nasi Lemak"),true)}
           </div>
         )}
-
         {step===4&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
@@ -522,7 +556,7 @@ function OnboardingFlow({user,onComplete}){
               IC, EPF & Bank require admin verification.
             </div>
             <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
-              {FieldWrap("IC Number",
+              {FW("IC Number",
                 <>
                   <input value={form.ic_number}
                     onChange={e=>{set("ic_number",formatIC(e.target.value));clearErr("ic_number");}}
@@ -533,8 +567,8 @@ function OnboardingFlow({user,onComplete}){
                   </div>
                   <ErrMsg k="ic_number"/>
                 </>,false,true)}
-              {FieldWrap("EPF Number",TextInp("epf_number","XXXXXXXXXXXX"))}
-              {FieldWrap("Bank Account Number",
+              {FW("EPF Number",TI("epf_number","XXXXXXXXXXXX"))}
+              {FW("Bank Account Number",
                 <>
                   <input value={form.bank_account}
                     onChange={e=>{set("bank_account",e.target.value.replace(/\D/g,''));clearErr("bank_account");}}
@@ -556,56 +590,34 @@ function OnboardingFlow({user,onComplete}){
             </div>
           </>
         )}
-
         {step===5&&(
           <div style={{textAlign:"center",marginBottom:24}}>
             <div onClick={()=>document.getElementById("avOnboard").click()} className="btn"
               style={{width:160,height:160,borderRadius:"50%",margin:"0 auto 16px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border:`2px dashed ${form.avatar_url?"transparent":errors.avatar_url?"#ff3b30":ACC}`,background:form.avatar_url?`url(${form.avatar_url}) center/cover`:`${ACC}10`}}>
-              {!form.avatar_url&&(
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:36,marginBottom:6}}>📸</div>
-                  <div style={{fontSize:13,color:ACC,fontWeight:600}}>Tap to Upload</div>
-                </div>
-              )}
+              {!form.avatar_url&&<div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:6}}>📸</div><div style={{fontSize:13,color:ACC,fontWeight:600}}>Tap to Upload</div></div>}
             </div>
             <input id="avOnboard" type="file" accept="image/*" onChange={handleFileSelect} style={{display:"none"}}/>
-            {form.avatar_url&&(
-              <button onClick={()=>document.getElementById("avOnboard").click()} className="btn"
-                style={{fontSize:15,color:ACC,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>
-                Change Photo
-              </button>
-            )}
+            {form.avatar_url&&<button onClick={()=>document.getElementById("avOnboard").click()} className="btn" style={{fontSize:15,color:ACC,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>Change Photo</button>}
             <div style={{fontSize:13,color:errors.avatar_url?"#ff3b30":LB3,marginTop:8,lineHeight:1.6,fontWeight:errors.avatar_url?600:400}}>
               {errors.avatar_url||"Required · Will be displayed as a circle"}
             </div>
           </div>
         )}
-
         <div style={{display:"flex",gap:10,marginTop:8}}>
-          {step>1&&(
-            <button onClick={()=>setStep(s=>s-1)} className="btn"
-              style={{flex:1,padding:"15px",background:BG2,border:`1px solid ${SEP}`,borderRadius:13,fontSize:17,color:LBL,fontFamily:SF}}>
-              Back
-            </button>
-          )}
+          {step>1&&<button onClick={()=>setStep(s=>s-1)} className="btn" style={{flex:1,padding:"15px",background:BG2,border:`1px solid ${SEP}`,borderRadius:13,fontSize:17,color:LBL,fontFamily:SF}}>Back</button>}
           {step<TOTAL
-            ?<button onClick={next} className="btn-primary"
-                style={{flex:2,padding:"15px",background:ACC,border:"none",borderRadius:13,fontSize:17,color:"#fff",fontWeight:600,fontFamily:SF}}>
-                Continue →
-              </button>
-            :<button onClick={handleSubmit} disabled={loading} className="btn-primary"
-                style={{flex:2,padding:"15px",background:ORG,border:"none",borderRadius:13,fontSize:17,color:"#fff",fontWeight:700,fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                {loading&&<div style={{width:18,height:18,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
-                {loading?"Setting up…":"Let's Go! 🚀"}
-              </button>
-          }
+            ?<button onClick={next} className="btn-primary" style={{flex:2,padding:"15px",background:ACC,border:"none",borderRadius:13,fontSize:17,color:"#fff",fontWeight:600,fontFamily:SF}}>Continue →</button>
+            :<button onClick={handleSubmit} disabled={loading} className="btn-primary" style={{flex:2,padding:"15px",background:ORG,border:"none",borderRadius:13,fontSize:17,color:"#fff",fontWeight:700,fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              {loading&&<div style={{width:18,height:18,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
+              {loading?"Setting up…":"Let's Go! 🚀"}
+            </button>}
         </div>
       </div>
     </div>
   );
 }
 
-// ── MAIN APP ───────────────────────────────────────────────────────────────
+// ── MAIN APP ──────────────────────────────────────────────────────────
 export default function App(){
   const [session,      setSession]      = useState(null);
   const [profile,      setProfile]      = useState(null);
@@ -629,7 +641,7 @@ export default function App(){
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{
       setSession(session);
-      if(session)loadProfile(session.user.id);
+      if(session)loadUserProfile(session);
       else setLoading(false);
     });
     const{data:{subscription}}=supabase.auth.onAuthStateChange((_e,s)=>{
@@ -639,10 +651,19 @@ export default function App(){
     return()=>subscription.unsubscribe();
   },[]);
 
-  const loadProfile=async uid=>{
+  const loadUserProfile=async(sess)=>{
     setLoading(true);
-    const{data}=await supabase.from("profiles").select("*").eq("id",uid).single();
-    if(data)setProfile(data);
+    try{
+      const profile=await ensureProfile(sess.user);
+      if(profile){
+        setProfile(profile);
+      } else {
+        await supabase.auth.signOut();
+      }
+    }catch(err){
+      console.error("Load profile error:",err);
+      await supabase.auth.signOut();
+    }
     setLoading(false);
   };
 
@@ -656,7 +677,8 @@ export default function App(){
         password:loginPass
       });
       if(error){
-        if(error.message.toLowerCase().includes("invalid login"))
+        if(error.message.toLowerCase().includes("invalid login")||
+           error.message.toLowerCase().includes("invalid credentials"))
           setLoginErr("Incorrect email or password. Please try again.");
         else if(error.message.toLowerCase().includes("email not confirmed"))
           setLoginErr("Email not confirmed. Please contact your admin.");
@@ -665,12 +687,14 @@ export default function App(){
         setLoginLoading(false);return;
       }
       if(!data?.user){setLoginErr("Login failed. Please try again.");setLoginLoading(false);return;}
-      const{data:profileData,error:profileError}=await supabase.from("profiles").select("*").eq("id",data.user.id).single();
-      if(profileError||!profileData){
-        setLoginErr("Profile not found. Please contact admin.");
+      // Ensure profile exists (auto-creates if missing)
+      const profile=await ensureProfile(data.user);
+      if(!profile){
+        setLoginErr("Could not load profile. Please contact admin.");
         setLoginLoading(false);return;
       }
-      setProfile(profileData);
+      setSession(data.session);
+      setProfile(profile);
       setLoginLoading(false);
     }catch(err){
       setLoginErr("Connection error. Please try again.");
@@ -678,7 +702,7 @@ export default function App(){
     }
   };
 
-  // Loading
+  // Loading screen
   if(loading)return(
     <div style={{minHeight:"100vh",background:ACC,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,fontFamily:SF}}>
       <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:100,height:100,borderRadius:22,objectFit:"cover"}}/>
@@ -686,12 +710,16 @@ export default function App(){
     </div>
   );
 
-  // Sign Up screen
+  // Sign up screen
   if(screen==="signup")return(
     <SignUpScreen
-      onBack={()=>setScreen("login")}
-      onSuccess={prefillEmail=>{
-        setLoginEmail(prefillEmail);
+      onBack={(prefillEmail)=>{
+        if(prefillEmail)setLoginEmail(prefillEmail);
+        setScreen("login");
+      }}
+      onSignedIn={(sess,prof)=>{
+        setSession(sess);
+        setProfile(prof);
         setScreen("login");
       }}
     />
@@ -705,7 +733,6 @@ export default function App(){
         <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px"}}>Techwide Hub</div>
         <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:2}}>Sincerity · Love · Responsible · Respectful</div>
       </div>
-
       <div className="fade" style={{width:"100%",maxWidth:360}}>
         <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
@@ -725,33 +752,25 @@ export default function App(){
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
           </div>
         </div>
-
         {loginErr&&(
           <div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px",lineHeight:1.5}}>
             {loginErr}
           </div>
         )}
-
-        {/* Sign In */}
         <button onClick={doLogin} disabled={loginLoading} className="btn-primary"
           style={{width:"100%",background:loginLoading?"#e5e5ea":ACC,color:loginLoading?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:SF,marginBottom:10}}>
           {loginLoading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
           {loginLoading?"Signing In…":"Sign In"}
         </button>
-
-        {/* Divider */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
           <div style={{flex:1,height:1,background:SEP}}/>
-          <div style={{fontSize:12,color:LB3,letterSpacing:"-.1px"}}>or</div>
+          <div style={{fontSize:12,color:LB3}}>or</div>
           <div style={{flex:1,height:1,background:SEP}}/>
         </div>
-
-        {/* First Time Login */}
         <button onClick={()=>setScreen("signup")} className="btn-primary"
           style={{width:"100%",background:"transparent",color:ACC,border:`1.5px solid ${ACC}`,borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
           🆕 First Time Login
         </button>
-
         <div style={{textAlign:"center",fontSize:12,color:LB3,marginTop:14,lineHeight:1.6}}>
           By signing in you agree to our<br/>company policies and code of conduct
         </div>
@@ -760,9 +779,17 @@ export default function App(){
   );
 
   // Onboarding
-  if(!profile.onboarded)return<OnboardingFlow user={profile} onComplete={()=>loadProfile(session.user.id)}/>;
+  if(!profile.onboarded)return(
+    <OnboardingFlow
+      user={profile}
+      onComplete={async()=>{
+        const{data:updated}=await supabase.from("profiles").select("*").eq("id",profile.id).single();
+        if(updated)setProfile(updated);
+      }}
+    />
+  );
 
-  // App
+  // Main app
   if(profile.is_admin)return<AdminApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
   return<UserApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
 }

@@ -336,4 +336,50 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             <button onClick={()=>setShowNotif(true)} className="btn" style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:4}}>
               <span style={{fontSize:20}}>🔔</span>
               {unreadCount>0&&(
-                <div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",
+                <div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>
+                  {unreadCount}
+                </div>
+              )}
+            </button>
+            <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>Out</button>
+          </div>
+        </div>
+        <div style={{fontSize:28,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginTop:6}}>
+          {tab==="home"    &&`Hello, ${(profile.nickname||profile.name||"").split(" ")[0]} 👋`}
+          {tab==="missions"&&"Missions"}
+          {tab==="leaders" &&"Leaderboard"}
+          {tab==="prizes"  &&"Prize Shop"}
+          {tab==="chat"    &&"Community"}
+          {tab==="profile" &&"My Profile"}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{flex:1,overflowY:"auto",padding:"12px 0 90px"}}>
+        {tab==="home"    &&<HomeTab/>}
+        {tab==="missions"&&<MissionsTab{...shared}/>}
+        {tab==="leaders" &&<LeaderboardTab{...shared}/>}
+        {tab==="prizes"  &&<PrizesTab{...shared}/>}
+        {tab==="chat"    &&<CommunityTab{...shared}/>}
+        {tab==="profile" &&<ProfileTab{...shared}/>}
+      </div>
+
+      {/* Tab bar */}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.94)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20}}>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} className="tab-btn"
+            style={{flex:1,padding:"7px 2px 11px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer"}}>
+            <div style={{fontSize:tab===t.id?21:17,lineHeight:1,filter:tab===t.id?"none":"grayscale(1) opacity(.35)",transition:"font-size .15s"}}>{t.emoji}</div>
+            <div style={{fontSize:9,fontWeight:tab===t.id?600:400,color:tab===t.id?ACC:"#8e8e93",fontFamily:SF}}>{t.label}</div>
+          </button>
+        ))}
+      </div>
+
+      {toast&&(
+        <div className="toast-in" style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.78)",backdropFilter:"blur(16px)",borderRadius:99,padding:"10px 20px",fontSize:14,color:"#fff",fontWeight:500,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"85vw",textAlign:"center"}}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}

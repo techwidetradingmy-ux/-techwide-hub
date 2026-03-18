@@ -19,18 +19,17 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const [notifications,setNotifications]=useState([]);
   const [toast,setToast]=useState(null);
   const [dmTarget,setDmTarget]=useState(null);
+  const [showNotif,setShowNotif]=useState(false);
 
   const syncProfile=u=>{setProfile(u);onProfileUpdate(u);};
 
   useEffect(()=>{
     loadAll();
     loadNotifications();
-    // Poll notifications every 15s
     const iv=setInterval(loadNotifications,15000);
     return()=>clearInterval(iv);
   },[]);
 
-  // When dmTarget set, switch to community tab
   useEffect(()=>{if(dmTarget)setTab("chat");},[dmTarget]);
 
   const loadAll=async()=>{
@@ -54,7 +53,6 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const loadNotifications=async()=>{
     const{data}=await supabase.from("notifications").select("*").eq("user_id",profile.id).order("created_at",{ascending:false}).limit(20);
     if(data)setNotifications(data);
-    // Show browser notification for unread
     if(data&&"Notification" in window&&Notification.permission==="granted"){
       const unread=data.filter(n=>!n.read);
       if(unread.length>0&&document.hidden){
@@ -68,13 +66,10 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     setNotifications(p=>p.map(n=>({...n,read:true})));
   };
 
-  const requestNotifPermission=async()=>{
-    if("Notification" in window&&Notification.permission==="default"){
-      await Notification.requestPermission();
-    }
-  };
-
-  useEffect(()=>{requestNotifPermission();},[]);
+  useEffect(()=>{
+    if("Notification" in window&&Notification.permission==="default")
+      Notification.requestPermission();
+  },[]);
 
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),2800);};
 
@@ -93,7 +88,11 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const doClaimMission=async missionId=>{
     if(myClaims.find(c=>c.mission_id===missionId)){showToast("Already claimed");return;}
     const{error}=await supabase.from("mission_claims").insert({user_id:profile.id,mission_id:missionId});
-    if(!error){const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);showToast("Mission claimed! Submit proof when done.");}
+    if(!error){
+      const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
+      if(data)setMyClaims(data);
+      showToast("Mission claimed! Submit proof when done.");
+    }
   };
 
   const doRedeem=async prize=>{
@@ -133,20 +132,27 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     </button>
   );
 
-  const shared={profile,syncProfile,missions,myClaims,setMyClaims,allProfiles,announcements,myRedemptions,prizes,today,lv,pct,checkedIn,score,tier,completedCount,doClaimMission,doRedeem,loadAll,showToast,Section,Row,Chip,PrimaryBtn,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,getLevel,getLvlPct,calcScore,getTier,dmTarget,setDmTarget};
+  const shared={
+    profile,syncProfile,missions,myClaims,setMyClaims,
+    allProfiles,announcements,myRedemptions,prizes,
+    today,lv,pct,checkedIn,score,tier,completedCount,
+    doClaimMission,doRedeem,loadAll,showToast,
+    Section,Row,Chip,PrimaryBtn,
+    SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,
+    getLevel,getLvlPct,calcScore,getTier,
+    dmTarget,setDmTarget,
+  };
 
   const TABS=[
-    {id:"home",    label:"Home",       emoji:"🏠"},
-    {id:"missions",label:"Missions",   emoji:"🎯"},
-    {id:"leaders", label:"Leaderboard",emoji:"🏆"},
-    {id:"prizes",  label:"Prizes",     emoji:"🎁"},
-    {id:"chat",    label:"Community",  emoji:"💬"},
-    {id:"profile", label:"Profile",    emoji:"👤"},
+    {id:"home",    label:"Home",      emoji:"🏠"},
+    {id:"missions",label:"Missions",  emoji:"🎯"},
+    {id:"leaders", label:"Rankings",  emoji:"🏆"},
+    {id:"prizes",  label:"Prizes",    emoji:"🎁"},
+    {id:"chat",    label:"Community", emoji:"💬"},
+    {id:"profile", label:"Profile",   emoji:"👤"},
   ];
 
-  // ── NOTIFICATIONS PANEL ──
-  const [showNotif,setShowNotif]=useState(false);
-
+  // ── NOTIFICATIONS PANEL ───────────────────────────────────────────
   function NotifPanel(){
     return(
       <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
@@ -164,7 +170,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
               <div key={n.id} style={{display:"flex",gap:12,padding:"12px 0",borderBottom:i<notifications.length-1?`1px solid ${SEP}`:"none",opacity:n.read?.6:1}}>
                 <div style={{width:8,height:8,borderRadius:"50%",background:n.read?"transparent":ACC,marginTop:6,flexShrink:0}}/>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:15,color:LBL,fontWeight:n.read?400:600,letterSpacing:"-.2px"}}>{n.title}</div>
+                  <div style={{fontSize:15,color:LBL,fontWeight:n.read?400:600}}>{n.title}</div>
                   {n.body&&<div style={{fontSize:13,color:LB3,marginTop:2,lineHeight:1.45}}>{n.body}</div>}
                   <div style={{fontSize:11,color:LB3,marginTop:4}}>{new Date(n.created_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>
                 </div>
@@ -176,10 +182,32 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     );
   }
 
+  // ── HOME TAB ──────────────────────────────────────────────────────
   function HomeTab(){
+    const [now,setNow]=useState(new Date());
+    useEffect(()=>{
+      const iv=setInterval(()=>setNow(new Date()),1000);
+      return()=>clearInterval(iv);
+    },[]);
+    const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const pad=n=>String(n).padStart(2,"0");
+    const timeStr=`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const dateStr=`${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+
     return(
       <div style={{padding:"0 16px 12px"}}>
-        {/* Hero */}
+
+        {/* ── Live Date & Time ── */}
+        <div className="fade" style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:14,padding:"14px 18px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginBottom:3,letterSpacing:"-.1px"}}>{dateStr}</div>
+            <div style={{fontSize:32,fontWeight:700,color:"#fff",letterSpacing:2,fontVariantNumeric:"tabular-nums"}}>{timeStr}</div>
+          </div>
+          <div style={{fontSize:40,opacity:.5}}>🕐</div>
+        </div>
+
+        {/* ── Hero card ── */}
         <div className="fade" style={{background:`linear-gradient(145deg,${ACC},#0e2140)`,borderRadius:18,padding:20,marginBottom:8,position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:`${ORG}15`,pointerEvents:"none"}}/>
           <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
@@ -210,7 +238,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           </div>
         </div>
 
-        {/* Tier progress */}
+        {/* ── Tier progress ── */}
         <div className="fade" style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,borderLeft:`3px solid ${tier.color}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <div style={{fontSize:12,color:LB3,fontWeight:700,letterSpacing:".4px",textTransform:"uppercase"}}>Contribution Tier</div>
@@ -231,12 +259,15 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           </div>
         </div>
 
-        {/* Check-in */}
+        {/* ── Check-in ── */}
         <div className="fade" style={{background:BG2,borderRadius:13,padding:16,marginBottom:8}}>
           {checkedIn?(
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:40,height:40,borderRadius:"50%",background:"#34c75920",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>✅</div>
-              <div><div style={{fontSize:17,color:LBL,fontWeight:500}}>Checked in today</div><div style={{fontSize:14,color:LB3,marginTop:1}}>{profile.streak}-day streak 🔥</div></div>
+              <div>
+                <div style={{fontSize:17,color:LBL,fontWeight:500}}>Checked in today</div>
+                <div style={{fontSize:14,color:LB3,marginTop:1}}>{profile.streak}-day streak 🔥</div>
+              </div>
             </div>
           ):(
             <>
@@ -247,9 +278,13 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           )}
         </div>
 
-        {/* Stats */}
+        {/* ── Stats ── */}
         <div className="fade" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
-          {[{l:"Points",v:profile.xp.toLocaleString(),e:"⚡"},{l:"Streak",v:`${profile.streak}d`,e:"🔥"},{l:"Missions",v:completedCount,e:"✅"}].map((s,i)=>(
+          {[
+            {l:"Points", v:profile.xp.toLocaleString(), e:"⚡"},
+            {l:"Streak",  v:`${profile.streak}d`,         e:"🔥"},
+            {l:"Missions",v:completedCount,               e:"✅"},
+          ].map((s,i)=>(
             <div key={i} style={{background:BG2,borderRadius:13,padding:"13px 10px",textAlign:"center"}}>
               <div style={{fontSize:20,marginBottom:3}}>{s.e}</div>
               <div style={{fontSize:19,fontWeight:700,color:ACC,letterSpacing:"-.5px",lineHeight:1}}>{s.v}</div>
@@ -258,20 +293,27 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           ))}
         </div>
 
-        {/* Pinned */}
-        {announcements.find(a=>a.pinned)&&(()=>{const a=announcements.find(x=>x.pinned);return(
-          <div className="fade" style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,borderLeft:`3px solid ${ORG}`}}>
-            <div style={{fontSize:11,color:ORG,fontWeight:700,letterSpacing:".4px",textTransform:"uppercase",marginBottom:5}}>📌 Pinned</div>
-            <div style={{fontSize:16,color:LBL,fontWeight:500,marginBottom:4}}>{a.title}</div>
-            <div style={{fontSize:14,color:LB3,lineHeight:1.5}}>{a.body}</div>
-          </div>
-        );})()}
+        {/* ── Pinned announcement ── */}
+        {announcements.find(a=>a.pinned)&&(()=>{
+          const a=announcements.find(x=>x.pinned);
+          return(
+            <div className="fade" style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,borderLeft:`3px solid ${ORG}`}}>
+              <div style={{fontSize:11,color:ORG,fontWeight:700,letterSpacing:".4px",textTransform:"uppercase",marginBottom:5}}>📌 Pinned</div>
+              <div style={{fontSize:16,color:LBL,fontWeight:500,marginBottom:4}}>{a.title}</div>
+              <div style={{fontSize:14,color:LB3,lineHeight:1.5}}>{a.body}</div>
+            </div>
+          );
+        })()}
 
-        {/* Pending rewards */}
+        {/* ── Pending rewards ── */}
         {myRedemptions.filter(r=>r.status==="Pending").length>0&&(
           <div className="fade">
             <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"12px 4px 8px"}}>Pending Rewards</div>
-            <Section>{myRedemptions.filter(r=>r.status==="Pending").slice(0,3).map((r,i,a)=><Row key={r.id} label={r.prize_name} badge={r.status} last={i===a.length-1}/>)}</Section>
+            <Section>
+              {myRedemptions.filter(r=>r.status==="Pending").slice(0,3).map((r,i,a)=>(
+                <Row key={r.id} label={r.prize_name} badge={r.status} last={i===a.length-1}/>
+              ))}
+            </Section>
           </div>
         )}
       </div>
@@ -281,6 +323,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
       {showNotif&&<NotifPanel/>}
+
       {/* Header */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px 10px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -290,49 +333,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div style={{fontSize:14,fontWeight:600,color:ACC}}>{profile.xp.toLocaleString()} pts</div>
-            {/* Notification bell */}
             <button onClick={()=>setShowNotif(true)} className="btn" style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:4}}>
               <span style={{fontSize:20}}>🔔</span>
               {unreadCount>0&&(
-                <div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>
-                  {unreadCount}
-                </div>
-              )}
-            </button>
-            <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>Out</button>
-          </div>
-        </div>
-        <div style={{fontSize:28,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginTop:6}}>
-          {tab==="home"    &&`Hello, ${(profile.nickname||profile.name||"").split(" ")[0]} 👋`}
-          {tab==="missions"&&"Missions"}
-          {tab==="leaders" &&"Leaderboard"}
-          {tab==="prizes"  &&"Prize Shop"}
-          {tab==="chat"    &&"Community"}
-          {tab==="profile" &&"My Profile"}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div style={{flex:1,overflowY:"auto",padding:"12px 0 90px"}}>
-        {tab==="home"    &&<HomeTab/>}
-        {tab==="missions"&&<MissionsTab{...shared}/>}
-        {tab==="leaders" &&<LeaderboardTab{...shared}/>}
-        {tab==="prizes"  &&<PrizesTab{...shared}/>}
-        {tab==="chat"    &&<CommunityTab{...shared}/>}
-        {tab==="profile" &&<ProfileTab{...shared}/>}
-      </div>
-
-      {/* Tab bar */}
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.94)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20}}>
-        {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} className="tab-btn" style={{flex:1,padding:"7px 2px 11px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer"}}>
-            <div style={{fontSize:tab===t.id?21:17,lineHeight:1,filter:tab===t.id?"none":"grayscale(1) opacity(.35)",transition:"font-size .15s"}}>{t.emoji}</div>
-            <div style={{fontSize:9,fontWeight:tab===t.id?600:400,color:tab===t.id?ACC:"#8e8e93",fontFamily:SF}}>{t.label}</div>
-          </button>
-        ))}
-      </div>
-
-      {toast&&<div className="toast-in" style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.78)",backdropFilter:"blur(16px)",borderRadius:99,padding:"10px 20px",fontSize:14,color:"#fff",fontWeight:500,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"85vw",textAlign:"center"}}>{toast}</div>}
-    </div>
-  );
-}
+                <div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",

@@ -8,7 +8,8 @@ const getLevel=xp=>{let l=1;for(let i=1;i<XP_T.length;i++)if(xp>=XP_T[i])l=i+1;r
 const getLvlPct=xp=>{const l=getLevel(xp)-1;const s=XP_T[l]||0;const e=XP_T[l+1]||s+1;return Math.round(((xp-s)/(e-s))*100);};
 
 const fmtDate=iso=>{
-  if(!iso)return null;const p=iso.split("-");
+  if(!iso)return null;
+  const p=iso.split("-");
   return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;
 };
 const calcAge=birthday=>{
@@ -24,7 +25,7 @@ const calcDaysWorking=joinedDate=>{
   return Math.floor((Date.now()-new Date(joinedDate))/86400000);
 };
 
-// Weather helpers
+// ── Weather helpers ───────────────────────────────────────────────────
 const WX_ICON=code=>{
   if(code===0)return"☀️";
   if(code<=3)return"⛅";
@@ -68,7 +69,10 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
       {/* Header */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px",position:"sticky",top:0,zIndex:20,display:"flex",alignItems:"center",gap:12}}>
-        <button onClick={onBack} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,display:"flex",alignItems:"center",gap:4,fontFamily:SF}}>← Back</button>
+        <button onClick={onBack} className="btn"
+          style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,display:"flex",alignItems:"center",gap:4,fontFamily:SF}}>
+          ← Back
+        </button>
         <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px"}}>{user.nickname||user.name}</div>
         {currentUserId!==user.id&&(
           <button onClick={()=>onDM(user)} className="btn"
@@ -80,9 +84,9 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
 
       <div style={{overflowY:"auto",paddingBottom:40}}>
         {/* Banner */}
-        <div style={{height:140,background:user.banner_url?`url(${user.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative"}}/>
+        <div style={{height:140,background:user.banner_url?`url(${user.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`}}/>
 
-        {/* Avatar + name */}
+        {/* Avatar + tier */}
         <div style={{padding:"0 16px",marginTop:-50,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
           <div style={{width:90,height:90,borderRadius:"50%",border:`3px solid ${BG}`,background:user.avatar_url?`url(${user.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:28,color:ACC,overflow:"hidden",flexShrink:0}}>
             {!user.avatar_url&&(user.avatar||"?")}
@@ -109,8 +113,8 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:14,marginBottom:14}}>
             {[
               {l:"Points",v:(user.xp||0).toLocaleString(),e:"⚡"},
-              {l:"Streak", v:`${user.streak||0}d`,           e:"🔥"},
-              {l:"Level",  v:getLevel(user.xp||0),           e:"⭐"},
+              {l:"Streak", v:`${user.streak||0}d`,          e:"🔥"},
+              {l:"Level",  v:getLevel(user.xp||0),          e:"⭐"},
             ].map((s,i)=>(
               <div key={i} style={{background:BG2,borderRadius:13,padding:"12px 8px",textAlign:"center"}}>
                 <div style={{fontSize:18,marginBottom:3}}>{s.e}</div>
@@ -132,7 +136,7 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
             </div>
           )}
 
-          {/* Message button at bottom */}
+          {/* Message button */}
           {currentUserId!==user.id&&(
             <button onClick={()=>onDM(user)} className="btn-primary"
               style={{width:"100%",marginTop:20,padding:"15px",background:ACC,color:"#fff",border:"none",borderRadius:13,fontSize:17,fontWeight:600,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
@@ -145,21 +149,22 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
   );
 }
 
+// ── MAIN USER APP ─────────────────────────────────────────────────────
 export default function UserApp({profile:init,session,onProfileUpdate}){
-  const [profile,setProfile]=useState(init);
-  const [tab,setTab]=useState("home");
-  const [missions,setMissions]=useState([]);
-  const [myClaims,setMyClaims]=useState([]);
-  const [allProfiles,setAllProfiles]=useState([]);
+  const [profile,setProfile]           = useState(init);
+  const [tab,setTab]                   = useState("home");
+  const [missions,setMissions]         = useState([]);
+  const [myClaims,setMyClaims]         = useState([]);
+  const [allProfiles,setAllProfiles]   = useState([]);
   const [announcements,setAnnouncements]=useState([]);
   const [myRedemptions,setMyRedemptions]=useState([]);
-  const [prizes,setPrizes]=useState([]);
+  const [prizes,setPrizes]             = useState([]);
   const [notifications,setNotifications]=useState([]);
-  const [toast,setToast]=useState(null);
-  const [dmTarget,setDmTarget]=useState(null);
-  const [showNotif,setShowNotif]=useState(false);
+  const [toast,setToast]               = useState(null);
+  const [dmTarget,setDmTarget]         = useState(null);
+  const [showNotif,setShowNotif]       = useState(false);
   const [viewingProfile,setViewingProfile]=useState(null);
-  const [weather,setWeather]=useState(null);
+  const [weather,setWeather]           = useState(null);
 
   const syncProfile=u=>{setProfile(u);onProfileUpdate(u);};
 
@@ -173,7 +178,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
 
   useEffect(()=>{if(dmTarget)setTab("chat");},[dmTarget]);
 
-  // ── Fetch weather ──
+  // ── Fetch weather via geolocation ──
   const fetchWeather=()=>{
     if(!navigator.geolocation)return;
     navigator.geolocation.getCurrentPosition(
@@ -185,7 +190,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           if(data.current_weather)setWeather(data.current_weather);
         }catch{}
       },
-      ()=>{} // silently fail if denied
+      ()=>{}
     );
   };
 
@@ -199,8 +204,10 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       supabase.from("redemptions").select("*").eq("user_id",uid),
       supabase.from("prizes").select("*").eq("active",true),
     ]);
-    if(m.data)setMissions(m.data);if(c.data)setMyClaims(c.data);
-    if(ap.data)setAllProfiles(ap.data);if(a.data)setAnnouncements(a.data);
+    if(m.data)setMissions(m.data);
+    if(c.data)setMyClaims(c.data);
+    if(ap.data)setAllProfiles(ap.data);
+    if(a.data)setAnnouncements(a.data);
     if(r.data)setMyRedemptions(r.data);
     if(p.data)setPrizes(p.data.length>0?p.data:PRIZES.map(x=>({...x,id:x.id,cost:x.pts,category:x.cat})));
   };
@@ -244,7 +251,8 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     const{error}=await supabase.from("mission_claims").insert({user_id:profile.id,mission_id:missionId});
     if(!error){
       const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
-      if(data)setMyClaims(data);showToast("Mission claimed! Submit proof when done.");
+      if(data)setMyClaims(data);
+      showToast("Mission claimed! Submit proof when done.");
     }
   };
 
@@ -273,7 +281,10 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const Section=({children,style={}})=><div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8,...style}}>{children}</div>;
   const Row=({label,detail,badge,last,onPress})=>(
     <div onClick={onPress} className={onPress?"btn":""} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",background:BG2,borderBottom:last?"none":`1px solid ${SEP}`,cursor:onPress?"pointer":"default"}}>
-      <div style={{flex:1}}><div style={{fontSize:17,color:LBL,letterSpacing:"-.3px"}}>{label}</div>{detail&&<div style={{fontSize:13,color:LB3,marginTop:1}}>{detail}</div>}</div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:17,color:LBL,letterSpacing:"-.3px"}}>{label}</div>
+        {detail&&<div style={{fontSize:13,color:LB3,marginTop:1}}>{detail}</div>}
+      </div>
       {badge&&<div style={{background:ORG,color:"#fff",fontSize:12,fontWeight:600,padding:"2px 8px",borderRadius:99}}>{badge}</div>}
     </div>
   );
@@ -293,8 +304,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     Section,Row,Chip,PrimaryBtn,
     SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,
     getLevel,getLvlPct,calcScore,getTier,
-    dmTarget,setDmTarget,
-    setViewingProfile,
+    dmTarget,setDmTarget,setViewingProfile,
   };
 
   const TABS=[
@@ -306,7 +316,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     {id:"profile", label:"Profile",   emoji:"👤"},
   ];
 
-  // ── If viewing someone's profile — full page ──
+  // ── Full profile page ──
   if(viewingProfile){
     return(
       <FullProfilePage
@@ -318,7 +328,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     );
   }
 
-  // ── NOTIFICATIONS PANEL ──
+  // ── Notifications panel ──
   function NotifPanel(){
     return(
       <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
@@ -326,8 +336,16 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           <div style={{padding:"16px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
             <div style={{fontSize:18,fontWeight:700,color:LBL,letterSpacing:"-.4px"}}>Notifications</div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
-              {unreadCount>0&&<button onClick={markAllRead} className="btn" style={{fontSize:13,color:ACC,fontWeight:600,background:`${ACC}10`,padding:"4px 10px",borderRadius:99,border:"none",cursor:"pointer",fontFamily:SF}}>Mark all read</button>}
-              <button onClick={()=>setShowNotif(false)} className="btn" style={{background:"rgba(0,0,0,.07)",border:"none",borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:16,fontFamily:SF}}>✕</button>
+              {unreadCount>0&&(
+                <button onClick={markAllRead} className="btn"
+                  style={{fontSize:13,color:ACC,fontWeight:600,background:`${ACC}10`,padding:"4px 10px",borderRadius:99,border:"none",cursor:"pointer",fontFamily:SF}}>
+                  Mark all read
+                </button>
+              )}
+              <button onClick={()=>setShowNotif(false)} className="btn"
+                style={{background:"rgba(0,0,0,.07)",border:"none",borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:16,fontFamily:SF}}>
+                ✕
+              </button>
             </div>
           </div>
           <div style={{overflowY:"auto",padding:"12px 16px 40px"}}>
@@ -338,7 +356,9 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
                 <div style={{flex:1}}>
                   <div style={{fontSize:15,color:LBL,fontWeight:n.read?400:600}}>{n.title}</div>
                   {n.body&&<div style={{fontSize:13,color:LB3,marginTop:2,lineHeight:1.45}}>{n.body}</div>}
-                  <div style={{fontSize:11,color:LB3,marginTop:4}}>{new Date(n.created_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>
+                  <div style={{fontSize:11,color:LB3,marginTop:4}}>
+                    {new Date(n.created_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
+                  </div>
                 </div>
               </div>
             ))}
@@ -348,43 +368,44 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     );
   }
 
-  // ── HOME TAB ──
+  // ── Home tab ──
   function HomeTab(){
-    const [now,setNow]=useState(new Date());
+    const [now,setNow]           = useState(new Date());
     const [showAllAnn,setShowAllAnn]=useState(false);
+
     useEffect(()=>{
       const iv=setInterval(()=>setNow(new Date()),1000);
       return()=>clearInterval(iv);
     },[]);
 
-    const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
-    const pad=n=>String(n).padStart(2,"0");
-    const hours=now.getHours();
-    const ampm=hours>=12?"PM":"AM";
-    const h12=hours%12||12;
+    const DAYS   =["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const MONTHS =["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const pad    =n=>String(n).padStart(2,"0");
+    const hours  =now.getHours();
+    const ampm   =hours>=12?"PM":"AM";
+    const h12    =hours%12||12;
+    // ── 12hr format, hours & minutes only ──
     const timeStr=`${pad(h12)}:${pad(now.getMinutes())} ${ampm}`;
     const dateStr=`${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
 
     return(
       <div style={{padding:"0 16px 12px"}}>
 
-        {/* ── Date/Time + Weather ── */}
+        {/* ── Date / Time / Weather ── */}
         <div className="fade" style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:14,padding:"14px 18px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginBottom:3,letterSpacing:"-.1px"}}>{dateStr}</div>
-            <div style={{fontSize:28,fontWeight:700,color:"#fff",letterSpacing:1,fontVariantNumeric:"tabular-nums"}}>{timeStr}</div>
+            <div style={{fontSize:36,fontWeight:700,color:"#fff",letterSpacing:1,fontVariantNumeric:"tabular-nums"}}>{timeStr}</div>
           </div>
-          {/* Weather */}
-          <div style={{textAlign:"center",minWidth:60}}>
+          <div style={{textAlign:"center",minWidth:64}}>
             {weather?(
               <>
-                <div style={{fontSize:32,lineHeight:1}}>{WX_ICON(weather.weathercode)}</div>
-                <div style={{fontSize:18,fontWeight:700,color:"#fff",marginTop:4}}>{Math.round(weather.temperature)}°C</div>
+                <div style={{fontSize:34,lineHeight:1}}>{WX_ICON(weather.weathercode)}</div>
+                <div style={{fontSize:20,fontWeight:700,color:"#fff",marginTop:4}}>{Math.round(weather.temperature)}°C</div>
                 <div style={{fontSize:10,color:"rgba(255,255,255,.5)",marginTop:2}}>{WX_DESC(weather.weathercode)}</div>
               </>
             ):(
-              <div style={{fontSize:24,opacity:.4}}>🌡️</div>
+              <div style={{fontSize:28,opacity:.35}}>🌡️</div>
             )}
           </div>
         </div>
@@ -454,15 +475,23 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           ):(
             <>
               <div style={{fontSize:13,color:LB3,textTransform:"uppercase",fontWeight:600,letterSpacing:".3px",marginBottom:10}}>Daily Check-In</div>
-              <div style={{fontSize:15,color:LB2,marginBottom:14,lineHeight:1.4}}>Earn {profile.streak>=7?100:profile.streak>=3?75:50} pts · {profile.streak}-day streak.</div>
-              <PrimaryBtn onClick={doCheckIn}>Check In  +{profile.streak>=7?100:profile.streak>=3?75:50} pts</PrimaryBtn>
+              <div style={{fontSize:15,color:LB2,marginBottom:14,lineHeight:1.4}}>
+                Earn {profile.streak>=7?100:profile.streak>=3?75:50} pts · {profile.streak}-day streak.
+              </div>
+              <PrimaryBtn onClick={doCheckIn}>
+                Check In  +{profile.streak>=7?100:profile.streak>=3?75:50} pts
+              </PrimaryBtn>
             </>
           )}
         </div>
 
         {/* ── Stats ── */}
         <div className="fade" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
-          {[{l:"Points",v:profile.xp.toLocaleString(),e:"⚡"},{l:"Streak",v:`${profile.streak}d`,e:"🔥"},{l:"Missions",v:completedCount,e:"✅"}].map((s,i)=>(
+          {[
+            {l:"Points",  v:profile.xp.toLocaleString(),e:"⚡"},
+            {l:"Streak",  v:`${profile.streak}d`,        e:"🔥"},
+            {l:"Missions",v:completedCount,              e:"✅"},
+          ].map((s,i)=>(
             <div key={i} style={{background:BG2,borderRadius:13,padding:"13px 10px",textAlign:"center"}}>
               <div style={{fontSize:20,marginBottom:3}}>{s.e}</div>
               <div style={{fontSize:19,fontWeight:700,color:ACC,letterSpacing:"-.5px",lineHeight:1}}>{s.v}</div>
@@ -489,7 +518,9 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
                   {a.pinned&&<div style={{fontSize:11,color:ORG,fontWeight:700,letterSpacing:".4px",textTransform:"uppercase",marginBottom:5}}>📌 Pinned</div>}
                   <div style={{fontSize:16,color:LBL,fontWeight:500,marginBottom:4}}>{a.title}</div>
                   {a.body&&<div style={{fontSize:14,color:LB3,lineHeight:1.5,whiteSpace:"pre-line"}}>{a.body}</div>}
-                  <div style={{fontSize:11,color:LB3,marginTop:6}}>{new Date(a.created_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}</div>
+                  <div style={{fontSize:11,color:LB3,marginTop:6}}>
+                    {new Date(a.created_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}
+                  </div>
                 </div>
               ))}
             </div>
@@ -524,7 +555,8 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div style={{fontSize:14,fontWeight:600,color:ACC}}>{profile.xp.toLocaleString()} pts</div>
-            <button onClick={()=>setShowNotif(true)} className="btn" style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:4}}>
+            <button onClick={()=>setShowNotif(true)} className="btn"
+              style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:4}}>
               <span style={{fontSize:20}}>🔔</span>
               {unreadCount>0&&(
                 <div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>
@@ -532,7 +564,10 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
                 </div>
               )}
             </button>
-            <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>Out</button>
+            <button onClick={()=>supabase.auth.signOut()} className="btn"
+              style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>
+              Out
+            </button>
           </div>
         </div>
         <div style={{fontSize:28,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginTop:6}}>

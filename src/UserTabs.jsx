@@ -163,7 +163,7 @@ export function LeaderboardTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,AC
     <div style={{padding:"0 16px 12px"}}>
       {viewUser&&<UserProfileModal user={viewUser} currentUserId={profile.id} onClose={()=>setViewUser(null)} onDM={setDmUser} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF} getTier={getTier} calcScore={calcScore}/>}
       <Section className="fade">
-        {allProfiles.map((s,i)=>{
+        {allProfiles.filter(s=>!s.is_admin).map((s,i)=>{
           const me=s.id===profile.id,medal=["🥇","🥈","🥉"][i]||null;
           const sTier=getTier(calcScore(s.joined_date,0));
           return(

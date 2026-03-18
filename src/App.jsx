@@ -511,13 +511,12 @@ function OnboardingFlow({user,onComplete,onBack}){
             {FW("Birthday",
               <>
                 {DateInp("birthday")}
-                {form.birthday&&<div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>✓ {form.birthday}</div>}
+          
                 <ErrMsg k="birthday"/>
               </>,false,true)}
             {FW("Joining Date",
               <>
-                {DateInp("joined_date")}
-                {form.joined_date&&<div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>✓ {form.joined_date}</div>}
+                {DateInp("joined_date")}form.joined_date&&<div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>✓ {form.joined_date}</div>}
                 <ErrMsg k="joined_date"/>
               </>,true,true)}
           </div>

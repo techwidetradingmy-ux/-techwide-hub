@@ -434,26 +434,4 @@ export default function App(){
   if(profile.is_admin)return<AdminApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
   return<UserApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
 }
-```
 
-Commit → Vercel auto-deploys in ~1 min ✅
-
----
-
-## ✅ New Flow
-```
-Staff opens app
-      ↓
-Enters email + password → Sign In
-      ↓ (first time only)
-Step 1 — Basic Info (name, birthday)
-Step 2 — Contact Number
-Step 3 — About Me
-Step 4 — Private Info (IC, EPF, Bank)
-Step 5 — Profile Photo
-      ↓
-Complete Setup 🚀
-      ↓
-Goes straight into the app!
-
-Next login → straight to app, no setup needed ✅

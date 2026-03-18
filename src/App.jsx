@@ -448,7 +448,7 @@ function OnboardingFlow({user,onComplete}){
               <>
                 {Select("position",POSITIONS,"Select your position…")}
                 <ErrMsg k="position"/>
-              </>,false,true,"Subject to admin/management approval")}
+              </>,false,true)}
 
             {/* Birthday DD/MM/YYYY */}
             {FW("Birthday",
@@ -474,7 +474,7 @@ function OnboardingFlow({user,onComplete}){
                   <div style={{fontSize:12,color:"#34c759",marginTop:4}}>✓ Valid date</div>
                 )}
                 <ErrMsg k="joined_date"/>
-              </>,true,true,"Subject to admin/management approval")}
+             </>,true,true)}
           </div>
         )}
 

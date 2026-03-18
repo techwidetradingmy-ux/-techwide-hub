@@ -1,4 +1,6 @@
 import{useState,useEffect,useRef}from"react";
+import DatePicker from"react-datepicker";
+import"react-datepicker/dist/react-datepicker.css";
 import{supabase}from"./supabaseClient";
 import UserApp from"./UserApp";
 import AdminApp from"./AdminApp";
@@ -29,7 +31,17 @@ const GLOBAL_CSS=`
   .notif-dot{animation:notifPop .3s cubic-bezier(.34,1.56,.64,1) both;}
   .pulsing{animation:pulse .9s ease infinite;}
   input,textarea,button,select{font-family:${SF};}
-  input[type="date"]{color-scheme:light;}
+  .react-datepicker-wrapper{width:100%}
+  .react-datepicker-popper{z-index:999!important}
+  .react-datepicker{font-family:${SF}!important;border:none!important;border-radius:14px!important;box-shadow:0 8px 32px rgba(0,0,0,.18)!important;overflow:hidden}
+  .react-datepicker__header{background:${ACC}!important;border-bottom:none!important;padding-top:12px!important;border-radius:0!important}
+  .react-datepicker__current-month,.react-datepicker__day-name{color:#fff!important;font-family:${SF}!important}
+  .react-datepicker__day--selected,.react-datepicker__day--keyboard-selected{background:${ACC}!important;border-radius:50%!important;color:#fff!important}
+  .react-datepicker__day--today{font-weight:700;color:${ORG}!important}
+  .react-datepicker__day:hover{border-radius:50%!important;background:${ACC}22!important}
+  .react-datepicker__navigation-icon::before{border-color:#fff!important}
+  .react-datepicker__month-select,.react-datepicker__year-select{background:${ACC};color:#fff;border:none;border-radius:6px;padding:3px 6px;font-size:13px;cursor:pointer}
+  .react-datepicker__triangle{display:none!important}
 `;
 
 const DOMAIN="@techwide.com";
@@ -48,6 +60,22 @@ const dateToISO=val=>{
   if(p.length===3&&p[2].length===4)
     return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
   return"";
+};
+const parseDisplay=v=>{
+  if(!v)return null;
+  const p=v.split("/");
+  if(p.length===3&&p[2].length===4){
+    const d=new Date(+p[2],+p[1]-1,+p[0]);
+    return isNaN(d.getTime())?null:d;
+  }
+  return null;
+};
+const dateToDisplay=date=>{
+  if(!date)return"";
+  const dd=String(date.getDate()).padStart(2,"0");
+  const mm=String(date.getMonth()+1).padStart(2,"0");
+  const yyyy=date.getFullYear();
+  return`${dd}/${mm}/${yyyy}`;
 };
 
 // ── ENSURE PROFILE ────────────────────────────────────────────────────
@@ -244,7 +272,7 @@ function SignUpScreen({onBack,onSignedIn}){
 }
 
 // ── ONBOARDING ─────────────────────────────────────────────────────────
-function OnboardingFlow({user,onComplete}){
+function OnboardingFlow({user,onComplete,onBack}){
   const [step,   setStep]   = useState(1);
   const [errors, setErrors] = useState({});
   const [form,   setForm]   = useState({
@@ -331,7 +359,6 @@ function OnboardingFlow({user,onComplete}){
       const finalPosition=form.position==="Others"?form.position_other.trim():form.position;
       const birthdayISO=dateToISO(form.birthday);
       const joinedISO=dateToISO(form.joined_date);
-
       const payload={
         ...form,
         contact_number:contact,
@@ -344,9 +371,7 @@ function OnboardingFlow({user,onComplete}){
       };
       delete payload.bank_type_other;
       delete payload.position_other;
-
       await supabase.from("profiles").update(payload).eq("id",user.id);
-
       const reqs=[];
       if(form.ic_number)    reqs.push({user_id:user.id,field_name:"ic_number",   field_value:form.ic_number,   status:"Pending"});
       if(form.epf_number)   reqs.push({user_id:user.id,field_name:"epf_number",  field_value:form.epf_number,  status:"Pending"});
@@ -354,7 +379,6 @@ function OnboardingFlow({user,onComplete}){
       reqs.push({user_id:user.id,field_name:"position",   field_value:finalPosition,status:"Pending"});
       reqs.push({user_id:user.id,field_name:"joined_date",field_value:joinedISO,   status:"Pending"});
       if(reqs.length>0)await supabase.from("verification_requests").insert(reqs);
-
       for(const msg of WELCOME){
         await supabase.from("messages").insert({
           user_id:user.id,sender_name:"Techwide Hub",
@@ -385,26 +409,37 @@ function OnboardingFlow({user,onComplete}){
       style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
   );
 
-  // Native calendar picker — stores DD/MM/YYYY
+  // ── Date picker — DD/MM/YYYY native format ──
   const DateInp=(k)=>(
-    <input
-      type="date"
-      value={dateToISO(form[k])||""}
-      onChange={e=>{set(k,ISOToDisplay(e.target.value));clearErr(k);}}
-      style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:form[k]?LBL:LB3,cursor:"pointer"}}
+    <DatePicker
+      selected={parseDisplay(form[k])}
+      onChange={date=>{
+        set(k,dateToDisplay(date));
+        clearErr(k);
+      }}
+      dateFormat="dd/MM/yyyy"
+      placeholderText="DD/MM/YYYY"
+      showMonthDropdown
+      showYearDropdown
+      dropdownMode="select"
+      maxDate={new Date()}
+      yearDropdownItemNumber={80}
+      scrollableYearDropdown
+      customInput={
+        <input
+          readOnly
+          style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,cursor:"pointer"}}
+        />
+      }
     />
   );
 
-  // Reusable dropdown
+  // ── Reusable dropdown ──
   const DropDown=(k,options,ph,onChange=null)=>(
     <div style={{position:"relative"}}>
       <select
         value={form[k]}
-        onChange={e=>{
-          set(k,e.target.value);
-          clearErr(k);
-          if(onChange)onChange(e.target.value);
-        }}
+        onChange={e=>{set(k,e.target.value);clearErr(k);if(onChange)onChange(e.target.value);}}
         style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:form[k]?LBL:LB3,appearance:"none",WebkitAppearance:"none",paddingRight:24,cursor:"pointer"}}>
         <option value="" disabled>{ph}</option>
         {options.map(o=><option key={o} value={o}>{o}</option>)}
@@ -415,12 +450,8 @@ function OnboardingFlow({user,onComplete}){
 
   const OtherInput=(k,ph)=>(
     <div style={{marginTop:10}}>
-      <input
-        value={form[k]}
-        onChange={e=>{set(k,e.target.value);clearErr(k);}}
-        placeholder={ph}
-        style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none"}}
-      />
+      <input value={form[k]} onChange={e=>{set(k,e.target.value);clearErr(k);}} placeholder={ph}
+        style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none"}}/>
       <ErrMsg k={k}/>
     </div>
   );
@@ -436,6 +467,13 @@ function OnboardingFlow({user,onComplete}){
       )}
 
       <div style={{padding:"52px 16px 24px"}}>
+        {/* Back button — only on step 1 */}
+        {step===1&&onBack&&(
+          <button onClick={onBack} className="btn"
+            style={{display:"flex",alignItems:"center",gap:6,color:ACC,fontSize:15,fontWeight:600,background:"none",border:"none",marginBottom:20,padding:0,cursor:"pointer"}}>
+            ← Back
+          </button>
+        )}
         <img src="/TECHWIDE_LOGO.png" alt="" style={{width:36,height:36,borderRadius:8,objectFit:"cover",marginBottom:16}}/>
         <div style={{fontSize:13,color:LB3,marginBottom:6}}>Step {step} of {TOTAL}</div>
         <div style={{background:SEP,borderRadius:99,height:4,overflow:"hidden",marginBottom:24}}>
@@ -462,30 +500,20 @@ function OnboardingFlow({user,onComplete}){
         {/* ── Step 1 ── */}
         {step===1&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
-
-            {/* Full Name */}
             {FW("Full Name",<>{TI("name","Ahmad Farid")}<ErrMsg k="name"/></>,false,true)}
-
-            {/* Nickname */}
             {FW("Nickname",TI("nickname","e.g. Farid"))}
-
-            {/* Position — Dropdown + Others text box */}
             {FW("Position",
               <>
                 {DropDown("position",POSITIONS,"Select your position…",()=>{set("position_other","");clearErr("position_other");})}
                 {form.position==="Others"&&OtherInput("position_other","Please specify your position")}
                 <ErrMsg k="position"/>
               </>,false,true)}
-
-            {/* Birthday — Calendar */}
             {FW("Birthday",
               <>
                 {DateInp("birthday")}
                 {form.birthday&&<div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>✓ {form.birthday}</div>}
                 <ErrMsg k="birthday"/>
               </>,false,true)}
-
-            {/* Joining Date — Calendar */}
             {FW("Joining Date",
               <>
                 {DateInp("joined_date")}
@@ -538,8 +566,6 @@ function OnboardingFlow({user,onComplete}){
         {/* ── Step 4 ── */}
         {step===4&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
-
-            {/* IC Number */}
             {FW("IC Number",
               <>
                 <input value={form.ic_number}
@@ -551,8 +577,6 @@ function OnboardingFlow({user,onComplete}){
                 </div>
                 <ErrMsg k="ic_number"/>
               </>,false,true)}
-
-            {/* EPF Number — Required */}
             {FW("EPF Number",
               <>
                 <input value={form.epf_number}
@@ -561,8 +585,6 @@ function OnboardingFlow({user,onComplete}){
                   style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
                 <ErrMsg k="epf_number"/>
               </>,false,true)}
-
-            {/* Bank Account */}
             {FW("Bank Account Number",
               <>
                 <input value={form.bank_account}
@@ -571,8 +593,7 @@ function OnboardingFlow({user,onComplete}){
                   style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
                 <ErrMsg k="bank_account"/>
               </>)}
-
-            {/* Bank Type — Dropdown + Others text box */}
+            {/* Bank Type Dropdown */}
             <div style={{padding:"11px 16px",borderBottom:form.bank_type==="Others"?`1px solid ${SEP}`:"none"}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8}}>Bank Type</div>
               <div style={{position:"relative"}}>
@@ -584,15 +605,12 @@ function OnboardingFlow({user,onComplete}){
                 </select>
                 <div style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
               </div>
-              {/* Others — free text */}
               {form.bank_type==="Others"&&(
                 <div style={{marginTop:10}}>
-                  <input
-                    value={form.bank_type_other}
+                  <input value={form.bank_type_other}
                     onChange={e=>{set("bank_type_other",e.target.value);clearErr("bank_type_other");}}
                     placeholder="Please specify your bank name"
-                    style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none"}}
-                  />
+                    style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none"}}/>
                   <ErrMsg k="bank_type_other"/>
                 </div>
               )}
@@ -808,6 +826,11 @@ export default function App(){
   if(!profile.onboarded)return(
     <OnboardingFlow
       user={profile}
+      onBack={async()=>{
+        await supabase.auth.signOut();
+        setProfile(null);
+        setSession(null);
+      }}
       onComplete={async()=>{
         const{data:updated}=await supabase.from("profiles").select("*").eq("id",profile.id).single();
         if(updated)setProfile(updated);

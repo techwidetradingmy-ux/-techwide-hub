@@ -712,7 +712,7 @@ export default function App(){
             <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Email</div>
             <input value={loginEmail}
               onChange={e=>{setLoginEmail(e.target.value);setLoginErr("");}}
-              placeholder="your@techwide.com"
+              placeholder="name@techwide.com"
               type="email" autoComplete="email"
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
           </div>

@@ -11,10 +11,20 @@ export const BANK_TYPES=[
 ];
 
 export const POSITIONS=[
-  "Content Creator","Campaign Manager","Analytics Lead","Creator Relations",
-  "Business Development Manager","Marketing Executive","Social Media Manager",
-  "Graphic Designer","Copywriter","Account Manager","Operations Manager",
-  "HR Manager","Finance Executive","IT Support","Other"
+  "Live Host",
+  "Content Creator",
+  "KOL Specialist",
+  "Digital Marketing Executive",
+  "Videographer",
+  "Video Editor",
+  "Graphic Designer",
+  "Data Analyst",
+  "Project Lead",
+  "Team Manager",
+  "Admin",
+  "Clerk & HR",
+  "Internship",
+  "Others",
 ];
 
 export const formatIC=val=>{

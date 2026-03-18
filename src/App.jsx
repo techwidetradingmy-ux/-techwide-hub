@@ -160,7 +160,7 @@ function SignUpScreen({onBack,onSignedIn}){
       const uid=signUpData.user.id;
 
       // Step 2 — Confirm email immediately (internal app)
-      await supabase.rpc("confirm_user_email_by_id",{uid}).catch(()=>{});
+     try{ await supabase.rpc("confirm_user_email_by_id",{uid}); }catch(_){}
 
       // Step 3 — Force sign in immediately
       const{data:signInData,error:signInError}=await supabase.auth.signInWithPassword({

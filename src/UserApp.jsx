@@ -363,7 +363,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     const hours=now.getHours();
     const ampm=hours>=12?"PM":"AM";
     const h12=hours%12||12;
-    const timeStr=`${pad(h12)}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${ampm}`;
+    const timeStr=`${pad(h12)}:${pad(now.getMinutes())} ${ampm}`;
     const dateStr=`${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
 
     return(

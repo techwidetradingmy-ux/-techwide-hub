@@ -79,6 +79,7 @@ const dateToDisplay=date=>{
   return`${dd}/${mm}/${yyyy}`;
 };
 
+// ── ENSURE PROFILE ────────────────────────────────────────────────────
 const ensureProfile=async(user)=>{
   try{
     const{data:ex}=await supabase.from("profiles").select("*").eq("id",user.id).maybeSingle();
@@ -183,6 +184,7 @@ function SignUpScreen({onBack,onSignedIn}){
       </div>
       <div style={{padding:"0 16px 40px"}}>
         <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
+          {/* Email */}
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
             <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:8}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Work Email</div>
@@ -204,6 +206,7 @@ function SignUpScreen({onBack,onSignedIn}){
               </div>
             )}
           </div>
+          {/* Password */}
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
             <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Password</div>
@@ -221,6 +224,7 @@ function SignUpScreen({onBack,onSignedIn}){
             )}
             {formErr.pass&&<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500}}>{formErr.pass}</div>}
           </div>
+          {/* Confirm */}
           <div style={{padding:"11px 16px"}}>
             <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Confirm Password</div>
@@ -236,7 +240,7 @@ function SignUpScreen({onBack,onSignedIn}){
         </div>
         {formErr.general&&<div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px"}}>{formErr.general}</div>}
         <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:20,fontSize:13,color:ACC,lineHeight:1.7}}>
-          📋 After creating your account, you'll be guided through profile setup — name, position, contact info and more.
+          📋 After creating your account, you'll be guided through profile setup.
         </div>
         <button onClick={handleSignUp} disabled={!canSubmit} className="btn-primary"
           style={{width:"100%",background:canSubmit?ACC:"#e5e5ea",color:canSubmit?"#fff":LB3,border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:canSubmit?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12,transition:"all .2s"}}>
@@ -254,15 +258,25 @@ function OnboardingFlow({user,onComplete,onBack}){
   const [step,setStep]=useState(1);
   const [errors,setErrors]=useState({});
   const [form,setForm]=useState({
-    name:user.name||"",nickname:"",
-    position:"",position_other:"",
-    birthday:"",birthday_confirm:"",
-    joined_date:"",joined_date_confirm:"",
-    gender:"",hometown:"",
-    contact_number:"",bio:"",hobby:"",favorite_food:"",
-    ic_number:"",ic_number_confirm:"",
-    epf_number:"",epf_number_confirm:"",
-    bank_account:"",bank_type:"Maybank",bank_type_other:"",
+    name:user.name||"",
+    nickname:"",
+    position:"",
+    position_other:"",
+    birthday:"",
+    joined_date:"",
+    gender:"",
+    hometown:"",
+    contact_number:"",
+    bio:"",
+    hobby:"",
+    favorite_food:"",
+    ic_number:"",
+    ic_number_confirm:"",
+    epf_number:"",
+    epf_number_confirm:"",
+    bank_account:"",
+    bank_type:"Maybank",
+    bank_type_other:"",
     avatar_url:"",
   });
   const [loading,setLoading]=useState(false);
@@ -278,14 +292,8 @@ function OnboardingFlow({user,onComplete,onBack}){
       if(!form.name.trim())              e.name="Full name is required";
       if(!form.position)                 e.position="Please select your position";
       else if(form.position==="Others"&&!form.position_other.trim()) e.position_other="Please specify your position";
-      // Birthday — required + confirmation must match
       if(!form.birthday)                 e.birthday="Birthday is required";
-      if(!form.birthday_confirm)         e.birthday_confirm="Please confirm your birthday";
-      else if(form.birthday!==form.birthday_confirm) e.birthday_confirm="Birthday does not match — please re-enter";
-      // Joining Date — required + confirmation must match
       if(!form.joined_date)              e.joined_date="Joining date is required";
-      if(!form.joined_date_confirm)      e.joined_date_confirm="Please confirm your joining date";
-      else if(form.joined_date!==form.joined_date_confirm) e.joined_date_confirm="Joining date does not match — please re-enter";
     }
     if(step===2){
       if(!form.contact_number)           e.contact_number="Contact number is required";
@@ -304,7 +312,7 @@ function OnboardingFlow({user,onComplete,onBack}){
       if(form.bank_type==="Others"&&!form.bank_type_other.trim()) e.bank_type_other="Please specify your bank";
     }
     if(step===5){
-      if(!form.avatar_url)               e.avatar_url="Profile photo is required";
+      if(!form.avatar_url) e.avatar_url="Profile photo is required";
     }
     setErrors(e);
     return Object.keys(e).length===0;
@@ -329,14 +337,20 @@ function OnboardingFlow({user,onComplete,onBack}){
       const birthdayISO=dateToISO(form.birthday);
       const joinedISO=dateToISO(form.joined_date);
       const payload={
-        ...form,contact_number:contact,
-        birthday:birthdayISO,joined_date:joinedISO,
-        bank_type:finalBankType,position:finalPosition,role:finalPosition,
+        ...form,
+        contact_number:contact,
+        birthday:birthdayISO,
+        joined_date:joinedISO,
+        bank_type:finalBankType,
+        position:finalPosition,
+        role:finalPosition,
         onboarded:true,
       };
-      delete payload.bank_type_other;delete payload.position_other;
-      delete payload.birthday_confirm;delete payload.joined_date_confirm;
-      delete payload.ic_number_confirm;delete payload.epf_number_confirm;
+      // Remove confirm fields and temp fields
+      delete payload.bank_type_other;
+      delete payload.position_other;
+      delete payload.ic_number_confirm;
+      delete payload.epf_number_confirm;
       await supabase.from("profiles").update(payload).eq("id",user.id);
       const reqs=[];
       if(form.ic_number)    reqs.push({user_id:user.id,field_name:"ic_number",   field_value:form.ic_number,   status:"Pending"});
@@ -373,18 +387,26 @@ function OnboardingFlow({user,onComplete,onBack}){
       style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
   );
 
+  // ── Calendar picker — DD/MM/YYYY ──
   const DateInp=(k)=>(
     <DatePicker
       selected={parseDisplay(form[k])}
       onChange={date=>{set(k,dateToDisplay(date));clearErr(k);}}
       dateFormat="dd/MM/yyyy"
       placeholderText="DD/MM/YYYY"
-      showMonthDropdown showYearDropdown dropdownMode="select"
-      maxDate={new Date()} yearDropdownItemNumber={80} scrollableYearDropdown
-      customInput={<input readOnly style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,cursor:"pointer"}}/>}
+      showMonthDropdown
+      showYearDropdown
+      dropdownMode="select"
+      maxDate={new Date()}
+      yearDropdownItemNumber={80}
+      scrollableYearDropdown
+      customInput={
+        <input readOnly style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,cursor:"pointer"}}/>
+      }
     />
   );
 
+  // ── Dropdown ──
   const DropDown=(k,options,ph,onChange=null)=>(
     <div style={{position:"relative"}}>
       <select value={form[k]} onChange={e=>{set(k,e.target.value);clearErr(k);if(onChange)onChange(e.target.value);}}
@@ -396,23 +418,16 @@ function OnboardingFlow({user,onComplete,onBack}){
     </div>
   );
 
-  const ConfirmBox=(label,k,children)=>(
-    <div style={{background:`${ORG}08`,borderRadius:10,padding:"10px 12px",marginTop:8,border:`1px dashed ${ORG}44`}}>
-      <div style={{fontSize:11,color:ORG,fontWeight:700,letterSpacing:".3px",textTransform:"uppercase",marginBottom:6}}>
-        🔁 Confirm {label}
-      </div>
-      {children}
-      <ErrMsg k={k}/>
-    </div>
-  );
-
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
       {showCrop&&rawImg&&(
-        <CircleCrop src={rawImg}
+        <CircleCrop
+          src={rawImg}
           onCrop={url=>{set("avatar_url",url);clearErr("avatar_url");setShowCrop(false);setRawImg(null);}}
-          onCancel={()=>{setShowCrop(false);setRawImg(null);}}/>
+          onCancel={()=>{setShowCrop(false);setRawImg(null);}}
+        />
       )}
+
       <div style={{padding:"52px 16px 24px"}}>
         {step===1&&onBack&&(
           <button onClick={onBack} className="btn"
@@ -443,7 +458,7 @@ function OnboardingFlow({user,onComplete,onBack}){
 
       <div style={{padding:"0 16px 24px"}}>
 
-        {/* ── Step 1 ── */}
+        {/* ── Step 1 — Basic Info ── */}
         {step===1&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             {FW("Full Name",<>{TI("name","Ahmad Farid")}<ErrMsg k="name"/></>,false,true)}
@@ -462,7 +477,7 @@ function OnboardingFlow({user,onComplete,onBack}){
                 <ErrMsg k="position"/>
               </>,false,true)}
 
-            {/* Birthday + Confirm */}
+            {/* ── Birthday — no confirm ── */}
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
                 <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Birthday</div>
@@ -470,22 +485,9 @@ function OnboardingFlow({user,onComplete,onBack}){
               </div>
               {DateInp("birthday")}
               <ErrMsg k="birthday"/>
-              {form.birthday&&ConfirmBox("Birthday","birthday_confirm",
-                <DatePicker
-                  selected={parseDisplay(form.birthday_confirm)}
-                  onChange={date=>{set("birthday_confirm",dateToDisplay(date));clearErr("birthday_confirm");}}
-                  dateFormat="dd/MM/yyyy" placeholderText="Re-select your birthday"
-                  showMonthDropdown showYearDropdown dropdownMode="select"
-                  maxDate={new Date()} yearDropdownItemNumber={80} scrollableYearDropdown
-                  customInput={<input readOnly style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:16,color:LBL,cursor:"pointer"}}/>}
-                />
-              )}
-              {form.birthday&&form.birthday_confirm&&form.birthday===form.birthday_confirm&&(
-                <div style={{fontSize:12,color:"#34c759",marginTop:6,fontWeight:500}}>✓ Birthday confirmed</div>
-              )}
             </div>
 
-            {/* Joining Date + Confirm */}
+            {/* ── Joining Date — no confirm ── */}
             <div style={{padding:"11px 16px"}}>
               <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
                 <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Joining Date</div>
@@ -493,24 +495,11 @@ function OnboardingFlow({user,onComplete,onBack}){
               </div>
               {DateInp("joined_date")}
               <ErrMsg k="joined_date"/>
-              {form.joined_date&&ConfirmBox("Joining Date","joined_date_confirm",
-                <DatePicker
-                  selected={parseDisplay(form.joined_date_confirm)}
-                  onChange={date=>{set("joined_date_confirm",dateToDisplay(date));clearErr("joined_date_confirm");}}
-                  dateFormat="dd/MM/yyyy" placeholderText="Re-select your joining date"
-                  showMonthDropdown showYearDropdown dropdownMode="select"
-                  maxDate={new Date()} yearDropdownItemNumber={80} scrollableYearDropdown
-                  customInput={<input readOnly style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:16,color:LBL,cursor:"pointer"}}/>}
-                />
-              )}
-              {form.joined_date&&form.joined_date_confirm&&form.joined_date===form.joined_date_confirm&&(
-                <div style={{fontSize:12,color:"#34c759",marginTop:6,fontWeight:500}}>✓ Joining date confirmed</div>
-              )}
             </div>
           </div>
         )}
 
-        {/* ── Step 2 ── */}
+        {/* ── Step 2 — Contact ── */}
         {step===2&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
@@ -531,7 +520,7 @@ function OnboardingFlow({user,onComplete,onBack}){
           </>
         )}
 
-        {/* ── Step 3 ── */}
+        {/* ── Step 3 — About ── */}
         {step===3&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
@@ -540,19 +529,17 @@ function OnboardingFlow({user,onComplete,onBack}){
                 placeholder="Describe about yourself in short..."
                 rows={3} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",lineHeight:1.45,fontFamily:SF}}/>
             </div>
-            {FW("Gender",
-              <>
-                {DropDown("gender",GENDERS,"Select gender…")}
-              </>)}
+            {FW("Gender",DropDown("gender",GENDERS,"Select gender…"))}
             {FW("Home Town",TI("hometown","e.g. Kuala Lumpur"))}
             {FW("Hobby",TI("hobby","e.g. Gaming, Reading"))}
             {FW("Favourite Food",TI("favorite_food","e.g. Nasi Lemak"),true)}
           </div>
         )}
 
-        {/* ── Step 4 ── */}
+        {/* ── Step 4 — Private Info ── */}
         {step===4&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
+
             {/* IC Number + Confirm */}
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
@@ -565,18 +552,23 @@ function OnboardingFlow({user,onComplete,onBack}){
                 {getICDigits(form.ic_number).length}/12 digits {getICDigits(form.ic_number).length===12&&"✓"}
               </div>
               <ErrMsg k="ic_number"/>
-              {getICDigits(form.ic_number).length===12&&ConfirmBox("IC Number","ic_number_confirm",
-                <input value={form.ic_number_confirm}
-                  onChange={e=>{set("ic_number_confirm",formatIC(e.target.value));clearErr("ic_number_confirm");}}
-                  placeholder="Re-enter your IC number"
-                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:16,color:LBL,letterSpacing:1}}/>
-              )}
-              {form.ic_number&&form.ic_number_confirm&&form.ic_number===form.ic_number_confirm&&(
-                <div style={{fontSize:12,color:"#34c759",marginTop:6,fontWeight:500}}>✓ IC number confirmed</div>
+              {/* Confirm IC — appears after 12 digits entered */}
+              {getICDigits(form.ic_number).length===12&&(
+                <div style={{marginTop:10,background:`${ORG}08`,borderRadius:10,padding:"10px 12px",border:`1px dashed ${ORG}44`}}>
+                  <div style={{fontSize:11,color:ORG,fontWeight:700,letterSpacing:".3px",textTransform:"uppercase",marginBottom:6}}>🔁 Confirm IC Number</div>
+                  <input value={form.ic_number_confirm}
+                    onChange={e=>{set("ic_number_confirm",formatIC(e.target.value));clearErr("ic_number_confirm");}}
+                    placeholder="Re-enter your IC number"
+                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:16,color:LBL,letterSpacing:1}}/>
+                  {form.ic_number&&form.ic_number_confirm&&form.ic_number===form.ic_number_confirm&&(
+                    <div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>✓ IC number confirmed</div>
+                  )}
+                  <ErrMsg k="ic_number_confirm"/>
+                </div>
               )}
             </div>
 
-            {/* EPF + Confirm */}
+            {/* EPF Number + Confirm */}
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
                 <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>EPF Number</div>
@@ -586,14 +578,19 @@ function OnboardingFlow({user,onComplete,onBack}){
                 placeholder="XXXXXXXXXXXX" type="tel"
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
               <ErrMsg k="epf_number"/>
-              {form.epf_number.length>=5&&ConfirmBox("EPF Number","epf_number_confirm",
-                <input value={form.epf_number_confirm}
-                  onChange={e=>{set("epf_number_confirm",e.target.value.replace(/\D/g,""));clearErr("epf_number_confirm");}}
-                  placeholder="Re-enter your EPF number" type="tel"
-                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:16,color:LBL}}/>
-              )}
-              {form.epf_number&&form.epf_number_confirm&&form.epf_number===form.epf_number_confirm&&(
-                <div style={{fontSize:12,color:"#34c759",marginTop:6,fontWeight:500}}>✓ EPF number confirmed</div>
+              {/* Confirm EPF — appears after 5+ digits */}
+              {form.epf_number.length>=5&&(
+                <div style={{marginTop:10,background:`${ORG}08`,borderRadius:10,padding:"10px 12px",border:`1px dashed ${ORG}44`}}>
+                  <div style={{fontSize:11,color:ORG,fontWeight:700,letterSpacing:".3px",textTransform:"uppercase",marginBottom:6}}>🔁 Confirm EPF Number</div>
+                  <input value={form.epf_number_confirm}
+                    onChange={e=>{set("epf_number_confirm",e.target.value.replace(/\D/g,""));clearErr("epf_number_confirm");}}
+                    placeholder="Re-enter your EPF number" type="tel"
+                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:16,color:LBL}}/>
+                  {form.epf_number&&form.epf_number_confirm&&form.epf_number===form.epf_number_confirm&&(
+                    <div style={{fontSize:12,color:"#34c759",marginTop:4,fontWeight:500}}>✓ EPF number confirmed</div>
+                  )}
+                  <ErrMsg k="epf_number_confirm"/>
+                </div>
               )}
             </div>
 
@@ -606,7 +603,7 @@ function OnboardingFlow({user,onComplete,onBack}){
                 <ErrMsg k="bank_account"/>
               </>)}
 
-            {/* Bank Type */}
+            {/* Bank Type Dropdown */}
             <div style={{padding:"11px 16px",borderBottom:form.bank_type==="Others"?`1px solid ${SEP}`:"none"}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8}}>Bank Type</div>
               <div style={{position:"relative"}}>
@@ -629,7 +626,7 @@ function OnboardingFlow({user,onComplete,onBack}){
           </div>
         )}
 
-        {/* ── Step 5 ── */}
+        {/* ── Step 5 — Photo ── */}
         {step===5&&(
           <div style={{textAlign:"center",marginBottom:24}}>
             <div onClick={()=>document.getElementById("avOnboard").click()} className="btn"
@@ -644,6 +641,7 @@ function OnboardingFlow({user,onComplete,onBack}){
           </div>
         )}
 
+        {/* ── Navigation ── */}
         <div style={{display:"flex",gap:10,marginTop:8}}>
           {step>1&&<button onClick={()=>setStep(s=>s-1)} className="btn" style={{flex:1,padding:"15px",background:BG2,border:`1px solid ${SEP}`,borderRadius:13,fontSize:17,color:LBL}}>Back</button>}
           {step<TOTAL
@@ -720,6 +718,7 @@ export default function App(){
     }catch(err){setLoginErr("Connection error. Please try again.");setLoginLoading(false);}
   };
 
+  // ── Loading ──
   if(loading)return(
     <div style={{minHeight:"100vh",background:ACC,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,fontFamily:SF}}>
       <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:100,height:100,borderRadius:22,objectFit:"cover"}}/>
@@ -727,6 +726,7 @@ export default function App(){
     </div>
   );
 
+  // ── Sign Up ──
   if(screen==="signup")return(
     <SignUpScreen
       onBack={(prefillEmail)=>{if(prefillEmail)setLoginEmail(prefillEmail);setScreen("login");}}
@@ -734,6 +734,7 @@ export default function App(){
     />
   );
 
+  // ── Login ──
   if(!session||!profile)return(
     <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
       <div className="fade" style={{textAlign:"center",marginBottom:36}}>
@@ -775,6 +776,7 @@ export default function App(){
     </div>
   );
 
+  // ── Onboarding ──
   if(!profile.onboarded)return(
     <OnboardingFlow
       user={profile}
@@ -786,6 +788,7 @@ export default function App(){
     />
   );
 
+  // ── Main App ──
   if(profile.is_admin)return<AdminApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
   return<UserApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
 }

@@ -1,4 +1,4 @@
-import{useState,useEffect}from"react";
+import{useState,useEffect,useRef}from"react";
 import{supabase}from"./supabaseClient";
 import UserApp from"./UserApp";
 import AdminApp from"./AdminApp";
@@ -14,6 +14,7 @@ const GLOBAL_CSS=`
   @keyframes barFill{from{width:0}to{width:var(--w)}}
   @keyframes toastIn{from{opacity:0;transform:translateY(10px)scale(.95)}to{opacity:1;transform:translateY(0)scale(1)}}
   @keyframes notifPop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
   .fade{animation:fadeUp .28s cubic-bezier(.4,0,.2,1) both}
   .bar{animation:barFill .7s cubic-bezier(.4,0,.2,1) both}
   .toast-in{animation:toastIn .3s cubic-bezier(.34,1.2,.64,1) both}
@@ -26,32 +27,77 @@ const GLOBAL_CSS=`
   .card-press{transition:all .12s;}
   .card-press:active{transform:scale(.97);opacity:.9;}
   .notif-dot{animation:notifPop .3s cubic-bezier(.34,1.56,.64,1) both;}
+  .checking{animation:pulse 1s ease infinite;}
   input,textarea,button{font-family:${SF};}
 `;
 
-// ── EMAIL VALIDATION ────────────────────────────────────────────────────
-const validateEmail=email=>{
-  const re=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(email.trim());
-};
+const DOMAIN="@techwide.com";
 
-// ── SIGN UP SCREEN ──────────────────────────────────────────────────────
+// ── SIGNUP SCREEN ────────────────────────────────────────────────────────
 function SignUpScreen({onBack,onSuccess}){
-  const [email,setEmail]=useState("");
-  const [pass,setPass]=useState("");
-  const [confirm,setConfirm]=useState("");
-  const [errors,setErrors]=useState({});
-  const [loading,setLoading]=useState(false);
-  const [done,setDone]=useState(false);
+  const [prefix,  setPrefix]  = useState("");
+  const [pass,    setPass]    = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [errors,  setErrors]  = useState({});
+  const [loading, setLoading] = useState(false);
+  const [checking,setChecking]= useState(false);
+  const [emailStatus,setEmailStatus]=useState(null); // null | "available" | "taken"
+  const [done,    setDone]    = useState(false);
+  const checkTimer = useRef(null);
+
+  const fullEmail = ()=>`${prefix.trim().toLowerCase()}${DOMAIN}`;
+
+  const validatePrefix = val=>{
+    // Only letters, numbers, dots, underscores, hyphens
+    return /^[a-zA-Z0-9._-]+$/.test(val);
+  };
+
+  // Real-time email existence check (debounced 800ms)
+  useEffect(()=>{
+    if(!prefix.trim()||!validatePrefix(prefix)){
+      setEmailStatus(null);
+      setChecking(false);
+      clearTimeout(checkTimer.current);
+      return;
+    }
+    setEmailStatus(null);
+    setChecking(true);
+    clearTimeout(checkTimer.current);
+    checkTimer.current=setTimeout(async()=>{
+      try{
+        // Check if email exists in profiles table
+        const{data}=await supabase
+          .from("profiles")
+          .select("id")
+          .eq("email",fullEmail())
+          .maybeSingle();
+        setEmailStatus(data?"taken":"available");
+      }catch{
+        setEmailStatus("available"); // assume available if check fails
+      }
+      setChecking(false);
+    },800);
+    return()=>clearTimeout(checkTimer.current);
+  },[prefix]);
 
   const validate=()=>{
     const e={};
-    if(!email.trim())e.email="Email is required";
-    else if(!validateEmail(email))e.email="Please enter a valid email address";
-    if(!pass)e.pass="Password is required";
-    else if(pass.length<6)e.pass="Password must be at least 6 characters";
-    if(!confirm)e.confirm="Please confirm your password";
-    else if(pass!==confirm)e.confirm="Passwords do not match";
+    if(!prefix.trim())
+      e.prefix="Username is required";
+    else if(!validatePrefix(prefix))
+      e.prefix="Only letters, numbers, dots, underscores and hyphens allowed";
+    else if(emailStatus==="taken")
+      e.prefix="This email is already registered";
+    else if(emailStatus!=="available")
+      e.prefix="Please wait for email check to complete";
+    if(!pass)
+      e.pass="Password is required";
+    else if(pass.length<6)
+      e.pass="Password must be at least 6 characters";
+    if(!confirm)
+      e.confirm="Please confirm your password";
+    else if(pass!==confirm)
+      e.confirm="Passwords do not match";
     setErrors(e);
     return Object.keys(e).length===0;
   };
@@ -60,59 +106,71 @@ function SignUpScreen({onBack,onSuccess}){
     if(!validate())return;
     setLoading(true);
     try{
+      const email=fullEmail();
       // Create auth account
       const{data,error}=await supabase.auth.signUp({
-        email:email.trim().toLowerCase(),
-        password:pass
+        email,
+        password:pass,
       });
       if(error){
-        if(error.message.includes("already registered")){
-          setErrors({email:"This email is already registered. Please sign in."});
+        if(error.message.toLowerCase().includes("already registered")||
+           error.message.toLowerCase().includes("already been registered")){
+          setErrors({prefix:"This email is already registered. Please sign in."});
         } else {
-          setErrors({email:error.message});
+          setErrors({prefix:error.message});
         }
         setLoading(false);
         return;
       }
-      if(data?.user){
-        // Create basic profile
-        const avatar=email.trim().split("@")[0].slice(0,2).toUpperCase();
-        await supabase.from("profiles").insert({
-          id:data.user.id,
-          name:email.trim().split("@")[0],
-          avatar,
-          xp:0,
-          streak:0,
-          badges:[],
-          is_admin:false,
-          onboarded:false,
-          contribution_score:0
-        });
-        // Confirm email immediately (internal app)
-        await supabase.rpc("confirm_user_email",{user_id:data.user.id}).catch(()=>{});
+      if(!data?.user){
+        setErrors({prefix:"Account creation failed. Please try again."});
+        setLoading(false);
+        return;
+      }
+      // Create basic profile
+      const avatar=prefix.trim().slice(0,2).toUpperCase();
+      const{error:profileError}=await supabase.from("profiles").insert({
+        id:data.user.id,
+        name:prefix.trim(),
+        email,
+        avatar,
+        xp:0,
+        streak:0,
+        badges:[],
+        is_admin:false,
+        onboarded:false,
+        contribution_score:0,
+      });
+      if(profileError&&!profileError.message.includes("duplicate")){
+        // Profile might already exist, that's okay
+        console.log("Profile insert note:",profileError.message);
       }
       setDone(true);
-      setLoading(false);
     }catch(err){
-      setErrors({email:"Something went wrong. Please try again."});
-      setLoading(false);
+      // Show specific error, never generic "something went wrong"
+      setErrors({prefix:`Error: ${err.message||"Please try again"}`});
     }
+    setLoading(false);
   };
 
   const ErrMsg=({k})=>errors[k]
-    ?<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500,paddingLeft:2}}>{errors[k]}</div>
+    ?<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500,paddingLeft:2,lineHeight:1.4}}>{errors[k]}</div>
     :null;
 
+  // ── Success screen ──
   if(done)return(
     <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
       <div className="fade" style={{textAlign:"center",maxWidth:360,width:"100%"}}>
         <div style={{fontSize:64,marginBottom:20}}>🎉</div>
         <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px",marginBottom:10}}>Account Created!</div>
-        <div style={{fontSize:15,color:LB3,lineHeight:1.7,marginBottom:32}}>
-          Your account has been created successfully.<br/>
-          Sign in now to complete your profile setup.
+        <div style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:20,textAlign:"left"}}>
+          <div style={{fontSize:13,color:LB3,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:".3px"}}>Your login email</div>
+          <div style={{fontSize:17,color:ACC,fontWeight:600}}>{fullEmail()}</div>
         </div>
-        <button onClick={()=>onSuccess(email.trim().toLowerCase())} className="btn-primary"
+        <div style={{fontSize:15,color:LB3,lineHeight:1.7,marginBottom:32}}>
+          Sign in now to complete your profile setup. You'll be guided through a quick onboarding process.
+        </div>
+        <button onClick={()=>onSuccess(fullEmail())} className="btn-primary"
           style={{width:"100%",background:ACC,color:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
           Sign In Now →
         </button>
@@ -120,50 +178,82 @@ function SignUpScreen({onBack,onSuccess}){
     </div>
   );
 
+  // ── Sign up form ──
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
-      {/* Header */}
-      <div style={{padding:"56px 16px 24px"}}>
+      <div style={{padding:"52px 16px 24px"}}>
         <button onClick={onBack} className="btn"
-          style={{display:"flex",alignItems:"center",gap:6,color:ACC,fontSize:16,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF,marginBottom:20}}>
-          ← Back
+          style={{display:"flex",alignItems:"center",gap:6,color:ACC,fontSize:16,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF,marginBottom:24,padding:0}}>
+          ← Back to Sign In
         </button>
         <img src="/TECHWIDE_LOGO.png" alt="" style={{width:44,height:44,borderRadius:10,objectFit:"cover",marginBottom:16}}/>
-        <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginBottom:6}}>
-          First Time? 👋
-        </div>
+        <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginBottom:6}}>First Time Login 👋</div>
         <div style={{fontSize:15,color:LB3,lineHeight:1.6}}>
-          Create your Techwide Hub account.<br/>
-          You'll set up your full profile after signing in.
+          Create your Techwide Hub account using your work email.
         </div>
       </div>
 
       <div style={{padding:"0 16px 40px"}}>
-        {/* Email field */}
+        {/* Email field with @techwide.com suffix */}
         <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
-            <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>
-              Work Email <span style={{color:"#ff3b30"}}>*</span>
+            <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:8}}>
+              <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Work Email</div>
+              <div style={{fontSize:12,color:"#ff3b30",fontWeight:700}}>*</div>
             </div>
-            <input
-              value={email}
-              onChange={e=>{setEmail(e.target.value);setErrors(p=>({...p,email:undefined}));}}
-              placeholder="yourname@techwide.com"
-              type="email"
-              autoCapitalize="none"
-              autoComplete="email"
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}
-            />
-            <ErrMsg k="email"/>
-            {email&&!errors.email&&validateEmail(email)&&(
-              <div style={{fontSize:12,color:"#34c759",marginTop:5,fontWeight:500}}>✓ Valid email</div>
+
+            {/* Email input with domain suffix */}
+            <div style={{display:"flex",alignItems:"center",background:"#f2f2f7",borderRadius:10,overflow:"hidden",border:`1.5px solid ${
+              emailStatus==="taken"?"#ff3b30":
+              emailStatus==="available"?"#34c759":
+              SEP}`}}>
+              <input
+                value={prefix}
+                onChange={e=>{
+                  setPrefix(e.target.value.toLowerCase().replace(/\s/g,''));
+                  setErrors(p=>({...p,prefix:undefined}));
+                }}
+                placeholder="yourname"
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF,padding:"10px 12px"}}
+              />
+              <div style={{padding:"10px 12px",background:ACC,color:"#fff",fontSize:15,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>
+                {DOMAIN}
+              </div>
+            </div>
+
+            {/* Full email preview */}
+            {prefix&&(
+              <div style={{fontSize:13,marginTop:6,color:LB3}}>
+                Full email: <span style={{color:ACC,fontWeight:600}}>{fullEmail()}</span>
+              </div>
             )}
+
+            {/* Email check status */}
+            {prefix&&validatePrefix(prefix)&&(
+              <div style={{fontSize:12,marginTop:6,fontWeight:500,display:"flex",alignItems:"center",gap:5}}>
+                {checking&&<>
+                  <div className="checking" style={{width:8,height:8,borderRadius:"50%",background:"#ff9500"}}/>
+                  <span style={{color:"#ff9500"}}>Checking availability…</span>
+                </>}
+                {!checking&&emailStatus==="available"&&<>
+                  <span style={{color:"#34c759"}}>✓ Email is available</span>
+                </>}
+                {!checking&&emailStatus==="taken"&&<>
+                  <span style={{color:"#ff3b30"}}>✕ This email is already registered</span>
+                </>}
+              </div>
+            )}
+            <ErrMsg k="prefix"/>
           </div>
 
-          {/* Password field */}
+          {/* Password */}
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
-            <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>
-              Password <span style={{color:"#ff3b30"}}>*</span>
+            <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
+              <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Password</div>
+              <div style={{fontSize:12,color:"#ff3b30",fontWeight:700}}>*</div>
             </div>
             <input
               value={pass}
@@ -173,24 +263,28 @@ function SignUpScreen({onBack,onSuccess}){
               autoComplete="new-password"
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}
             />
-            {pass&&<div style={{display:"flex",gap:4,marginTop:6}}>
-              {[
-                {label:"6+ chars",   ok:pass.length>=6},
-                {label:"Uppercase",  ok:/[A-Z]/.test(pass)},
-                {label:"Number",     ok:/[0-9]/.test(pass)},
-              ].map(x=>(
-                <div key={x.label} style={{background:x.ok?"#34c75918":"rgba(0,0,0,.06)",color:x.ok?"#34c759":LB3,fontSize:11,fontWeight:600,padding:"3px 7px",borderRadius:99}}>
-                  {x.ok?"✓":""} {x.label}
-                </div>
-              ))}
-            </div>}
+            {/* Password strength */}
+            {pass&&(
+              <div style={{display:"flex",gap:5,marginTop:8,flexWrap:"wrap"}}>
+                {[
+                  {label:"6+ chars",  ok:pass.length>=6},
+                  {label:"Uppercase", ok:/[A-Z]/.test(pass)},
+                  {label:"Number",    ok:/[0-9]/.test(pass)},
+                ].map(x=>(
+                  <div key={x.label} style={{background:x.ok?"#34c75918":"rgba(0,0,0,.06)",color:x.ok?"#34c759":LB3,fontSize:11,fontWeight:600,padding:"3px 8px",borderRadius:99,transition:"all .2s"}}>
+                    {x.ok?"✓ ":""}{x.label}
+                  </div>
+                ))}
+              </div>
+            )}
             <ErrMsg k="pass"/>
           </div>
 
           {/* Confirm password */}
           <div style={{padding:"11px 16px"}}>
-            <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>
-              Confirm Password <span style={{color:"#ff3b30"}}>*</span>
+            <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
+              <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Confirm Password</div>
+              <div style={{fontSize:12,color:"#ff3b30",fontWeight:700}}>*</div>
             </div>
             <input
               value={confirm}
@@ -201,26 +295,40 @@ function SignUpScreen({onBack,onSuccess}){
               onKeyDown={e=>e.key==="Enter"&&handleSignUp()}
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}
             />
-            {confirm&&pass===confirm&&<div style={{fontSize:12,color:"#34c759",marginTop:5,fontWeight:500}}>✓ Passwords match</div>}
+            {confirm&&pass===confirm&&pass.length>=6&&(
+              <div style={{fontSize:12,color:"#34c759",marginTop:5,fontWeight:500}}>✓ Passwords match</div>
+            )}
             <ErrMsg k="confirm"/>
           </div>
         </div>
 
         {/* Info note */}
         <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:20,fontSize:13,color:ACC,lineHeight:1.7}}>
-          📋 After creating your account, you'll be guided through a <strong>setup process</strong> to complete your profile — including your name, position, contact details and more.
+          📋 After creating your account, you'll complete your profile setup including your name, position, contact details and more.
         </div>
 
-        {/* Sign Up button */}
-        <button onClick={handleSignUp} disabled={loading} className="btn-primary"
-          style={{width:"100%",background:loading?"#e5e5ea":ACC,color:loading?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:loading?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:SF}}>
+        {/* Create Account button */}
+        <button
+          onClick={handleSignUp}
+          disabled={loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm}
+          className="btn-primary"
+          style={{
+            width:"100%",
+            background:loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm?"#e5e5ea":ACC,
+            color:loading||checking||emailStatus==="taken"||!prefix.trim()||!pass||!confirm?LB3:"#fff",
+            border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,
+            cursor:loading||checking?"default":"pointer",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:SF,
+            marginBottom:12
+          }}>
           {loading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
-          {loading?"Creating Account…":"Create Account"}
+          {loading?"Creating Account…":checking?"Checking email…":"Create Account"}
         </button>
 
-        <div style={{textAlign:"center",fontSize:13,color:LB3,marginTop:16}}>
+        <div style={{textAlign:"center",fontSize:13,color:LB3}}>
           Already have an account?{" "}
-          <button onClick={onBack} className="btn" style={{color:ACC,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF,fontSize:13}}>
+          <button onClick={onBack} className="btn"
+            style={{color:ACC,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF,fontSize:13}}>
             Sign In
           </button>
         </div>
@@ -229,20 +337,20 @@ function SignUpScreen({onBack,onSuccess}){
   );
 }
 
-// ── ONBOARDING ──────────────────────────────────────────────────────────
+// ── ONBOARDING ────────────────────────────────────────────────────────────
 function OnboardingFlow({user,onComplete}){
-  const [step,setStep]=useState(1);
-  const [errors,setErrors]=useState({});
-  const [form,setForm]=useState({
+  const [step,   setStep]   = useState(1);
+  const [errors, setErrors] = useState({});
+  const [form,   setForm]   = useState({
     name:user.name||"",nickname:"",position:"",birthday:"",
     joined_date:new Date().toISOString().split("T")[0],
     contact_number:"",bio:"",hobby:"",favorite_food:"",
     ic_number:"",epf_number:"",bank_account:"",bank_type:"Maybank",
     avatar_url:""
   });
-  const [loading,setLoading]=useState(false);
-  const [rawImg,setRawImg]=useState(null);
-  const [showCrop,setShowCrop]=useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [rawImg,   setRawImg]   = useState(null);
+  const [showCrop, setShowCrop] = useState(false);
   const TOTAL=5;
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
   const clearErr=k=>setErrors(p=>({...p,[k]:undefined}));
@@ -320,8 +428,13 @@ function OnboardingFlow({user,onComplete}){
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
-      {showCrop&&rawImg&&<CircleCrop src={rawImg} onCrop={url=>{set("avatar_url",url);clearErr("avatar_url");setShowCrop(false);setRawImg(null);}} onCancel={()=>{setShowCrop(false);setRawImg(null);}}/>}
-
+      {showCrop&&rawImg&&(
+        <CircleCrop
+          src={rawImg}
+          onCrop={url=>{set("avatar_url",url);clearErr("avatar_url");setShowCrop(false);setRawImg(null);}}
+          onCancel={()=>{setShowCrop(false);setRawImg(null);}}
+        />
+      )}
       <div style={{padding:"52px 16px 24px"}}>
         <img src="/TECHWIDE_LOGO.png" alt="" style={{width:36,height:36,borderRadius:8,objectFit:"cover",marginBottom:16}}/>
         <div style={{fontSize:13,color:LB3,marginBottom:6}}>Step {step} of {TOTAL}</div>
@@ -345,13 +458,10 @@ function OnboardingFlow({user,onComplete}){
       </div>
 
       <div style={{padding:"0 16px 24px"}}>
-        {/* Step 1 — Basic Info */}
         {step===1&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
-            {FieldWrap("Full Name",
-              <>{TextInp("name","Ahmad Farid")}<ErrMsg k="name"/></>,
-              false,true)}
-            {FieldWrap("Nickname",TextInp("nickname","e.g. Farid"),false,false)}
+            {FieldWrap("Full Name",<>{TextInp("name","Ahmad Farid")}<ErrMsg k="name"/></>,false,true)}
+            {FieldWrap("Nickname",TextInp("nickname","e.g. Farid"))}
             {FieldWrap("Position",
               <>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginTop:4}}>
@@ -364,18 +474,15 @@ function OnboardingFlow({user,onComplete}){
                 </div>
                 <ErrMsg k="position"/>
               </>,false,true)}
-            {FieldWrap("Birthday",
-              <>{TextInp("birthday","","date")}<ErrMsg k="birthday"/></>,
-              false,true)}
-            {FieldWrap("Joining Date",TextInp("joined_date","","date"),true,false)}
+            {FieldWrap("Birthday",<>{TextInp("birthday","","date")}<ErrMsg k="birthday"/></>,false,true)}
+            {FieldWrap("Joining Date",TextInp("joined_date","","date"),true)}
           </div>
         )}
 
-        {/* Step 2 — Contact */}
         {step===2&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
-              📱 Enter numbers only — no spaces or dashes<br/>
+              📱 Numbers only — no spaces or dashes<br/>
               Example: <strong>0123456789</strong> or <strong>01112345678</strong>
             </div>
             <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
@@ -385,16 +492,17 @@ function OnboardingFlow({user,onComplete}){
                     onChange={e=>{set("contact_number",e.target.value.replace(/\D/g,''));clearErr("contact_number");}}
                     placeholder="0123456789" type="tel"
                     style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
-                  {form.contact_number&&<div style={{fontSize:13,color:ACC,marginTop:4,fontWeight:500}}>
-                    Preview: {formatContact(normalizeContact(form.contact_number))}
-                  </div>}
+                  {form.contact_number&&(
+                    <div style={{fontSize:13,color:ACC,marginTop:4,fontWeight:500}}>
+                      Preview: {formatContact(normalizeContact(form.contact_number))}
+                    </div>
+                  )}
                   <ErrMsg k="contact_number"/>
                 </>,true,true)}
             </div>
           </>
         )}
 
-        {/* Step 3 — About */}
         {step===3&&(
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
@@ -407,12 +515,11 @@ function OnboardingFlow({user,onComplete}){
           </div>
         )}
 
-        {/* Step 4 — Private Info */}
         {step===4&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
               🔒 Only visible to admin.<br/>
-              IC, EPF & Bank require admin verification before showing as verified.
+              IC, EPF & Bank require admin verification.
             </div>
             <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
               {FieldWrap("IC Number",
@@ -450,7 +557,6 @@ function OnboardingFlow({user,onComplete}){
           </>
         )}
 
-        {/* Step 5 — Photo */}
         {step===5&&(
           <div style={{textAlign:"center",marginBottom:24}}>
             <div onClick={()=>document.getElementById("avOnboard").click()} className="btn"
@@ -475,7 +581,6 @@ function OnboardingFlow({user,onComplete}){
           </div>
         )}
 
-        {/* Navigation buttons */}
         <div style={{display:"flex",gap:10,marginTop:8}}>
           {step>1&&(
             <button onClick={()=>setStep(s=>s-1)} className="btn"
@@ -500,16 +605,16 @@ function OnboardingFlow({user,onComplete}){
   );
 }
 
-// ── MAIN APP ────────────────────────────────────────────────────────────
+// ── MAIN APP ───────────────────────────────────────────────────────────────
 export default function App(){
-  const [session,   setSession]   = useState(null);
-  const [profile,   setProfile]   = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [screen,    setScreen]    = useState("login"); // login | signup
-  const [loginEmail,setLoginEmail]= useState("");
-  const [loginPass, setLoginPass] = useState("");
-  const [loginErr,  setLoginErr]  = useState("");
-  const [loginLoading,setLoginLoading]=useState(false);
+  const [session,      setSession]      = useState(null);
+  const [profile,      setProfile]      = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [screen,       setScreen]       = useState("login");
+  const [loginEmail,   setLoginEmail]   = useState("");
+  const [loginPass,    setLoginPass]    = useState("");
+  const [loginErr,     setLoginErr]     = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(()=>{
     const el=document.createElement("style");
@@ -542,27 +647,38 @@ export default function App(){
   };
 
   const doLogin=async()=>{
-    // Validate email format
     if(!loginEmail.trim()){setLoginErr("Please enter your email");return;}
-    if(!validateEmail(loginEmail)){setLoginErr("Please enter a valid email address");return;}
     if(!loginPass){setLoginErr("Please enter your password");return;}
     setLoginErr("");setLoginLoading(true);
     try{
-      const{data,error}=await supabase.auth.signInWithPassword({email:loginEmail.trim(),password:loginPass});
+      const{data,error}=await supabase.auth.signInWithPassword({
+        email:loginEmail.trim().toLowerCase(),
+        password:loginPass
+      });
       if(error){
-        if(error.message.includes("Invalid login"))setLoginErr("Incorrect email or password. Please try again.");
-        else if(error.message.includes("Email not confirmed"))setLoginErr("Email not confirmed. Contact your admin.");
-        else setLoginErr(error.message);
+        if(error.message.toLowerCase().includes("invalid login"))
+          setLoginErr("Incorrect email or password. Please try again.");
+        else if(error.message.toLowerCase().includes("email not confirmed"))
+          setLoginErr("Email not confirmed. Please contact your admin.");
+        else
+          setLoginErr(error.message);
         setLoginLoading(false);return;
       }
       if(!data?.user){setLoginErr("Login failed. Please try again.");setLoginLoading(false);return;}
       const{data:profileData,error:profileError}=await supabase.from("profiles").select("*").eq("id",data.user.id).single();
-      if(profileError||!profileData){setLoginErr("Account setup incomplete. Contact admin.");setLoginLoading(false);return;}
-      setProfile(profileData);setLoginLoading(false);
-    }catch(err){setLoginErr("Something went wrong: "+err.message);setLoginLoading(false);}
+      if(profileError||!profileData){
+        setLoginErr("Profile not found. Please contact admin.");
+        setLoginLoading(false);return;
+      }
+      setProfile(profileData);
+      setLoginLoading(false);
+    }catch(err){
+      setLoginErr("Connection error. Please try again.");
+      setLoginLoading(false);
+    }
   };
 
-  // Loading screen
+  // Loading
   if(loading)return(
     <div style={{minHeight:"100vh",background:ACC,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,fontFamily:SF}}>
       <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:100,height:100,borderRadius:22,objectFit:"cover"}}/>
@@ -592,21 +708,14 @@ export default function App(){
 
       <div className="fade" style={{width:"100%",maxWidth:360}}>
         <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
-          {/* Email */}
           <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
             <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Email</div>
             <input value={loginEmail}
               onChange={e=>{setLoginEmail(e.target.value);setLoginErr("");}}
-              placeholder="your@email.com" type="email" autoComplete="email"
+              placeholder="your@techwide.com"
+              type="email" autoComplete="email"
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
-            {loginEmail&&!validateEmail(loginEmail)&&(
-              <div style={{fontSize:12,color:"#ff9500",marginTop:4}}>Please enter a valid email</div>
-            )}
-            {loginEmail&&validateEmail(loginEmail)&&(
-              <div style={{fontSize:12,color:"#34c759",marginTop:4}}>✓ Valid email</div>
-            )}
           </div>
-          {/* Password */}
           <div style={{padding:"11px 16px"}}>
             <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Password</div>
             <input value={loginPass}
@@ -618,12 +727,12 @@ export default function App(){
         </div>
 
         {loginErr&&(
-          <div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px",lineHeight:1.5}}>
             {loginErr}
           </div>
         )}
 
-        {/* Sign In button */}
+        {/* Sign In */}
         <button onClick={doLogin} disabled={loginLoading} className="btn-primary"
           style={{width:"100%",background:loginLoading?"#e5e5ea":ACC,color:loginLoading?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:SF,marginBottom:10}}>
           {loginLoading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
@@ -633,11 +742,11 @@ export default function App(){
         {/* Divider */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
           <div style={{flex:1,height:1,background:SEP}}/>
-          <div style={{fontSize:12,color:LB3}}>or</div>
+          <div style={{fontSize:12,color:LB3,letterSpacing:"-.1px"}}>or</div>
           <div style={{flex:1,height:1,background:SEP}}/>
         </div>
 
-        {/* First Time Login button */}
+        {/* First Time Login */}
         <button onClick={()=>setScreen("signup")} className="btn-primary"
           style={{width:"100%",background:"transparent",color:ACC,border:`1.5px solid ${ACC}`,borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
           🆕 First Time Login
@@ -653,7 +762,7 @@ export default function App(){
   // Onboarding
   if(!profile.onboarded)return<OnboardingFlow user={profile} onComplete={()=>loadProfile(session.user.id)}/>;
 
-  // Main app
+  // App
   if(profile.is_admin)return<AdminApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
   return<UserApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
 }

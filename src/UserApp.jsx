@@ -47,6 +47,8 @@ const WX_DESC=code=>{
 
 // ── FULL PROFILE PAGE ─────────────────────────────────────────────────
 function FullProfilePage({user,currentUserId,onBack,onDM}){
+  const [showAvatarFull,setShowAvatarFull]=useState(false);
+  const [showBannerFull,setShowBannerFull]=useState(false);
   const tier=getTier(calcScore(user.joined_date,0));
   const age=user.birthday_verified&&user.birthday?calcAge(user.birthday):null;
   const daysWorking=user.joined_date_verified&&user.joined_date?calcDaysWorking(user.joined_date):null;
@@ -67,16 +69,35 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
+      {/* Full-screen avatar */}
+      {showAvatarFull&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAvatarFull(false)}>
+          <div style={{width:280,height:280,borderRadius:"50%",background:user.avatar_url?`url(${user.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80,fontWeight:700,color:ACC,overflow:"hidden"}}>
+            {!user.avatar_url&&(user.avatar||"?")}
+          </div>
+          <button style={{position:"absolute",top:20,right:20,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:36,height:36,color:"#fff",fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+      )}
+      {/* Full-screen banner */}
+      {showBannerFull&&user.banner_url&&(
+        <div style={{position:"fixed",inset:0,background:"#000",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowBannerFull(false)}>
+          <img src={user.banner_url} alt="banner" style={{width:"100%",maxHeight:"100vh",objectFit:"contain"}}/>
+          <button style={{position:"absolute",top:20,right:20,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:36,height:36,color:"#fff",fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px",position:"sticky",top:0,zIndex:20,display:"flex",alignItems:"center",gap:12}}>
         <button onClick={onBack} className="btn"
           style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,display:"flex",alignItems:"center",gap:4,fontFamily:SF}}>
           ← Back
         </button>
-        <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px"}}>{user.nickname||user.name}</div>
+        <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          {user.nickname||user.name}
+        </div>
         {currentUserId!==user.id&&(
           <button onClick={()=>onDM(user)} className="btn"
-            style={{background:ACC,color:"#fff",border:"none",borderRadius:99,padding:"7px 16px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+            style={{background:ACC,color:"#fff",border:"none",borderRadius:99,padding:"7px 16px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF,flexShrink:0}}>
             💬 Message
           </button>
         )}
@@ -84,11 +105,13 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
 
       <div style={{overflowY:"auto",paddingBottom:40}}>
         {/* Banner */}
-        <div style={{height:140,background:user.banner_url?`url(${user.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`}}/>
+        <div onClick={()=>user.banner_url&&setShowBannerFull(true)}
+          style={{height:150,background:user.banner_url?`url(${user.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,cursor:user.banner_url?"zoom-in":"default"}}/>
 
         {/* Avatar + tier */}
         <div style={{padding:"0 16px",marginTop:-50,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-          <div style={{width:90,height:90,borderRadius:"50%",border:`3px solid ${BG}`,background:user.avatar_url?`url(${user.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:28,color:ACC,overflow:"hidden",flexShrink:0}}>
+          <div onClick={()=>setShowAvatarFull(true)}
+            style={{width:90,height:90,borderRadius:"50%",border:`3px solid ${BG}`,background:user.avatar_url?`url(${user.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:28,color:ACC,overflow:"hidden",flexShrink:0,cursor:"zoom-in"}}>
             {!user.avatar_url&&(user.avatar||"?")}
           </div>
           <div style={{display:"inline-flex",alignItems:"center",gap:5,background:tier.color+"18",borderRadius:99,padding:"5px 12px",marginBottom:4}}>
@@ -151,20 +174,20 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
 
 // ── MAIN USER APP ─────────────────────────────────────────────────────
 export default function UserApp({profile:init,session,onProfileUpdate}){
-  const [profile,setProfile]           = useState(init);
-  const [tab,setTab]                   = useState("home");
-  const [missions,setMissions]         = useState([]);
-  const [myClaims,setMyClaims]         = useState([]);
-  const [allProfiles,setAllProfiles]   = useState([]);
+  const [profile,setProfile]            =useState(init);
+  const [tab,setTab]                    =useState("home");
+  const [missions,setMissions]          =useState([]);
+  const [myClaims,setMyClaims]          =useState([]);
+  const [allProfiles,setAllProfiles]    =useState([]);
   const [announcements,setAnnouncements]=useState([]);
   const [myRedemptions,setMyRedemptions]=useState([]);
-  const [prizes,setPrizes]             = useState([]);
+  const [prizes,setPrizes]              =useState([]);
   const [notifications,setNotifications]=useState([]);
-  const [toast,setToast]               = useState(null);
-  const [dmTarget,setDmTarget]         = useState(null);
-  const [showNotif,setShowNotif]       = useState(false);
+  const [toast,setToast]                =useState(null);
+  const [dmTarget,setDmTarget]          =useState(null);
+  const [showNotif,setShowNotif]        =useState(false);
   const [viewingProfile,setViewingProfile]=useState(null);
-  const [weather,setWeather]           = useState(null);
+  const [weather,setWeather]            =useState(null);
 
   const syncProfile=u=>{setProfile(u);onProfileUpdate(u);};
 
@@ -172,13 +195,45 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     loadAll();
     loadNotifications();
     fetchWeather();
-    const iv=setInterval(loadNotifications,15000);
-    return()=>clearInterval(iv);
+
+    // ── Realtime subscriptions ──
+    const ch=supabase.channel("user_realtime_"+profile.id)
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"profiles",filter:`id=eq.${profile.id}`},payload=>{
+        if(payload.new)syncProfile({...profile,...payload.new});
+      })
+      .on("postgres_changes",{event:"*",schema:"public",table:"announcements"},()=>{
+        supabase.from("announcements").select("*")
+          .order("pinned",{ascending:false}).order("created_at",{ascending:false})
+          .then(({data})=>{if(data)setAnnouncements(data);});
+      })
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:`user_id=eq.${profile.id}`},payload=>{
+        if(payload.new){
+          setNotifications(p=>[payload.new,...p]);
+          if("Notification" in window&&Notification.permission==="granted")
+            new Notification(payload.new.title,{body:payload.new.body,icon:"/TECHWIDE_LOGO.png"});
+        }
+      })
+      .on("postgres_changes",{event:"*",schema:"public",table:"redemptions",filter:`user_id=eq.${profile.id}`},()=>{
+        supabase.from("redemptions").select("*").eq("user_id",profile.id)
+          .then(({data})=>{if(data)setMyRedemptions(data);});
+      })
+      .on("postgres_changes",{event:"*",schema:"public",table:"mission_claims",filter:`user_id=eq.${profile.id}`},()=>{
+        supabase.from("mission_claims").select("*").eq("user_id",profile.id)
+          .then(({data})=>{if(data)setMyClaims(data);});
+      })
+      .on("postgres_changes",{event:"*",schema:"public",table:"missions"},()=>{
+        supabase.from("missions").select("*").eq("active",true)
+          .then(({data})=>{if(data)setMissions(data);});
+      })
+      .subscribe();
+
+    const iv=setInterval(loadNotifications,30000);
+    return()=>{clearInterval(iv);supabase.removeChannel(ch);};
   },[]);
 
   useEffect(()=>{if(dmTarget)setTab("chat");},[dmTarget]);
 
-  // ── Fetch weather via geolocation ──
+  // ── Weather ──
   const fetchWeather=()=>{
     if(!navigator.geolocation)return;
     navigator.geolocation.getCurrentPosition(
@@ -213,13 +268,9 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   };
 
   const loadNotifications=async()=>{
-    const{data}=await supabase.from("notifications").select("*").eq("user_id",profile.id).order("created_at",{ascending:false}).limit(20);
+    const{data}=await supabase.from("notifications").select("*")
+      .eq("user_id",profile.id).order("created_at",{ascending:false}).limit(30);
     if(data)setNotifications(data);
-    if(data&&"Notification" in window&&Notification.permission==="granted"){
-      const unread=data.filter(n=>!n.read);
-      if(unread.length>0&&document.hidden)
-        new Notification(unread[0].title,{body:unread[0].body,icon:"/TECHWIDE_LOGO.png"});
-    }
   };
 
   const markAllRead=async()=>{
@@ -240,20 +291,12 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     const bonus=profile.streak>=7?100:profile.streak>=3?75:50;
     const streak=profile.streak+1;
     await supabase.from("profiles").update({xp:profile.xp+bonus,streak,last_checkin:today}).eq("id",profile.id);
+    // Record in points history
+    await supabase.from("points_history").insert({user_id:profile.id,amount:bonus,reason:`Daily check-in — ${streak} day streak`,type:"credit"}).catch(()=>{});
     const updated={...profile,xp:profile.xp+bonus,streak,last_checkin:today};
     syncProfile(updated);
     setAllProfiles(p=>p.map(x=>x.id===profile.id?updated:x).sort((a,b)=>b.xp-a.xp));
     showToast(`+${bonus} pts  •  ${streak}-day streak 🔥`);
-  };
-
-  const doClaimMission=async missionId=>{
-    if(myClaims.find(c=>c.mission_id===missionId)){showToast("Already claimed");return;}
-    const{error}=await supabase.from("mission_claims").insert({user_id:profile.id,mission_id:missionId});
-    if(!error){
-      const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
-      if(data)setMyClaims(data);
-      showToast("Mission claimed! Submit proof when done.");
-    }
   };
 
   const doRedeem=async prize=>{
@@ -262,6 +305,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     if((prize.stock||99)<1){showToast("Out of stock");return;}
     await supabase.from("redemptions").insert({user_id:profile.id,prize_id:prize.id?.toString(),prize_name:prize.name,status:"Pending"});
     await supabase.from("profiles").update({xp:profile.xp-pts}).eq("id",profile.id);
+    await supabase.from("points_history").insert({user_id:profile.id,amount:pts,reason:`Redeemed: ${prize.name}`,type:"debit"}).catch(()=>{});
     if(prize.stock)await supabase.from("prizes").update({stock:prize.stock-1}).eq("id",prize.id);
     syncProfile({...profile,xp:profile.xp-pts});
     const{data}=await supabase.from("redemptions").select("*").eq("user_id",profile.id);
@@ -300,7 +344,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     profile,syncProfile,missions,myClaims,setMyClaims,
     allProfiles,announcements,myRedemptions,prizes,
     today,lv,pct,checkedIn,score,tier,completedCount,
-    doClaimMission,doRedeem,loadAll,showToast,
+    doRedeem,loadAll,showToast,
     Section,Row,Chip,PrimaryBtn,
     SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,
     getLevel,getLvlPct,calcScore,getTier,
@@ -332,7 +376,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   function NotifPanel(){
     return(
       <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-        <div style={{background:BG,borderRadius:"20px 20px 0 0",maxHeight:"70vh",display:"flex",flexDirection:"column"}}>
+        <div style={{background:BG,borderRadius:"20px 20px 0 0",maxHeight:"75vh",display:"flex",flexDirection:"column"}}>
           <div style={{padding:"16px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
             <div style={{fontSize:18,fontWeight:700,color:LBL,letterSpacing:"-.4px"}}>Notifications</div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -349,7 +393,9 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </div>
           </div>
           <div style={{overflowY:"auto",padding:"12px 16px 40px"}}>
-            {notifications.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:15}}>No notifications yet</div>}
+            {notifications.length===0&&(
+              <div style={{textAlign:"center",padding:40,color:LB3,fontSize:15}}>No notifications yet</div>
+            )}
             {notifications.map((n,i)=>(
               <div key={n.id} style={{display:"flex",gap:12,padding:"12px 0",borderBottom:i<notifications.length-1?`1px solid ${SEP}`:"none",opacity:n.read?.6:1}}>
                 <div style={{width:8,height:8,borderRadius:"50%",background:n.read?"transparent":ACC,marginTop:6,flexShrink:0}}/>
@@ -370,7 +416,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
 
   // ── Home tab ──
   function HomeTab(){
-    const [now,setNow]           = useState(new Date());
+    const [now,setNow]            =useState(new Date());
     const [showAllAnn,setShowAllAnn]=useState(false);
 
     useEffect(()=>{
@@ -378,13 +424,12 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       return()=>clearInterval(iv);
     },[]);
 
-    const DAYS   =["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const MONTHS =["January","February","March","April","May","June","July","August","September","October","November","December"];
-    const pad    =n=>String(n).padStart(2,"0");
-    const hours  =now.getHours();
-    const ampm   =hours>=12?"PM":"AM";
-    const h12    =hours%12||12;
-    // ── 12hr format, hours & minutes only ──
+    const DAYS  =["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const pad   =n=>String(n).padStart(2,"0");
+    const hours =now.getHours();
+    const ampm  =hours>=12?"PM":"AM";
+    const h12   =hours%12||12;
     const timeStr=`${pad(h12)}:${pad(now.getMinutes())} ${ampm}`;
     const dateStr=`${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
 
@@ -394,7 +439,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
         {/* ── Date / Time / Weather ── */}
         <div className="fade" style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:14,padding:"14px 18px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginBottom:3,letterSpacing:"-.1px"}}>{dateStr}</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginBottom:3}}>{dateStr}</div>
             <div style={{fontSize:36,fontWeight:700,color:"#fff",letterSpacing:1,fontVariantNumeric:"tabular-nums"}}>{timeStr}</div>
           </div>
           <div style={{textAlign:"center",minWidth:64}}>
@@ -405,7 +450,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
                 <div style={{fontSize:10,color:"rgba(255,255,255,.5)",marginTop:2}}>{WX_DESC(weather.weathercode)}</div>
               </>
             ):(
-              <div style={{fontSize:28,opacity:.35}}>🌡️</div>
+              <div style={{fontSize:28,opacity:.3}}>🌡️</div>
             )}
           </div>
         </div>
@@ -418,7 +463,9 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
               {!profile.avatar_url&&(profile.avatar||"?")}
             </div>
             <div style={{flex:1}}>
-              <div style={{fontSize:20,fontWeight:700,color:"#fff",letterSpacing:"-.5px",lineHeight:1.1}}>{profile.nickname||profile.name?.split(" ")[0]}</div>
+              <div style={{fontSize:20,fontWeight:700,color:"#fff",letterSpacing:"-.5px",lineHeight:1.1}}>
+                {profile.nickname||profile.name?.split(" ")[0]}
+              </div>
               <div style={{fontSize:13,color:"rgba(255,255,255,.5)",marginTop:1}}>{profile.role}</div>
               <div style={{marginTop:8,display:"inline-flex",alignItems:"center",gap:5,background:tier.color+"28",borderRadius:99,padding:"3px 10px"}}>
                 <span style={{fontSize:13}}>{tier.emoji}</span>
@@ -533,7 +580,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"12px 4px 8px"}}>Pending Rewards</div>
             <Section>
               {myRedemptions.filter(r=>r.status==="Pending").slice(0,3).map((r,i,a)=>(
-                <Row key={r.id} label={r.prize_name} badge={r.status} last={i===a.length-1}/>
+                <Row key={r.id} label={r.prize_name} badge="Pending" last={i===a.length-1}/>
               ))}
             </Section>
           </div>

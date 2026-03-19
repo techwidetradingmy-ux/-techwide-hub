@@ -5,22 +5,252 @@ import{PRIZES,getTier,calcScore,formatContact,normalizeContact,formatIC,getICDig
 
 const CAT_C={Sales:"#5856d6",Teamwork:"#007aff",Admin:"#af52de",Creativity:"#ff2d55",KOL:"#ff6b35",Content:"#30b0c7","Live Hosting":"#e91e8c",Others:"#8e8e93"};
 const fmtDate=iso=>{if(!iso)return null;const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
-const calcAge=birthday=>{
-  if(!birthday)return null;
-  const birth=new Date(birthday),today=new Date();
-  let age=today.getFullYear()-birth.getFullYear();
-  const m=today.getMonth()-birth.getMonth();
-  if(m<0||(m===0&&today.getDate()<birth.getDate()))age--;
-  return age;
-};
-const calcDaysWorking=joinedDate=>{
-  if(!joinedDate)return null;
-  return Math.floor((Date.now()-new Date(joinedDate))/86400000);
-};
-const daysLeft=dueDate=>{
-  if(!dueDate)return null;
-  return Math.ceil((new Date(dueDate)-new Date())/(1000*60*60*24));
-};
+const calcAge=birthday=>{if(!birthday)return null;const birth=new Date(birthday),today=new Date();let age=today.getFullYear()-birth.getFullYear();const m=today.getMonth()-birth.getMonth();if(m<0||(m===0&&today.getDate()<birth.getDate()))age--;return age;};
+const calcDaysWorking=joinedDate=>{if(!joinedDate)return null;return Math.floor((Date.now()-new Date(joinedDate))/86400000);};
+const daysLeft=dueDate=>{if(!dueDate)return null;return Math.ceil((new Date(dueDate)-new Date())/(1000*60*60*24));};
+
+// ── WHATSAPP STYLE DM CHAT ────────────────────────────────────────────
+function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}){
+  const [messages,setMessages]=useState([]);
+  const [text,setText]=useState("");
+  const [sending,setSending]=useState(false);
+  const [showAttach,setShowAttach]=useState(false);
+  const [recording,setRecording]=useState(false);
+  const [audioBlob,setAudioBlob]=useState(null);
+  const [mediaRecorder,setMediaRecorder]=useState(null);
+  const bottomRef=useRef(null);
+  const inputRef=useRef(null);
+  // Swipe to go back
+  const touchStartX=useRef(0);
+
+  useEffect(()=>{
+    loadMsgs();
+    markSeen();
+    const iv=setInterval(()=>{loadMsgs();markSeen();},2000);
+    return()=>clearInterval(iv);
+  },[]);
+
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+
+  const loadMsgs=async()=>{
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
+      .order("created_at",{ascending:true}).limit(100);
+    if(data)setMessages(data);
+  };
+
+  // Mark all messages from dmWith as seen
+  const markSeen=async()=>{
+    await supabase.from("messages").update({seen_at:new Date().toISOString()})
+      .eq("user_id",dmWith.id).eq("recipient_id",profile.id).is("seen_at",null);
+  };
+
+  const send=async(content=text.trim(),type="text",mediaUrl=null,fileName=null)=>{
+    if(type==="text"&&!content)return;
+    setSending(true);
+    const msg={
+      user_id:profile.id,
+      recipient_id:dmWith.id,
+      sender_name:profile.nickname||profile.name,
+      sender_avatar:profile.avatar||"",
+      sender_avatar_url:profile.avatar_url||"",
+      content:content||"",
+      message_type:type,
+      media_url:mediaUrl,
+      file_name:fileName,
+      is_dm:true,
+      delivered_at:new Date().toISOString(),
+    };
+    // Optimistic
+    const tempMsg={...msg,id:"temp_"+Date.now(),created_at:new Date().toISOString()};
+    setMessages(p=>[...p,tempMsg]);
+    setText("");
+    await supabase.from("messages").insert(msg);
+    await supabase.from("notifications").insert({user_id:dmWith.id,title:`💬 ${profile.nickname||profile.name}`,body:type==="text"?content:`Sent a ${type}`,type:"dm"});
+    await loadMsgs();
+    setSending(false);
+  };
+
+  const handleFile=async(e,type="image")=>{
+    const file=e.target.files[0];if(!file)return;
+    setShowAttach(false);
+    const reader=new FileReader();
+    reader.onload=async ev=>{
+      const dataUrl=ev.target.result;
+      await send(type==="image"?"📷 Photo":type==="video"?"🎥 Video":"📄 "+file.name,type,dataUrl,file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const startRecording=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const mr=new MediaRecorder(stream);
+      const chunks=[];
+      mr.ondataavailable=e=>chunks.push(e.data);
+      mr.onstop=async()=>{
+        const blob=new Blob(chunks,{type:"audio/webm"});
+        const reader=new FileReader();
+        reader.onload=async ev=>{await send("🎤 Voice message","audio",ev.target.result,"voice.webm");};
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      mr.start();
+      setMediaRecorder(mr);
+      setRecording(true);
+    }catch{alert("Microphone access denied");}
+  };
+
+  const stopRecording=()=>{
+    if(mediaRecorder)mediaRecorder.stop();
+    setRecording(false);
+    setMediaRecorder(null);
+  };
+
+  const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
+
+  // Message ticks
+  const Ticks=({msg})=>{
+    if(msg.user_id!==profile.id)return null;
+    if(msg.seen_at)return<span style={{color:"#34b7f1",fontSize:11,marginLeft:3}}>✓✓</span>;
+    if(msg.delivered_at)return<span style={{color:"rgba(255,255,255,.5)",fontSize:11,marginLeft:3}}>✓</span>;
+    return<span style={{color:"rgba(255,255,255,.4)",fontSize:11,marginLeft:3}}>⏳</span>;
+  };
+
+  // Render message bubble content
+  const MsgContent=({msg,me})=>{
+    const c=me?"#fff":LBL;
+    if(msg.message_type==="image"&&msg.media_url)return(
+      <div style={{borderRadius:10,overflow:"hidden",maxWidth:220}}>
+        <img src={msg.media_url} alt="photo" style={{width:"100%",display:"block"}}/>
+        {msg.content&&msg.content!=="📷 Photo"&&<div style={{fontSize:14,color:c,padding:"6px 4px 0"}}>{msg.content}</div>}
+      </div>
+    );
+    if(msg.message_type==="video"&&msg.media_url)return(
+      <div style={{borderRadius:10,overflow:"hidden",maxWidth:220}}>
+        <video src={msg.media_url} controls style={{width:"100%",display:"block"}}/>
+      </div>
+    );
+    if(msg.message_type==="audio"&&msg.media_url)return(
+      <div style={{display:"flex",alignItems:"center",gap:8,minWidth:160}}>
+        <span style={{fontSize:20}}>🎤</span>
+        <audio src={msg.media_url} controls style={{height:32,flex:1,minWidth:0}}/>
+      </div>
+    );
+    if(msg.message_type==="document"&&msg.media_url)return(
+      <a href={msg.media_url} download={msg.file_name} style={{display:"flex",alignItems:"center",gap:8,color:c,textDecoration:"none"}}>
+        <span style={{fontSize:24}}>📄</span>
+        <div style={{fontSize:13,flex:1,wordBreak:"break-word"}}>{msg.file_name||"Document"}</div>
+      </a>
+    );
+    return<div style={{fontSize:15,color:c,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{msg.content}</div>;
+  };
+
+  return(
+    <div
+      style={{position:"fixed",inset:0,background:"#ece5dd",zIndex:100,display:"flex",flexDirection:"column",maxWidth:430,margin:"0 auto",fontFamily:SF}}
+      onTouchStart={e=>touchStartX.current=e.touches[0].clientX}
+      onTouchEnd={e=>{if(e.changedTouches[0].clientX-touchStartX.current>80)onBack();}}>
+
+      {/* WhatsApp-style header */}
+      <div style={{background:"#075e54",padding:"10px 12px",display:"flex",alignItems:"center",gap:10,flexShrink:0,paddingTop:"max(10px,env(safe-area-inset-top))"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:"#fff",fontSize:20,cursor:"pointer",padding:"4px 8px 4px 0",display:"flex",alignItems:"center",fontFamily:SF}}>←</button>
+        <div onClick={()=>setViewingProfile&&setViewingProfile(dmWith)} style={{width:40,height:40,borderRadius:"50%",background:dmWith.avatar_url?`url(${dmWith.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0,cursor:"pointer"}}>
+          {!dmWith.avatar_url&&(dmWith.avatar||"?")}
+        </div>
+        <div style={{flex:1,cursor:"pointer"}} onClick={()=>setViewingProfile&&setViewingProfile(dmWith)}>
+          <div style={{fontSize:16,fontWeight:600,color:"#fff",lineHeight:1.2}}>{dmWith.nickname||dmWith.name}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>{dmWith.role}</div>
+        </div>
+      </div>
+
+      {/* Messages area */}
+      <div style={{flex:1,overflowY:"auto",padding:"10px 12px",display:"flex",flexDirection:"column",gap:4,background:"#ece5dd"}}>
+        {messages.length===0&&(
+          <div style={{textAlign:"center",padding:"40px 20px",color:"#667781"}}>
+            <div style={{fontSize:40,marginBottom:12}}>💬</div>
+            <div style={{fontSize:15,background:"rgba(255,255,255,.6)",borderRadius:12,padding:"12px 20px",display:"inline-block"}}>
+              Say hi to {dmWith.nickname||dmWith.name?.split(" ")[0]}!
+            </div>
+          </div>
+        )}
+        {messages.map(msg=>{
+          const me=msg.user_id===profile.id;
+          if(msg.is_system)return(
+            <div key={msg.id} style={{textAlign:"center",margin:"8px 0"}}>
+              <span style={{background:"rgba(255,255,255,.7)",borderRadius:10,padding:"4px 12px",fontSize:12,color:"#667781"}}>{msg.content}</span>
+            </div>
+          );
+          return(
+            <div key={msg.id} style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:2}}>
+              {!me&&(
+                <div style={{width:28,height:28,borderRadius:"50%",background:msg.sender_avatar_url?`url(${msg.sender_avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",marginRight:6,alignSelf:"flex-end"}}>
+                  {!msg.sender_avatar_url&&(msg.sender_avatar||"?")}
+                </div>
+              )}
+              <div style={{maxWidth:"78%"}}>
+                <div style={{background:me?"#dcf8c6":"#fff",borderRadius:me?"12px 12px 4px 12px":"12px 12px 12px 4px",padding:"8px 12px",boxShadow:"0 1px 2px rgba(0,0,0,.12)",position:"relative"}}>
+                  {!me&&<div style={{fontSize:11,color:"#075e54",fontWeight:700,marginBottom:3}}>{msg.sender_name}</div>}
+                  <MsgContent msg={msg} me={me}/>
+                  <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:2,marginTop:3}}>
+                    <span style={{fontSize:10,color:me?"rgba(0,0,0,.45)":"#aaa"}}>{fmt(msg.created_at)}</span>
+                    <Ticks msg={msg}/>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomRef}/>
+      </div>
+
+      {/* Attach menu */}
+      {showAttach&&(
+        <div style={{background:"#fff",padding:"16px",display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap",borderTop:"1px solid #e0e0e0",flexShrink:0}}>
+          {[
+            {icon:"📷",label:"Camera",accept:"image/*",capture:"environment",type:"image"},
+            {icon:"🎥",label:"Video",accept:"video/*",capture:"camcorder",type:"video"},
+            {icon:"🖼️",label:"Photo",accept:"image/*",type:"image"},
+            {icon:"📄",label:"Document",accept:"*/*",type:"document"},
+          ].map((item,i)=>(
+            <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,cursor:"pointer"}}
+              onClick={()=>document.getElementById(`attach_${item.label}`).click()}>
+              <div style={{width:52,height:52,borderRadius:"50%",background:"#f0f0f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{item.icon}</div>
+              <span style={{fontSize:12,color:"#667781"}}>{item.label}</span>
+              <input id={`attach_${item.label}`} type="file" accept={item.accept} capture={item.capture} onChange={e=>handleFile(e,item.type)} style={{display:"none"}}/>
+            </div>
+          ))}
+          <button onClick={()=>setShowAttach(false)} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"#ff3b30",fontSize:15,cursor:"pointer",fontFamily:SF}}>Cancel</button>
+        </div>
+      )}
+
+      {/* Input bar */}
+      <div style={{background:"#f0f0f0",padding:"6px 8px",display:"flex",alignItems:"center",gap:8,flexShrink:0,paddingBottom:"max(6px,env(safe-area-inset-bottom))"}}>
+        <button onClick={()=>setShowAttach(p=>!p)}
+          style={{width:40,height:40,borderRadius:"50%",background:"#25d366",border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",flexShrink:0}}>
+          ➕
+        </button>
+        <input ref={inputRef} value={text} onChange={e=>setText(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
+          placeholder="Type a message…"
+          style={{flex:1,background:"#fff",border:"none",outline:"none",borderRadius:24,padding:"10px 16px",fontSize:16,color:LBL,fontFamily:SF,boxShadow:"0 1px 2px rgba(0,0,0,.1)"}}/>
+        {text.trim()?(
+          <button onClick={()=>send()} disabled={sending}
+            style={{width:44,height:44,borderRadius:"50%",background:"#25d366",border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,boxShadow:"0 2px 8px rgba(37,211,102,.4)"}}>
+            {sending?"…":"▶"}
+          </button>
+        ):(
+          <button
+            onMouseDown={startRecording} onMouseUp={stopRecording}
+            onTouchStart={startRecording} onTouchEnd={stopRecording}
+            style={{width:44,height:44,borderRadius:"50%",background:recording?"#ff3b30":"#25d366",border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,transition:"background .2s",boxShadow:"0 2px 8px rgba(37,211,102,.4)"}}>
+            🎤
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── MISSION DETAIL PAGE ───────────────────────────────────────────────
 function MissionDetailPage({mission,claim,profile,onBack,onAccept,onDecline,onRefresh,showToast,Chip,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}){
@@ -29,124 +259,77 @@ function MissionDetailPage({mission,claim,profile,onBack,onAccept,onDecline,onRe
   const [subLoading,setSubLoading]=useState(false);
   const [showSubForm,setShowSubForm]=useState(false);
   const [localClaim,setLocalClaim]=useState(claim);
-
   useEffect(()=>{setLocalClaim(claim);},[claim]);
-
   const done=localClaim?.completed;
   const submitted=localClaim?.submitted;
   const accepted=!!localClaim;
   const dl=daysLeft(mission.due_date);
   const overdue=dl!==null&&dl<0;
-
-  const handleImg=e=>{
-    const file=e.target.files[0];if(!file)return;
-    const reader=new FileReader();
-    reader.onload=ev=>setSubImg(ev.target.result);
-    reader.readAsDataURL(file);
-  };
-
+  const handleImg=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>setSubImg(ev.target.result);reader.readAsDataURL(file);};
   const submitProof=async()=>{
     if(!subText.trim()&&!subImg){showToast("Please add text or photo proof");return;}
     if(!localClaim?.id){showToast("Mission not accepted yet");return;}
     setSubLoading(true);
     try{
-      // Check for existing submission
       const{data:existing}=await supabase.from("mission_submissions").select("id").eq("claim_id",localClaim.id).maybeSingle();
       if(existing){showToast("Already submitted — awaiting admin review");setSubLoading(false);return;}
-      const{error:subErr}=await supabase.from("mission_submissions").insert({
-        user_id:profile.id,
-        mission_id:mission.id,
-        claim_id:localClaim.id,
-        submission_text:subText,
-        submission_image:subImg,
-        status:"Pending",
-        submitted_at:new Date().toISOString(),
-      });
+      const{error:subErr}=await supabase.from("mission_submissions").insert({user_id:profile.id,mission_id:mission.id,claim_id:localClaim.id,submission_text:subText,submission_image:subImg,status:"Pending",submitted_at:new Date().toISOString()});
       if(subErr)throw subErr;
-      const{error:claimErr}=await supabase.from("mission_claims").update({submitted:true}).eq("id",localClaim.id);
-      if(claimErr)console.warn("claim update:",claimErr);
-      // Refresh claim state
+      await supabase.from("mission_claims").update({submitted:true}).eq("id",localClaim.id);
       const{data:updated}=await supabase.from("mission_claims").select("*").eq("id",localClaim.id).single();
       if(updated)setLocalClaim(updated);
       if(onRefresh)onRefresh();
       showToast("Proof submitted! Awaiting admin approval 🎉");
       setShowSubForm(false);setSubText("");setSubImg(null);
-    }catch(err){
-      console.error("Submission error:",err);
-      showToast("Submission failed — please try again");
-    }
+    }catch(err){console.error("Submission error:",err);showToast("Submission failed — please try again");}
     setSubLoading(false);
   };
-
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
-      {/* Header */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px",position:"sticky",top:0,zIndex:20,display:"flex",alignItems:"center",gap:12}}>
-        <button onClick={onBack} className="btn"
-          style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,fontFamily:SF}}>
-          ← Back
-        </button>
-        <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-          {mission.title}
-        </div>
+        <button onClick={onBack} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,fontFamily:SF}}>← Back</button>
+        <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{mission.title}</div>
       </div>
-
       <div style={{padding:"16px 16px 40px"}}>
-        {/* Hero */}
         <div style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:16,padding:20,marginBottom:16,position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:`${ORG}20`,pointerEvents:"none"}}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div style={{flex:1,marginRight:12}}>
               <div style={{fontSize:11,color:"rgba(255,255,255,.5)",letterSpacing:".5px",textTransform:"uppercase",fontWeight:600,marginBottom:6}}>Campaign Mission</div>
-              <div style={{fontSize:20,fontWeight:700,color:"#fff",lineHeight:1.2,letterSpacing:"-.4px"}}>{mission.title}</div>
+              <div style={{fontSize:20,fontWeight:700,color:"#fff",lineHeight:1.2}}>{mission.title}</div>
             </div>
             <div style={{background:`${ORG}30`,borderRadius:12,padding:"10px 14px",textAlign:"center",flexShrink:0}}>
               <div style={{fontSize:24,fontWeight:700,color:ORG,lineHeight:1}}>+{mission.xp}</div>
               <div style={{fontSize:10,color:"rgba(255,255,255,.5)",marginTop:3}}>pts reward</div>
             </div>
           </div>
-          {/* Status badges */}
           <div style={{display:"flex",gap:6,marginTop:14,flexWrap:"wrap"}}>
             <Chip color={CAT_C[mission.category]||"#8e8e93"}>{mission.category}</Chip>
             {done&&<Chip color="#34c759">✅ Completed</Chip>}
             {submitted&&!done&&<Chip color="#ff9500">⏳ Submitted</Chip>}
             {accepted&&!submitted&&!done&&<Chip color={ACC}>✓ Accepted</Chip>}
-            {dl!==null&&(
-              <Chip color={overdue?"#ff3b30":dl<=3?"#ff9500":"#34c759"}>
-                {overdue?`⚠️ Overdue`:dl===0?"Due today":dl===1?"Due tomorrow":`${dl}d left`}
-              </Chip>
-            )}
+            {dl!==null&&<Chip color={overdue?"#ff3b30":dl<=3?"#ff9500":"#34c759"}>{overdue?"⚠️ Overdue":dl===0?"Due today":dl===1?"Due tomorrow":`${dl}d left`}</Chip>}
           </div>
         </div>
-
-        {/* Description */}
         {mission.description&&(
           <div style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:12}}>
             <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8}}>What to do</div>
             <div style={{fontSize:15,color:LB2,lineHeight:1.65,whiteSpace:"pre-line"}}>{mission.description}</div>
           </div>
         )}
-
-        {/* Details */}
         <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:16}}>
-          {[
-            ["📅 Due Date",    mission.due_date?fmtDate(mission.due_date):null],
-            ["🏷️ Category",   mission.category],
-            ["⭐ Reward",      `${mission.xp} pts`],
-          ].filter(([,v])=>v).map(([label,value],i,a)=>(
+          {[["📅 Due Date",mission.due_date?fmtDate(mission.due_date):null],["🏷️ Category",mission.category],["⭐ Reward",`${mission.xp} pts`]].filter(([,v])=>v).map(([label,value],i,a)=>(
             <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:i<a.length-1?`1px solid ${SEP}`:"none"}}>
               <div style={{fontSize:15,color:LB3}}>{label}</div>
               <div style={{fontSize:15,color:LBL,fontWeight:500}}>{value}</div>
             </div>
           ))}
         </div>
-
-        {/* Action Buttons */}
         {done?(
           <div style={{background:"#34c75910",borderRadius:13,padding:"16px",textAlign:"center"}}>
             <div style={{fontSize:22,marginBottom:6}}>🎉</div>
             <div style={{fontSize:17,color:"#34c759",fontWeight:600}}>Mission Completed!</div>
-            <div style={{fontSize:14,color:LB3,marginTop:4}}>Reward has been added to your account</div>
+            <div style={{fontSize:14,color:LB3,marginTop:4}}>Reward added to your account</div>
           </div>
         ):submitted?(
           <div style={{background:"#ff950010",borderRadius:13,padding:"16px",textAlign:"center"}}>
@@ -165,8 +348,7 @@ function MissionDetailPage({mission,claim,profile,onBack,onAccept,onDecline,onRe
             </div>
             <input id="proof_img" type="file" accept="image/*" onChange={handleImg} style={{display:"none"}}/>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>{setShowSubForm(false);setSubText("");setSubImg(null);}}
-                style={{flex:1,padding:"13px",background:"rgba(0,0,0,.05)",borderRadius:12,fontSize:15,color:LB2,border:"none",cursor:"pointer",fontFamily:SF}}>Cancel</button>
+              <button onClick={()=>{setShowSubForm(false);setSubText("");setSubImg(null);}} style={{flex:1,padding:"13px",background:"rgba(0,0,0,.05)",borderRadius:12,fontSize:15,color:LB2,border:"none",cursor:"pointer",fontFamily:SF}}>Cancel</button>
               <button onClick={submitProof} disabled={subLoading||(!subText.trim()&&!subImg)}
                 style={{flex:2,padding:"13px",background:(subLoading||(!subText.trim()&&!subImg))?"#e5e5ea":ACC,borderRadius:12,fontSize:15,color:(subLoading||(!subText.trim()&&!subImg))?LB3:"#fff",fontWeight:600,border:"none",cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                 {subLoading&&<div style={{width:16,height:16,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
@@ -201,98 +383,45 @@ export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,Chi
   const [filter,setFilter]=useState("All");
   const [selected,setSelected]=useState(null);
   const cats=["All",...new Set(missions.map(m=>m.category).filter(Boolean))];
-
   const accept=async missionId=>{
     if(myClaims.find(c=>c.mission_id===missionId))return;
     const{error}=await supabase.from("mission_claims").insert({user_id:profile.id,mission_id:missionId,status:"accepted",submitted:false});
-    if(!error){
-      const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
-      if(data)setMyClaims(data);
-      showToast("Mission accepted! Submit proof before the due date.");
-      setSelected(null);
-    }else{
-      showToast("Failed to accept mission. Try again.");
-    }
+    if(!error){const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);showToast("Mission accepted! Submit proof before the due date.");setSelected(null);}
+    else showToast("Failed to accept. Try again.");
   };
-
   const decline=async missionId=>{
     const existing=myClaims.find(c=>c.mission_id===missionId);
-    if(existing&&!existing.completed){
-      await supabase.from("mission_claims").delete().eq("id",existing.id);
-      const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
-      if(data)setMyClaims(data);
-    }
+    if(existing&&!existing.completed){await supabase.from("mission_claims").delete().eq("id",existing.id);const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);}
     setSelected(null);
   };
-
-  const refresh=async()=>{
-    const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
-    if(data)setMyClaims(data);
-  };
-
+  const refresh=async()=>{const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);};
   const list=filter==="All"?missions:missions.filter(m=>m.category===filter);
-
-  // Show detail page
   if(selected){
     const claim=myClaims.find(c=>c.mission_id===selected.id);
-    return(
-      <MissionDetailPage
-        mission={selected} claim={claim} profile={profile}
-        onBack={()=>setSelected(null)}
-        onAccept={accept} onDecline={decline} onRefresh={refresh}
-        showToast={showToast} Chip={Chip}
-        SF={SF} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} ACC={ACC} ORG={ORG}
-      />
-    );
+    return<MissionDetailPage mission={selected} claim={claim} profile={profile} onBack={()=>setSelected(null)} onAccept={accept} onDecline={decline} onRefresh={refresh} showToast={showToast} Chip={Chip} SF={SF} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} ACC={ACC} ORG={ORG}/>;
   }
-
   return(
     <div style={{padding:"0 16px 12px"}}>
-      {/* Category filter */}
       <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:4}}>
-        {cats.map(c=>(
-          <button key={c} onClick={()=>setFilter(c)}
-            style={{flexShrink:0,padding:"6px 15px",borderRadius:99,fontSize:13,fontWeight:filter===c?600:400,background:filter===c?ACC:"rgba(0,0,0,.06)",color:filter===c?"#fff":LB2,border:"none",cursor:"pointer",fontFamily:SF}}>
-            {c}
-          </button>
-        ))}
+        {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{flexShrink:0,padding:"6px 15px",borderRadius:99,fontSize:13,fontWeight:filter===c?600:400,background:filter===c?ACC:"rgba(0,0,0,.06)",color:filter===c?"#fff":LB2,border:"none",cursor:"pointer",fontFamily:SF}}>{c}</button>)}
       </div>
-
-      {/* Stats bar */}
       <div style={{display:"flex",gap:8,marginBottom:12}}>
-        {[
-          {l:"Total",v:missions.length,c:LB3},
-          {l:"Accepted",v:myClaims.filter(c=>!c.completed).length,c:ACC},
-          {l:"Completed",v:myClaims.filter(c=>c.completed).length,c:"#34c759"},
-        ].map((s,i)=>(
+        {[{l:"Total",v:missions.length,c:LB3},{l:"Accepted",v:myClaims.filter(c=>!c.completed).length,c:ACC},{l:"Completed",v:myClaims.filter(c=>c.completed).length,c:"#34c759"}].map((s,i)=>(
           <div key={i} style={{flex:1,background:BG2,borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
             <div style={{fontSize:18,fontWeight:700,color:s.c}}>{s.v}</div>
             <div style={{fontSize:10,color:LB3,marginTop:2}}>{s.l}</div>
           </div>
         ))}
       </div>
-
-      {list.length===0&&(
-        <div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:15}}>
-          <div style={{fontSize:40,marginBottom:12}}>🎯</div>
-          No missions available
-        </div>
-      )}
-
-      {/* Compact mission cards */}
+      {list.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:15}}><div style={{fontSize:40,marginBottom:12}}>🎯</div>No missions available</div>}
       {list.map(m=>{
         const claim=myClaims.find(c=>c.mission_id===m.id);
-        const done=claim?.completed;
-        const submitted=claim?.submitted;
-        const accepted=!!claim;
-        const dl=daysLeft(m.due_date);
-        const overdue=dl!==null&&dl<0;
+        const done=claim?.completed,submitted=claim?.submitted,accepted=!!claim;
+        const dl=daysLeft(m.due_date),overdue=dl!==null&&dl<0;
         const catColor=CAT_C[m.category]||"#8e8e93";
-
         return(
           <div key={m.id} onClick={()=>setSelected(m)} className="card-press"
             style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:12,opacity:done?.7:1}}>
-            {/* Category color dot */}
             <div style={{width:4,height:44,borderRadius:2,background:catColor,flexShrink:0}}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
@@ -307,9 +436,7 @@ export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,Chi
                 {done&&<span style={{fontSize:11,color:"#34c759",fontWeight:600,background:"#34c75918",padding:"2px 7px",borderRadius:99}}>✅ Done</span>}
                 {submitted&&!done&&<span style={{fontSize:11,color:"#ff9500",fontWeight:600,background:"#ff950018",padding:"2px 7px",borderRadius:99}}>⏳ Pending</span>}
                 {accepted&&!submitted&&!done&&<span style={{fontSize:11,color:ACC,fontWeight:600,background:`${ACC}18`,padding:"2px 7px",borderRadius:99}}>✓ Accepted</span>}
-                {dl!==null&&<span style={{fontSize:11,color:overdue?"#ff3b30":dl<=2?"#ff9500":LB3,fontWeight:overdue||dl<=2?600:400}}>
-                  {overdue?"Overdue":dl===0?"Due today":dl===1?"1d left":`${dl}d left`}
-                </span>}
+                {dl!==null&&<span style={{fontSize:11,color:overdue?"#ff3b30":dl<=2?"#ff9500":LB3,fontWeight:overdue||dl<=2?600:400}}>{overdue?"Overdue":dl===0?"Due today":dl===1?"1d left":`${dl}d left`}</span>}
               </div>
             </div>
             <div style={{color:LB3,fontSize:18,flexShrink:0}}>›</div>
@@ -321,16 +448,14 @@ export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,Chi
 }
 
 // ── LEADERBOARD TAB ───────────────────────────────────────────────────
-export function LeaderboardTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,getLevel,getLvlPct,getTier,calcScore,setDmTarget,setViewingProfile}){
+export function LeaderboardTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,getLevel,getLvlPct,getTier,calcScore,setViewingProfile}){
   const ranked=allProfiles.filter(s=>!s.is_admin);
   return(
     <div style={{padding:"0 16px 12px"}}>
       <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
         {ranked.length===0&&<div style={{padding:"20px 16px",fontSize:15,color:LB3,textAlign:"center"}}>No staff yet</div>}
         {ranked.map((s,i)=>{
-          const me=s.id===profile.id;
-          const medal=["🥇","🥈","🥉"][i]||null;
-          const sTier=getTier(calcScore(s.joined_date,0));
+          const me=s.id===profile.id,medal=["🥇","🥈","🥉"][i]||null,sTier=getTier(calcScore(s.joined_date,0));
           return(
             <div key={s.id} onClick={()=>setViewingProfile&&setViewingProfile(s)} className="card-press"
               style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:me?`${ACC}08`:BG2,borderBottom:i<ranked.length-1?`1px solid ${SEP}`:"none",cursor:"pointer"}}>
@@ -367,18 +492,12 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
   const display=prizes.length>0?prizes:PRIZES.map(x=>({...x,cost:x.pts,category:x.cat}));
   const cats=["All",...new Set(display.map(p=>p.cat||p.category).filter(Boolean))];
   const filtered=filter==="All"?display:display.filter(p=>(p.cat||p.category)===filter);
-  const Sb=({status})=>{
-    const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";
-    return<span style={{fontSize:12,color:c,fontWeight:600,background:c+"18",padding:"3px 8px",borderRadius:99}}>{status==="Approved"?"✓ Delivered":status==="Pending"?"⏳ Pending":"✕ Rejected"}</span>;
-  };
+  const Sb=({status})=>{const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";return<span style={{fontSize:12,color:c,fontWeight:600,background:c+"18",padding:"3px 8px",borderRadius:99}}>{status==="Approved"?"✓ Delivered":status==="Pending"?"⏳ Pending":"✕ Rejected"}</span>;};
   return(
     <div style={{padding:"0 16px 12px"}}>
       <div style={{display:"flex",gap:8,marginBottom:12}}>
         {[["shop","🎁 Prize Shop"],["history","📋 My Prizes"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setView(id)}
-            style={{flex:1,padding:"10px",background:view===id?ACC:"rgba(0,0,0,.06)",color:view===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-            {label}
-          </button>
+          <button key={id} onClick={()=>setView(id)} style={{flex:1,padding:"10px",background:view===id?ACC:"rgba(0,0,0,.06)",color:view===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{label}</button>
         ))}
       </div>
       <div className="fade" style={{background:BG2,borderRadius:13,padding:"12px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -388,26 +507,23 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
       {view==="shop"&&(
         <>
           <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:8}}>
-            {cats.map(c=>(
-              <button key={c} onClick={()=>setFilter(c)}
-                style={{flexShrink:0,padding:"5px 13px",borderRadius:99,fontSize:13,fontWeight:filter===c?600:400,background:filter===c?ACC:"rgba(0,0,0,.06)",color:filter===c?"#fff":LB2,border:"none",cursor:"pointer",fontFamily:SF}}>
-                {c}
-              </button>
-            ))}
+            {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{flexShrink:0,padding:"5px 13px",borderRadius:99,fontSize:13,fontWeight:filter===c?600:400,background:filter===c?ACC:"rgba(0,0,0,.06)",color:filter===c?"#fff":LB2,border:"none",cursor:"pointer",fontFamily:SF}}>{c}</button>)}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             {filtered.map(p=>{
-              const cost=p.pts||p.cost,can=profile.xp>=cost,out=(p.stock||99)<1;
+              const cost=p.pts||p.cost||0;
+              const can=cost>0&&profile.xp>=cost;
+              const out=(p.stock!=null&&p.stock<1);
               return(
-                <div key={p.id} className="fade" style={{background:BG2,borderRadius:13,padding:"15px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",opacity:out?.5:1}}>
-                  <div style={{fontSize:32,marginBottom:6}}>{p.icon}</div>
+                <div key={p.id||p.name} className="fade" style={{background:BG2,borderRadius:13,padding:"15px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",opacity:out?.5:1}}>
+                  <div style={{fontSize:32,marginBottom:6}}>{p.icon||"🎁"}</div>
                   <div style={{fontSize:14,color:LBL,fontWeight:500,marginBottom:4,lineHeight:1.3}}>{p.name}</div>
-                  <Chip color="#8e8e93">{p.cat||p.category}</Chip>
+                  <Chip color="#8e8e93">{p.cat||p.category||"General"}</Chip>
                   <div style={{fontSize:12,color:LB3,marginTop:6,marginBottom:6,lineHeight:1.4}}>{p.desc}</div>
                   <div style={{fontSize:18,fontWeight:700,color:can&&!out?ACC:"#8e8e93",marginBottom:2}}>{cost?.toLocaleString()}</div>
-                  <div style={{fontSize:10,color:LB3,marginBottom:10}}>pts · {p.stock||"∞"} left</div>
-                  <button onClick={()=>doRedeem(p)} disabled={!can||out}
-                    style={{width:"100%",padding:"9px",background:(!can||out)?"rgba(0,0,0,.06)":ACC,color:(!can||out)?LB3:"#fff",border:"none",borderRadius:9,fontSize:13,fontWeight:600,cursor:(!can||out)?"default":"pointer",fontFamily:SF}}>
+                  <div style={{fontSize:10,color:LB3,marginBottom:10}}>pts · {p.stock!=null?p.stock:"∞"} left</div>
+                  <button onClick={()=>!out&&can&&doRedeem(p)} disabled={!can||out}
+                    style={{width:"100%",padding:"9px",background:(!can||out)?"rgba(0,0,0,.06)":ACC,color:(!can||out)?LB3:"#fff",border:"none",borderRadius:9,fontSize:13,fontWeight:600,cursor:(!can||out)?"default":"pointer",fontFamily:SF,transition:"background .15s"}}>
                     {out?"Sold Out":can?"Redeem":"Need More"}
                   </button>
                 </div>
@@ -419,9 +535,7 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
       {view==="history"&&(
         <>
           {myRedemptions.length===0?(
-            <div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:15}}>
-              <div style={{fontSize:40,marginBottom:12}}>🎁</div>No prizes redeemed yet.
-            </div>
+            <div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:15}}><div style={{fontSize:40,marginBottom:12}}>🎁</div>No prizes redeemed yet.</div>
           ):(
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {myRedemptions.map(r=>(
@@ -429,9 +543,7 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                     <div style={{flex:1,marginRight:10}}>
                       <div style={{fontSize:17,color:LBL,fontWeight:500}}>{r.prize_name}</div>
-                      <div style={{fontSize:13,color:LB3,marginTop:2}}>
-                        {new Date(r.redeemed_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}
-                      </div>
+                      <div style={{fontSize:13,color:LB3,marginTop:2}}>{new Date(r.redeemed_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}</div>
                     </div>
                     <Sb status={r.status}/>
                   </div>
@@ -453,92 +565,59 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const [mode,setMode]=useState("group");
   const [dmWith,setDmWith]=useState(null);
   const [messages,setMessages]=useState([]);
-  const [dmMessages,setDmMessages]=useState([]);
   const [text,setText]=useState("");
   const [sending,setSending]=useState(false);
   const [showPeople,setShowPeople]=useState(false);
   const bottomRef=useRef(null);
 
   useEffect(()=>{
-    if(dmTarget){setDmWith(dmTarget);setMode("dm");setDmMessages([]);}
+    if(dmTarget){setDmWith(dmTarget);setMode("dm");}
   },[dmTarget]);
 
   useEffect(()=>{
-    loadMessages();
-    const iv=setInterval(loadMessages,3000);
-    return()=>clearInterval(iv);
-  },[mode,dmWith]);
-
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages,dmMessages]);
-
-  const loadMessages=async()=>{
     if(mode==="group"){
-      const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
-      if(data)setMessages(data);
-    } else if(dmWith){
-      const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
-        .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-        .order("created_at",{ascending:true}).limit(100);
-      if(data)setDmMessages(data);
+      loadGroupMsgs();
+      const iv=setInterval(loadGroupMsgs,3000);
+      return()=>clearInterval(iv);
     }
+  },[mode]);
+
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+
+  const loadGroupMsgs=async()=>{
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
+    if(data)setMessages(data);
   };
+
+  // If in DM mode, render full-screen WhatsApp chat
+  if(mode==="dm"&&dmWith){
+    return(
+      <WhatsAppChat
+        profile={profile} dmWith={dmWith} allProfiles={allProfiles}
+        onBack={()=>{setMode("group");setDmWith(null);if(setDmTarget)setDmTarget(null);}}
+        setViewingProfile={setViewingProfile}
+        SF={SF} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} ACC={ACC} ORG={ORG}
+      />
+    );
+  }
 
   const send=async()=>{
     if(!text.trim()||sending)return;
     setSending(true);
-    const payload={
-      user_id:profile.id,
-      sender_name:profile.nickname||profile.name,
-      sender_avatar:profile.avatar||"",
-      sender_avatar_url:profile.avatar_url||"",
-      content:text.trim(),
-    };
-    if(mode==="dm"&&dmWith){
-      await supabase.from("messages").insert({...payload,is_dm:true,recipient_id:dmWith.id});
-      await supabase.from("notifications").insert({
-        user_id:dmWith.id,
-        title:`💬 ${profile.nickname||profile.name}`,
-        body:text.trim().slice(0,80),
-        type:"dm",
-      });
-    } else {
-      await supabase.from("messages").insert({...payload,is_dm:false});
-    }
-    setText("");await loadMessages();setSending(false);
+    await supabase.from("messages").insert({user_id:profile.id,sender_name:profile.nickname||profile.name,sender_avatar:profile.avatar||"",sender_avatar_url:profile.avatar_url||"",content:text.trim(),is_dm:false,message_type:"text"});
+    setText("");await loadGroupMsgs();setSending(false);
   };
-
-  const startDM=user=>{setDmWith(user);setMode("dm");setShowPeople(false);setDmMessages([]);if(setDmTarget)setDmTarget(null);};
   const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
-  const displayMsgs=mode==="dm"?dmMessages:messages;
-
-  // Get avatar for a message — prefer stored url, fallback to allProfiles lookup
-  const getMsgAvatar=msg=>{
-    if(msg.sender_avatar_url)return msg.sender_avatar_url;
-    const sender=allProfiles?.find(p=>p.id===msg.user_id);
-    return sender?.avatar_url||"";
-  };
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 170px)"}}>
-      {/* Mode tabs */}
-      <div style={{display:"flex",gap:8,padding:"0 16px 10px",borderBottom:`1px solid ${SEP}`,background:BG,flexShrink:0}}>
-        <button onClick={()=>{setMode("group");setDmWith(null);}} className="btn"
-          style={{flex:1,padding:"8px",background:mode==="group"?ACC:"rgba(0,0,0,.06)",color:mode==="group"?"#fff":LB2,border:"none",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-          💬 Group Chat
-        </button>
-        <button onClick={()=>setShowPeople(true)} className="btn"
-          style={{flex:1,padding:"8px",background:mode==="dm"?ACC:"rgba(0,0,0,.06)",color:mode==="dm"?"#fff":LB2,border:"none",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-          {mode==="dm"&&dmWith?`💌 ${dmWith.nickname||dmWith.name?.split(" ")[0]}`:"💌 Direct Message"}
-        </button>
-      </div>
-
       {/* People picker */}
       {showPeople&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:100,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
           <div style={{background:BG,borderRadius:"20px 20px 0 0",padding:"20px 16px 40px",maxHeight:"65vh",overflowY:"auto"}}>
-            <div style={{fontSize:17,fontWeight:600,color:LBL,marginBottom:14,letterSpacing:"-.3px"}}>Start a conversation</div>
+            <div style={{fontSize:17,fontWeight:600,color:LBL,marginBottom:14}}>Start a conversation</div>
             {(allProfiles||[]).filter(p=>p.id!==profile.id&&!p.is_admin).map(u=>(
-              <div key={u.id} onClick={()=>startDM(u)}
+              <div key={u.id} onClick={()=>{setDmWith(u);setMode("dm");setShowPeople(false);if(setDmTarget)setDmTarget(null);}}
                 style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${SEP}`,cursor:"pointer"}}>
                 <div style={{width:46,height:46,borderRadius:"50%",background:u.avatar_url?`url(${u.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0}}>
                   {!u.avatar_url&&(u.avatar||"?")}
@@ -550,56 +629,38 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
                 <div style={{fontSize:20,color:LB3}}>›</div>
               </div>
             ))}
-            <button onClick={()=>setShowPeople(false)}
-              style={{width:"100%",marginTop:16,padding:"14px",background:"rgba(0,0,0,.06)",border:"none",borderRadius:12,fontSize:16,color:"#ff3b30",cursor:"pointer",fontFamily:SF}}>
-              Cancel
-            </button>
+            <button onClick={()=>setShowPeople(false)} style={{width:"100%",marginTop:16,padding:"14px",background:"rgba(0,0,0,.06)",border:"none",borderRadius:12,fontSize:16,color:"#ff3b30",cursor:"pointer",fontFamily:SF}}>Cancel</button>
           </div>
         </div>
       )}
 
-      {/* DM header */}
-      {mode==="dm"&&dmWith&&(
-        <div style={{padding:"10px 16px",background:BG2,borderBottom:`1px solid ${SEP}`,display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-          <div onClick={()=>setViewingProfile&&setViewingProfile(dmWith)}
-            style={{width:38,height:38,borderRadius:"50%",background:dmWith.avatar_url?`url(${dmWith.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0,cursor:"pointer"}}>
-            {!dmWith.avatar_url&&(dmWith.avatar||"?")}
-          </div>
-          <div style={{flex:1,cursor:"pointer"}} onClick={()=>setViewingProfile&&setViewingProfile(dmWith)}>
-            <div style={{fontSize:15,color:LBL,fontWeight:600}}>{dmWith.nickname||dmWith.name}</div>
-            <div style={{fontSize:12,color:LB3}}>{dmWith.role}</div>
-          </div>
-          {setViewingProfile&&(
-            <button onClick={()=>setViewingProfile(dmWith)} style={{background:`${ACC}10`,border:"none",color:ACC,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:SF,borderRadius:8,padding:"6px 12px"}}>
-              Profile
-            </button>
-          )}
+      {/* Group chat header */}
+      <div style={{padding:"10px 16px",borderBottom:`1px solid ${SEP}`,background:BG,flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:16,fontWeight:600,color:LBL}}>💬 Team Group Chat</div>
+          <div style={{fontSize:12,color:LB3}}>{(allProfiles||[]).filter(p=>!p.is_admin).length} members</div>
         </div>
-      )}
+        <button onClick={()=>setShowPeople(true)}
+          style={{background:ACC,color:"#fff",border:"none",borderRadius:99,padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+          💌 DM
+        </button>
+      </div>
 
       {/* Messages */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
-        {displayMsgs.length===0&&(
-          <div style={{textAlign:"center",padding:40,color:LB3,fontSize:15}}>
-            {mode==="dm"?`Say hi to ${dmWith?.nickname||dmWith?.name?.split(" ")[0]} 👋`:"No messages yet. Say hi! 👋"}
-          </div>
-        )}
-        {displayMsgs.map(msg=>{
+        {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:15}}>No messages yet. Say hi! 👋</div>}
+        {messages.map(msg=>{
           const me=msg.user_id===profile.id;
+          const avatarUrl=msg.sender_avatar_url||allProfiles?.find(p=>p.id===msg.user_id)?.avatar_url||"";
           if(msg.is_system)return(
             <div key={msg.id} style={{textAlign:"center",padding:"4px 8px"}}>
               <div style={{display:"inline-block",background:`${ACC}10`,borderRadius:12,padding:"8px 14px",fontSize:13,color:ACC,lineHeight:1.55,maxWidth:"88%",whiteSpace:"pre-line"}}>{msg.content}</div>
             </div>
           );
-          const avatarUrl=getMsgAvatar(msg);
           return(
             <div key={msg.id} style={{display:"flex",flexDirection:me?"row-reverse":"row",alignItems:"flex-end",gap:8}}>
               {!me&&(
-                <div
-                  onClick={()=>{
-                    const sender=allProfiles?.find(p=>p.id===msg.user_id);
-                    if(sender&&setViewingProfile)setViewingProfile(sender);
-                  }}
+                <div onClick={()=>{const sender=allProfiles?.find(p=>p.id===msg.user_id);if(sender&&setViewingProfile)setViewingProfile(sender);}}
                   style={{width:34,height:34,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",cursor:"pointer",border:`2px solid ${BG}`}}>
                   {!avatarUrl&&(msg.sender_avatar||msg.sender_name?.charAt(0)||"?")}
                 </div>
@@ -617,11 +678,9 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
         <div ref={bottomRef}/>
       </div>
 
-      {/* Input */}
+      {/* Group chat input */}
       <div style={{padding:"8px 16px",background:BG2,borderTop:`1px solid ${SEP}`,display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
-        <input value={text} onChange={e=>setText(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
-          placeholder={mode==="dm"?`Message ${dmWith?.nickname||dmWith?.name?.split(" ")[0]}…`:"Message your team…"}
+        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Message the team…"
           style={{flex:1,background:"#f2f2f7",border:"none",outline:"none",borderRadius:22,padding:"10px 16px",fontSize:16,color:LBL,fontFamily:SF}}/>
         <button onClick={send} disabled={!text.trim()||sending} className="btn"
           style={{width:40,height:40,borderRadius:"50%",background:text.trim()?ACC:"#e5e5ea",border:"none",cursor:text.trim()?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,color:"#fff",transition:"background .15s"}}>
@@ -659,7 +718,6 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
 
   useEffect(()=>{loadVerif();},[]);
-
   const loadVerif=async()=>{
     const{data}=await supabase.from("verification_requests").select("*").eq("user_id",profile.id).order("submitted_at",{ascending:false});
     if(data)setVerif(data);
@@ -688,30 +746,31 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
 
   const save=async()=>{
     setSaving(true);
+    // ── Optimistic update first — instant UI ──
+    const payload={...form};
+    if(profile.joined_date_verified)payload.joined_date=profile.joined_date;
+    if(profile.birthday_verified)payload.birthday=profile.birthday;
+    syncProfile({...profile,...payload});
+    setEditing(false);
+    showToast("Profile updated ✓");
+
+    // ── Then save to DB in background ──
     const reqs=[];
     if(form.joined_date!==profile.joined_date&&form.joined_date&&!profile.joined_date_verified)
       reqs.push({user_id:profile.id,field_name:"joined_date",field_value:form.joined_date,status:"Pending"});
     if(form.birthday!==profile.birthday&&form.birthday&&!profile.birthday_verified)
       reqs.push({user_id:profile.id,field_name:"birthday",field_value:form.birthday,status:"Pending"});
-    const payload={...form};
-    if(profile.joined_date_verified)payload.joined_date=profile.joined_date;
-    if(profile.birthday_verified)payload.birthday=profile.birthday;
-    const{error}=await supabase.from("profiles").update(payload).eq("id",profile.id);
-    if(!error){
+    try{
+      await supabase.from("profiles").update(payload).eq("id",profile.id);
       if(reqs.length>0)await supabase.from("verification_requests").insert(reqs);
-      syncProfile({...profile,...payload});
       await loadVerif();
-      showToast("Profile updated ✓");
-      setEditing(false);
-    }else{showToast("Update failed — try again");}
+    }catch{showToast("Sync error — please refresh");}
     setSaving(false);
   };
 
   const submitPrivate=async(fieldName,value,extra=null)=>{
     if(!value.trim()){showToast("Please enter a value");return;}
-    if((fieldName==="ic_number"&&profile.ic_verified)||(fieldName==="epf_number"&&profile.epf_verified)){
-      showToast("This field is locked after verification");return;
-    }
+    if((fieldName==="ic_number"&&profile.ic_verified)||(fieldName==="epf_number"&&profile.epf_verified)){showToast("Locked after verification");return;}
     setSubmittingPrivate(true);
     const req={user_id:profile.id,field_name:fieldName,field_value:value,status:"Pending"};
     if(extra)req.extra_value=extra;
@@ -727,7 +786,6 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
   const bn=form.banner_url||profile.banner_url;
   const age=profile.birthday_verified&&profile.birthday?calcAge(profile.birthday):null;
   const daysWorking=profile.joined_date_verified&&profile.joined_date?calcDaysWorking(profile.joined_date):null;
-
   const publicRows=[
     ["🎂 Age",age?`${age} years old`:null],
     ["⚧ Gender",profile.gender||null],
@@ -740,66 +798,37 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
     ["🎮 Hobby",profile.hobby||null],
     ["🍜 Fav Food",profile.favorite_food||null],
   ].filter(([,v])=>v);
-
   const SHOW_INIT=5;
   const visibleRows=infoExpanded?publicRows:publicRows.slice(0,SHOW_INIT);
   const hasMore=publicRows.length>SHOW_INIT;
 
   return(
     <div style={{paddingBottom:12}}>
-      {showCrop&&rawImg&&(
-        <CircleCrop src={rawImg}
-          onCrop={url=>{set("avatar_url",url);setShowCrop(false);setRawImg(null);}}
-          onCancel={()=>{setShowCrop(false);setRawImg(null);}}/>
-      )}
-      {showBannerFull&&(
-        <div style={{position:"fixed",inset:0,background:"#000",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowBannerFull(false)}>
-          {bn?<img src={bn} alt="banner" style={{width:"100%",maxHeight:"100vh",objectFit:"contain"}}/>:<div style={{color:"#fff",fontSize:15}}>No banner set</div>}
-          <button style={{position:"absolute",top:20,right:20,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:36,height:36,color:"#fff",fontSize:18,cursor:"pointer"}}>✕</button>
-        </div>
-      )}
-      {showAvatarFull&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAvatarFull(false)}>
-          <div style={{width:280,height:280,borderRadius:"50%",background:av?`url(${av}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80,fontWeight:700,color:ACC,overflow:"hidden"}}>
-            {!av&&(profile.avatar||"?")}
-          </div>
-          <button style={{position:"absolute",top:20,right:20,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:36,height:36,color:"#fff",fontSize:18,cursor:"pointer"}}>✕</button>
-        </div>
-      )}
+      {showCrop&&rawImg&&<CircleCrop src={rawImg} onCrop={url=>{set("avatar_url",url);setShowCrop(false);setRawImg(null);}} onCancel={()=>{setShowCrop(false);setRawImg(null);}}/>}
+      {showBannerFull&&<div style={{position:"fixed",inset:0,background:"#000",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowBannerFull(false)}>{bn?<img src={bn} alt="banner" style={{width:"100%",maxHeight:"100vh",objectFit:"contain"}}/>:<div style={{color:"#fff",fontSize:15}}>No banner set</div>}<button style={{position:"absolute",top:20,right:20,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:36,height:36,color:"#fff",fontSize:18,cursor:"pointer"}}>✕</button></div>}
+      {showAvatarFull&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAvatarFull(false)}><div style={{width:280,height:280,borderRadius:"50%",background:av?`url(${av}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80,fontWeight:700,color:ACC,overflow:"hidden"}}>{!av&&(profile.avatar||"?")}</div><button style={{position:"absolute",top:20,right:20,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:36,height:36,color:"#fff",fontSize:18,cursor:"pointer"}}>✕</button></div>}
 
       {/* Banner */}
-      <div onClick={()=>!editing&&setShowBannerFull(true)}
-        style={{height:130,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
-        {editing&&(
-          <>
-            <button onClick={e=>{e.stopPropagation();document.getElementById("bnP").click();}}
-              style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:SF}}>
-              Change Banner
-            </button>
-            <input id="bnP" type="file" accept="image/*" onChange={handleBannerSelect} style={{display:"none"}}/>
-          </>
-        )}
+      <div onClick={()=>!editing&&setShowBannerFull(true)} style={{height:130,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
+        {editing&&(<><button onClick={e=>{e.stopPropagation();document.getElementById("bnP").click();}} style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:SF}}>Change Banner</button><input id="bnP" type="file" accept="image/*" onChange={handleBannerSelect} style={{display:"none"}}/></>)}
       </div>
 
-      {/* Avatar + Edit */}
+      {/* Avatar — NO edit button here, moved to below */}
       <div style={{padding:"0 16px",marginTop:-44,marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
         <div style={{position:"relative"}}>
-          <div onClick={()=>!editing&&setShowAvatarFull(true)}
-            style={{width:84,height:84,borderRadius:"50%",background:av?`url(${av}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,border:`3px solid ${BG}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:700,color:ACC,overflow:"hidden",cursor:!editing?"zoom-in":"default"}}>
+          <div onClick={()=>!editing&&setShowAvatarFull(true)} style={{width:84,height:84,borderRadius:"50%",background:av?`url(${av}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,border:`3px solid ${BG}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:700,color:ACC,overflow:"hidden",cursor:!editing?"zoom-in":"default"}}>
             {!av&&(profile.avatar||"?")}
           </div>
-          {editing&&(
-            <button onClick={()=>document.getElementById("avP").click()}
-              style={{position:"absolute",bottom:2,right:2,width:26,height:26,background:ACC,border:`2px solid ${BG}`,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13}}>
-              📷
-            </button>
-          )}
+          {editing&&<button onClick={()=>document.getElementById("avP").click()} style={{position:"absolute",bottom:2,right:2,width:26,height:26,background:ACC,border:`2px solid ${BG}`,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13}}>📷</button>}
           <input id="avP" type="file" accept="image/*" onChange={handleFileSelect} style={{display:"none"}}/>
         </div>
-        <button onClick={editing?save:()=>setEditing(true)} disabled={saving} className="btn"
-          style={{background:editing?ACC:"rgba(0,0,0,.07)",color:editing?"#fff":LBL,border:"none",borderRadius:99,padding:"8px 18px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-          {saving?"Saving…":editing?"Save ✓":"Edit Profile"}
-        </button>
+        {/* Edit / Cancel button top right — only show when NOT editing */}
+        {!editing&&(
+          <button onClick={()=>setEditing(true)} className="btn"
+            style={{background:"rgba(0,0,0,.07)",color:LBL,border:"none",borderRadius:99,padding:"8px 18px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+            Edit Profile
+          </button>
+        )}
       </div>
 
       <div style={{padding:"0 16px",marginBottom:14}}>
@@ -857,8 +886,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
               <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
                 <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Gender</div>
                 <div style={{position:"relative"}}>
-                  <select value={form.gender} onChange={e=>set("gender",e.target.value)}
-                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:form.gender?LBL:LB3,appearance:"none",WebkitAppearance:"none",cursor:"pointer",fontFamily:SF}}>
+                  <select value={form.gender} onChange={e=>set("gender",e.target.value)} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:form.gender?LBL:LB3,appearance:"none",WebkitAppearance:"none",cursor:"pointer",fontFamily:SF}}>
                     <option value="">Select…</option>
                     {GENDERS.map(g=><option key={g} value={g}>{g}</option>)}
                   </select>
@@ -870,37 +898,33 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                 <textarea value={form.bio} onChange={e=>set("bio",e.target.value)} placeholder="Short description…" rows={3}
                   style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",fontFamily:SF,lineHeight:1.45}}/>
               </div>
-              {/* Birthday */}
               <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                   <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Birthday</div>
                   <VerifBadge field="birthday"/>
                 </div>
-                {profile.birthday_verified
-                  ?<div style={{fontSize:16,color:LB3}}>{fmtDate(profile.birthday)} (locked)</div>
-                  :<input type="date" value={form.birthday} onChange={e=>set("birthday",e.target.value)}
-                      style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
-                }
-                {!profile.birthday_verified&&form.birthday&&<div style={{fontSize:11,color:"#ff9500",marginTop:3}}>⏳ Will require admin verification to display</div>}
+                {profile.birthday_verified?<div style={{fontSize:16,color:LB3}}>{fmtDate(profile.birthday)} (locked)</div>:<input type="date" value={form.birthday} onChange={e=>set("birthday",e.target.value)} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>}
+                {!profile.birthday_verified&&form.birthday&&<div style={{fontSize:11,color:"#ff9500",marginTop:3}}>⏳ Requires admin verification to display</div>}
               </div>
-              {/* Joining Date */}
               <div style={{padding:"11px 16px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                   <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Joining Date</div>
                   <VerifBadge field="joined_date"/>
                 </div>
-                {profile.joined_date_verified
-                  ?<div style={{fontSize:16,color:LB3}}>{fmtDate(profile.joined_date)} (locked)</div>
-                  :<input type="date" value={form.joined_date} onChange={e=>set("joined_date",e.target.value)}
-                      style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
-                }
+                {profile.joined_date_verified?<div style={{fontSize:16,color:LB3}}>{fmtDate(profile.joined_date)} (locked)</div>:<input type="date" value={form.joined_date} onChange={e=>set("joined_date",e.target.value)} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>}
                 {!profile.joined_date_verified&&form.joined_date&&<div style={{fontSize:11,color:"#ff9500",marginTop:3}}>⏳ Shown after admin verification</div>}
               </div>
             </div>
-            <button onClick={()=>setEditing(false)}
-              style={{width:"100%",padding:"14px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:13,fontSize:16,color:"#ff3b30",cursor:"pointer",fontFamily:SF,marginBottom:16}}>
-              Cancel
-            </button>
+
+            {/* ── Save button at BOTTOM ── */}
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              <button onClick={()=>setEditing(false)} style={{flex:1,padding:"14px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:13,fontSize:16,color:"#ff3b30",cursor:"pointer",fontFamily:SF}}>Cancel</button>
+              <button onClick={save} disabled={saving}
+                style={{flex:2,padding:"14px",background:saving?"#e5e5ea":ACC,color:saving?LB3:"#fff",border:"none",borderRadius:13,fontSize:16,fontWeight:700,cursor:saving?"default":"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                {saving&&<div style={{width:16,height:16,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
+                {saving?"Saving…":"Save Changes ✓"}
+              </button>
+            </div>
           </div>
         ):(
           <div style={{padding:"0 16px"}}>
@@ -911,12 +935,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                   <div style={{fontSize:15,color:LBL,textAlign:"right",maxWidth:"55%",lineHeight:1.4}}>{value}</div>
                 </div>
               ))}
-              {hasMore&&(
-                <button onClick={()=>setInfoExpanded(p=>!p)} className="btn"
-                  style={{width:"100%",padding:"11px 16px",background:"none",border:"none",cursor:"pointer",fontSize:14,color:ACC,fontWeight:600,fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                  {infoExpanded?`Show Less ▲`:`Show ${publicRows.length-SHOW_INIT} More ▾`}
-                </button>
-              )}
+              {hasMore&&<button onClick={()=>setInfoExpanded(p=>!p)} className="btn" style={{width:"100%",padding:"11px 16px",background:"none",border:"none",cursor:"pointer",fontSize:14,color:ACC,fontWeight:600,fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{infoExpanded?`Show Less ▲`:`Show ${publicRows.length-SHOW_INIT} More ▾`}</button>}
               {publicRows.length===0&&<div style={{padding:"20px 16px",fontSize:15,color:LB3,textAlign:"center"}}>Tap Edit Profile to add your info.</div>}
             </div>
           </div>
@@ -927,9 +946,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
       {section==="private"&&(
         <div style={{padding:"0 16px"}}>
           <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:14,fontSize:13,color:ACC,lineHeight:1.7}}>
-            🔒 Visible only to you and admin.<br/>
-            <strong>IC & EPF</strong> are locked after verification.<br/>
-            <strong>Bank</strong> can always be updated (needs re-approval).
+            🔒 Visible only to you and admin.<br/><strong>IC & EPF</strong> locked after verification.<br/><strong>Bank</strong> always editable (needs re-approval).
           </div>
           {/* IC */}
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
@@ -939,24 +956,20 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                 <VerifBadge field="ic_number"/>
               </div>
               <div style={{fontSize:16,color:LBL,marginBottom:8}}>{profile.ic_number||"Not provided"}</div>
-              {!profile.ic_verified&&(
-                privateEditing==="ic"?(
-                  <div style={{borderTop:`1px solid ${SEP}`,paddingTop:12}}>
-                    <input value={privateForm.ic_number} onChange={e=>setPrivateForm(p=>({...p,ic_number:formatIC(e.target.value)}))} placeholder="XXXXXX-XX-XXXX"
-                      style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none",marginBottom:6,letterSpacing:1}}/>
-                    <div style={{fontSize:12,color:getICDigits(privateForm.ic_number).length===12?"#34c759":LB3,marginBottom:8}}>{getICDigits(privateForm.ic_number).length}/12 digits</div>
-                    <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>setPrivateEditing(null)} style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
-                      <button onClick={()=>submitPrivate("ic_number",privateForm.ic_number)} disabled={submittingPrivate||getICDigits(privateForm.ic_number).length!==12}
-                        style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
-                    </div>
+              {!profile.ic_verified&&(privateEditing==="ic"?(
+                <div style={{borderTop:`1px solid ${SEP}`,paddingTop:12}}>
+                  <input value={privateForm.ic_number} onChange={e=>setPrivateForm(p=>({...p,ic_number:formatIC(e.target.value)}))} placeholder="XXXXXX-XX-XXXX"
+                    style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none",marginBottom:6,letterSpacing:1}}/>
+                  <div style={{fontSize:12,color:getICDigits(privateForm.ic_number).length===12?"#34c759":LB3,marginBottom:8}}>{getICDigits(privateForm.ic_number).length}/12 digits</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setPrivateEditing(null)} style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
+                    <button onClick={()=>submitPrivate("ic_number",privateForm.ic_number)} disabled={submittingPrivate||getICDigits(privateForm.ic_number).length!==12}
+                      style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
                   </div>
-                ):(
-                  <button onClick={()=>setPrivateEditing("ic")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-                    {profile.ic_number?"Update IC":"Add IC Number"}
-                  </button>
-                )
-              )}
+                </div>
+              ):(
+                <button onClick={()=>setPrivateEditing("ic")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.ic_number?"Update IC":"Add IC Number"}</button>
+              ))}
             </div>
           </div>
           {/* EPF */}
@@ -967,26 +980,22 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                 <VerifBadge field="epf_number"/>
               </div>
               <div style={{fontSize:16,color:LBL,marginBottom:8}}>{profile.epf_number||"Not provided"}</div>
-              {!profile.epf_verified&&(
-                privateEditing==="epf"?(
-                  <div style={{borderTop:`1px solid ${SEP}`,paddingTop:12}}>
-                    <input value={privateForm.epf_number} onChange={e=>setPrivateForm(p=>({...p,epf_number:e.target.value.replace(/\D/g,"")}))} placeholder="XXXXXXXXXXXX" type="tel"
-                      style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none",marginBottom:8}}/>
-                    <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>setPrivateEditing(null)} style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
-                      <button onClick={()=>submitPrivate("epf_number",privateForm.epf_number)} disabled={submittingPrivate||!privateForm.epf_number}
-                        style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
-                    </div>
+              {!profile.epf_verified&&(privateEditing==="epf"?(
+                <div style={{borderTop:`1px solid ${SEP}`,paddingTop:12}}>
+                  <input value={privateForm.epf_number} onChange={e=>setPrivateForm(p=>({...p,epf_number:e.target.value.replace(/\D/g,"")}))} placeholder="XXXXXXXXXXXX" type="tel"
+                    style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none",marginBottom:8}}/>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setPrivateEditing(null)} style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
+                    <button onClick={()=>submitPrivate("epf_number",privateForm.epf_number)} disabled={submittingPrivate||!privateForm.epf_number}
+                      style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
                   </div>
-                ):(
-                  <button onClick={()=>setPrivateEditing("epf")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-                    {profile.epf_number?"Update EPF":"Add EPF Number"}
-                  </button>
-                )
-              )}
+                </div>
+              ):(
+                <button onClick={()=>setPrivateEditing("epf")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.epf_number?"Update EPF":"Add EPF Number"}</button>
+              ))}
             </div>
           </div>
-          {/* Bank — always editable */}
+          {/* Bank */}
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             <div style={{padding:"11px 16px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -1013,9 +1022,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                   </div>
                 </div>
               ):(
-                <button onClick={()=>setPrivateEditing("bank")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-                  {profile.bank_account?"Update Bank Account":"Add Bank Account"}
-                </button>
+                <button onClick={()=>setPrivateEditing("bank")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.bank_account?"Update Bank Account":"Add Bank Account"}</button>
               )}
             </div>
           </div>

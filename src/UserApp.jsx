@@ -7,14 +7,7 @@ const XP_T=[0,500,1200,2000,3000,4500,6500,9000,12000];
 const getLevel=xp=>{let l=1;for(let i=1;i<XP_T.length;i++)if(xp>=XP_T[i])l=i+1;return Math.min(l,XP_T.length);};
 const getLvlPct=xp=>{const l=getLevel(xp)-1;const s=XP_T[l]||0;const e=XP_T[l+1]||s+1;return Math.round(((xp-s)/(e-s))*100);};
 const fmtDate=iso=>{if(!iso)return null;const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
-const calcAge=birthday=>{
-  if(!birthday)return null;
-  const birth=new Date(birthday),today=new Date();
-  let age=today.getFullYear()-birth.getFullYear();
-  const m=today.getMonth()-birth.getMonth();
-  if(m<0||(m===0&&today.getDate()<birth.getDate()))age--;
-  return age;
-};
+const calcAge=birthday=>{if(!birthday)return null;const birth=new Date(birthday),today=new Date();let age=today.getFullYear()-birth.getFullYear();const m=today.getMonth()-birth.getMonth();if(m<0||(m===0&&today.getDate()<birth.getDate()))age--;return age;};
 const calcDaysWorking=joinedDate=>{if(!joinedDate)return null;return Math.floor((Date.now()-new Date(joinedDate))/86400000);};
 const WX_ICON=code=>{if(code===0)return"☀️";if(code<=3)return"⛅";if(code<=48)return"🌫️";if(code<=67)return"🌧️";if(code<=77)return"❄️";if(code<=82)return"🌦️";return"⛈️";};
 const WX_DESC=code=>{if(code===0)return"Clear Sky";if(code<=3)return"Partly Cloudy";if(code<=48)return"Foggy";if(code<=67)return"Rainy";if(code<=77)return"Snowy";if(code<=82)return"Showers";return"Thunderstorm";};
@@ -37,17 +30,14 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
   const age=user.birthday_verified&&user.birthday?calcAge(user.birthday):null;
   const daysWorking=user.joined_date_verified&&user.joined_date?calcDaysWorking(user.joined_date):null;
   const rows=[
-    ["💼 Position",user.role||user.position],
-    ["🎂 Age",age?`${age} years old`:null],
-    ["⚧ Gender",user.gender||null],
-    ["🏠 Home Town",user.hometown||null],
+    ["💼 Position",user.role||user.position],["🎂 Age",age?`${age} years old`:null],
+    ["⚧ Gender",user.gender||null],["🏠 Home Town",user.hometown||null],
     ["📱 Contact",user.contact_number?formatContact(user.contact_number):null],
     ["📧 Email",user.email||null],
     ["📅 Joining Date",user.joined_date_verified?fmtDate(user.joined_date):null],
     ["⏳ Been Working",daysWorking!==null?`${daysWorking.toLocaleString()} days`:null],
     ["🎂 Birthday",user.birthday_verified?fmtDate(user.birthday):null],
-    ["🎮 Hobby",user.hobby||null],
-    ["🍜 Fav Food",user.favorite_food||null],
+    ["🎮 Hobby",user.hobby||null],["🍜 Fav Food",user.favorite_food||null],
   ].filter(([,v])=>v);
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF}}>
@@ -65,7 +55,6 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
           <button style={{position:"absolute",top:20,right:20,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:40,height:40,color:"#fff",fontSize:20,cursor:"pointer"}}>✕</button>
         </div>
       )}
-      {/* Back header */}
       <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px",position:"sticky",top:0,zIndex:20,display:"flex",alignItems:"center",gap:12}}>
         <button onClick={onBack} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:ACC,fontWeight:700,padding:0,fontFamily:SF}}>← Back</button>
         <div style={{flex:1,fontSize:18,fontWeight:700,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nickname||user.name}</div>
@@ -83,7 +72,7 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
           </div>
         </div>
         <div style={{padding:"0 16px 24px"}}>
-          <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>{user.nickname||user.name}</div>
+          <div style={{fontSize:26,fontWeight:700,color:LBL}}>{user.nickname||user.name}</div>
           {user.nickname&&<div style={{fontSize:16,color:LB3,marginTop:3}}>{user.name}</div>}
           {user.role&&<div style={{fontSize:16,color:ACC,fontWeight:600,marginTop:5}}>{user.role}</div>}
           {user.bio&&<div style={{background:BG2,borderRadius:14,padding:"14px 16px",marginTop:16,fontSize:16,color:LB2,lineHeight:1.6}}>{user.bio}</div>}
@@ -139,16 +128,25 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const [weather,setWeather]             =useState(null);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
-
   const switchTab=newTab=>{setTab(newTab);setTabKey(k=>k+1);};
 
   useEffect(()=>{
     loadAll();loadNotifications();fetchWeather();
-    const ch=supabase.channel("user_rt_"+profile.id)
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"profiles",filter:`id=eq.${profile.id}`},async()=>{
-        const{data}=await supabase.from("profiles").select("*").eq("id",profile.id).single();
-        if(data)syncProfile(data);
+
+    // ── Realtime ──
+    const ch=supabase.channel("user_rt_v2_"+profile.id)
+
+      // Profile update — instant points refresh when admin gifts
+      .on("postgres_changes",{
+        event:"UPDATE",schema:"public",table:"profiles",
+        filter:`id=eq.${profile.id}`
+      },payload=>{
+        if(payload.new){
+          syncProfile({...profileRef.current,...payload.new});
+        }
       })
+
+      // Announcements
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"announcements"},payload=>{
         if(payload.new)setAnnouncements(p=>{
           if(p.find(a=>a.id===payload.new.id))return p;
@@ -161,27 +159,53 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       .on("postgres_changes",{event:"DELETE",schema:"public",table:"announcements"},payload=>{
         if(payload.old?.id)setAnnouncements(p=>p.filter(a=>a.id!==payload.old.id));
       })
-      .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:`user_id=eq.${profile.id}`},payload=>{
+
+      // Notifications — live banner popup
+      .on("postgres_changes",{
+        event:"INSERT",schema:"public",table:"notifications",
+        filter:`user_id=eq.${profile.id}`
+      },payload=>{
         if(!payload.new)return;
-        setNotifications(p=>[payload.new,...p]);
-        setPopupNotif(payload.new);
-        setTimeout(()=>setPopupNotif(null),5000);
-        if("Notification" in window&&Notification.permission==="granted")
-          new Notification(payload.new.title,{body:payload.new.body,icon:"/TECHWIDE_LOGO.png"});
+        const n=payload.new;
+        setNotifications(p=>[n,...p]);
+        setPopupNotif(n);
+        setTimeout(()=>setPopupNotif(null),6000);
+        if("Notification" in window&&Notification.permission==="granted"){
+          try{new Notification(n.title,{body:n.body,icon:"/TECHWIDE_LOGO.png"});}
+          catch(e){console.warn("push notif:",e);}
+        }
       })
-      .on("postgres_changes",{event:"*",schema:"public",table:"redemptions",filter:`user_id=eq.${profile.id}`},()=>{
-        supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});
+
+      // Redemptions
+      .on("postgres_changes",{
+        event:"*",schema:"public",table:"redemptions",
+        filter:`user_id=eq.${profile.id}`
+      },()=>{
+        supabase.from("redemptions").select("*").eq("user_id",profile.id)
+          .then(({data})=>{if(data)setMyRedemptions(data);});
       })
-      .on("postgres_changes",{event:"*",schema:"public",table:"mission_claims",filter:`user_id=eq.${profile.id}`},()=>{
-        supabase.from("mission_claims").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyClaims(data);});
+
+      // Mission claims
+      .on("postgres_changes",{
+        event:"*",schema:"public",table:"mission_claims",
+        filter:`user_id=eq.${profile.id}`
+      },()=>{
+        supabase.from("mission_claims").select("*").eq("user_id",profile.id)
+          .then(({data})=>{if(data)setMyClaims(data);});
       })
+
+      // New missions
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"missions"},payload=>{
         if(payload.new?.active)setMissions(p=>[...p,payload.new]);
       })
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"missions"},payload=>{
         if(payload.new&&!payload.new.active)setMissions(p=>p.filter(m=>m.id!==payload.new.id));
       })
-      .subscribe();
+
+      .subscribe(status=>{
+        if(status==="SUBSCRIBED")console.log("Realtime connected ✓");
+      });
+
     const iv=setInterval(loadNotifications,60000);
     return()=>{clearInterval(iv);supabase.removeChannel(ch);};
   },[]);
@@ -211,8 +235,10 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       supabase.from("redemptions").select("*").eq("user_id",uid),
       supabase.from("prizes").select("*").eq("active",true),
     ]);
-    if(m.data)setMissions(m.data);if(c.data)setMyClaims(c.data);
-    if(ap.data)setAllProfiles(ap.data);if(a.data)setAnnouncements(a.data);
+    if(m.data)setMissions(m.data);
+    if(c.data)setMyClaims(c.data);
+    if(ap.data)setAllProfiles(ap.data);
+    if(a.data)setAnnouncements(a.data);
     if(r.data)setMyRedemptions(r.data);
     if(p.data)setPrizes(p.data.length>0?p.data:PRIZES.map(x=>({...x,id:x.id,cost:x.pts,category:x.cat})));
   };
@@ -239,26 +265,47 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     setAllProfiles(p=>p.map(x=>x.id===profile.id?updated:x).sort((a,b)=>b.xp-a.xp));
     showToast(`+${bonus} pts  •  ${streak}-day streak 🔥`);
     await supabase.from("profiles").update({xp:updated.xp,streak,last_checkin:today}).eq("id",profile.id);
-    await supabase.from("points_history").insert({user_id:profile.id,amount:bonus,reason:`Daily check-in — ${streak} day streak`,type:"credit"}).catch(()=>{});
+    try{ await supabase.from("points_history").insert({user_id:profile.id,amount:bonus,reason:`Daily check-in — ${streak} day streak`,type:"credit"}); }catch(e){ console.warn(e); }
   };
 
+  // ── doRedeem — fully fixed ──
   const doRedeem=async prize=>{
     const pts=prize.pts||prize.cost||0;
     const cur=profileRef.current;
     if(!pts||pts<=0){showToast("Invalid prize");return;}
     if(cur.xp<pts){showToast(`Need ${(pts-cur.xp).toLocaleString()} more pts`);return;}
-    if((prize.stock||99)<1){showToast("Out of stock");return;}
+    if(prize.stock!=null&&prize.stock<1){showToast("Out of stock");return;}
+    // Optimistic update
     const newXp=cur.xp-pts;
     syncProfile({...cur,xp:newXp});
     showToast(`${prize.name} redeemed! 🎉`);
     try{
-      await supabase.from("redemptions").insert({user_id:profile.id,prize_id:prize.id?.toString(),prize_name:prize.name,status:"Pending"});
-      await supabase.from("profiles").update({xp:newXp}).eq("id",profile.id);
-      await supabase.from("points_history").insert({user_id:profile.id,amount:pts,reason:`Redeemed: ${prize.name}`,type:"debit"}).catch(()=>{});
-      if(prize.stock!=null)await supabase.from("prizes").update({stock:Math.max(0,prize.stock-1)}).eq("id",prize.id);
-      const{data}=await supabase.from("redemptions").select("*").eq("user_id",profile.id);
+      // 1. Insert redemption
+      const{error:redErr}=await supabase.from("redemptions").insert({
+        user_id:cur.id,
+        prize_id:prize.id?.toString()||"custom",
+        prize_name:prize.name,
+        status:"Pending",
+        redeemed_at:new Date().toISOString(),
+      });
+      if(redErr)throw new Error("Redemption failed: "+redErr.message);
+      // 2. Deduct points
+      const{error:xpErr}=await supabase.from("profiles").update({xp:newXp}).eq("id",cur.id);
+      if(xpErr)throw new Error("Points update failed: "+xpErr.message);
+      // 3. Points history
+      try{ await supabase.from("points_history").insert({user_id:cur.id,amount:pts,reason:`Redeemed: ${prize.name}`,type:"debit"}); }catch(e){ console.warn(e); }
+      // 4. Reduce stock
+      if(prize.id&&prize.stock!=null){
+        try{ await supabase.from("prizes").update({stock:Math.max(0,prize.stock-1)}).eq("id",prize.id); }catch(e){ console.warn(e); }
+      }
+      // 5. Refresh redemptions
+      const{data}=await supabase.from("redemptions").select("*").eq("user_id",cur.id);
       if(data)setMyRedemptions(data);
-    }catch{syncProfile(cur);showToast("Redemption failed — please try again");}
+    }catch(err){
+      console.error("Redeem error:",err);
+      syncProfile(cur); // rollback
+      showToast("❌ "+err.message);
+    }
   };
 
   const today=new Date().toISOString().split("T")[0];
@@ -482,7 +529,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
       {showNotif&&<NotifPanel/>}
 
-      {/* Notification popup */}
+      {/* Notification popup banner */}
       {popupNotif&&(
         <div className="toast-in"
           style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:18,padding:"16px 20px",maxWidth:"92vw",zIndex:300,boxShadow:"0 8px 32px rgba(0,0,0,.35)",cursor:"pointer"}}
@@ -498,7 +545,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
         </div>
       )}
 
-      {/* Header — ONLY on Home tab */}
+      {/* Header — Home only shows full logo */}
       {tab==="home"&&(
         <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -522,7 +569,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
         </div>
       )}
 
-      {/* Non-home tabs — minimal back-style header with page title only */}
+      {/* Non-home — minimal header */}
       {tab!=="home"&&(
         <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"16px 16px 14px",position:"sticky",top:0,zIndex:20,display:"flex",alignItems:"center",gap:14}}>
           <button onClick={()=>switchTab("home")} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:ACC,padding:0,display:"flex",alignItems:"center"}}>←</button>
@@ -533,15 +580,10 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             {tab==="chat"    &&"💬 Community"}
             {tab==="profile" &&"👤 My Profile"}
           </div>
-          {tab==="profile"&&(
-            <div style={{fontSize:15,fontWeight:700,color:ACC}}>{profile.xp.toLocaleString()} pts</div>
-          )}
-          {tab!=="profile"&&(
-            <button onClick={()=>setShowNotif(true)} className="btn" style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:4}}>
-              <span style={{fontSize:22}}>🔔</span>
-              {unreadCount>0&&<div style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadCount}</div>}
-            </button>
-          )}
+          <button onClick={()=>setShowNotif(true)} className="btn" style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:4}}>
+            <span style={{fontSize:22}}>🔔</span>
+            {unreadCount>0&&<div style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadCount}</div>}
+          </button>
         </div>
       )}
 
@@ -555,7 +597,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
         {tab==="profile" &&<ProfileTab{...shared}/>}
       </div>
 
-      {/* Tab bar — bigger */}
+      {/* Tab bar */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>switchTab(t.id)} className="tab-btn"

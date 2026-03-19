@@ -9,6 +9,16 @@ const calcAge=birthday=>{if(!birthday)return null;const birth=new Date(birthday)
 const calcDaysWorking=joinedDate=>{if(!joinedDate)return null;return Math.floor((Date.now()-new Date(joinedDate))/86400000);};
 const daysLeft=dueDate=>{if(!dueDate)return null;return Math.ceil((new Date(dueDate)-new Date())/(1000*60*60*24));};
 
+function addRipple(e){
+  const el=e.currentTarget;if(!el)return;
+  const rect=el.getBoundingClientRect();
+  const dot=document.createElement("div");
+  dot.className="ripple-dot";
+  dot.style.left=(e.clientX-rect.left)+"px";
+  dot.style.top=(e.clientY-rect.top)+"px";
+  el.appendChild(dot);setTimeout(()=>dot.remove(),500);
+}
+
 // ── WHATSAPP STYLE DM CHAT ────────────────────────────────────────────
 function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}){
   const [messages,setMessages]=useState([]);
@@ -16,16 +26,12 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
   const [sending,setSending]=useState(false);
   const [showAttach,setShowAttach]=useState(false);
   const [recording,setRecording]=useState(false);
-  const [audioBlob,setAudioBlob]=useState(null);
   const [mediaRecorder,setMediaRecorder]=useState(null);
   const bottomRef=useRef(null);
-  const inputRef=useRef(null);
-  // Swipe to go back
   const touchStartX=useRef(0);
 
   useEffect(()=>{
-    loadMsgs();
-    markSeen();
+    loadMsgs();markSeen();
     const iv=setInterval(()=>{loadMsgs();markSeen();},2000);
     return()=>clearInterval(iv);
   },[]);
@@ -39,7 +45,6 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
     if(data)setMessages(data);
   };
 
-  // Mark all messages from dmWith as seen
   const markSeen=async()=>{
     await supabase.from("messages").update({seen_at:new Date().toISOString()})
       .eq("user_id",dmWith.id).eq("recipient_id",profile.id).is("seen_at",null);
@@ -49,19 +54,14 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
     if(type==="text"&&!content)return;
     setSending(true);
     const msg={
-      user_id:profile.id,
-      recipient_id:dmWith.id,
+      user_id:profile.id,recipient_id:dmWith.id,
       sender_name:profile.nickname||profile.name,
       sender_avatar:profile.avatar||"",
       sender_avatar_url:profile.avatar_url||"",
-      content:content||"",
-      message_type:type,
-      media_url:mediaUrl,
-      file_name:fileName,
-      is_dm:true,
+      content:content||"",message_type:type,
+      media_url:mediaUrl,file_name:fileName,is_dm:true,
       delivered_at:new Date().toISOString(),
     };
-    // Optimistic
     const tempMsg={...msg,id:"temp_"+Date.now(),created_at:new Date().toISOString()};
     setMessages(p=>[...p,tempMsg]);
     setText("");
@@ -85,8 +85,7 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
   const startRecording=async()=>{
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-      const mr=new MediaRecorder(stream);
-      const chunks=[];
+      const mr=new MediaRecorder(stream);const chunks=[];
       mr.ondataavailable=e=>chunks.push(e.data);
       mr.onstop=async()=>{
         const blob=new Blob(chunks,{type:"audio/webm"});
@@ -95,35 +94,29 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
         reader.readAsDataURL(blob);
         stream.getTracks().forEach(t=>t.stop());
       };
-      mr.start();
-      setMediaRecorder(mr);
-      setRecording(true);
+      mr.start();setMediaRecorder(mr);setRecording(true);
     }catch{alert("Microphone access denied");}
   };
 
   const stopRecording=()=>{
     if(mediaRecorder)mediaRecorder.stop();
-    setRecording(false);
-    setMediaRecorder(null);
+    setRecording(false);setMediaRecorder(null);
   };
 
   const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
 
-  // Message ticks
   const Ticks=({msg})=>{
     if(msg.user_id!==profile.id)return null;
     if(msg.seen_at)return<span style={{color:"#34b7f1",fontSize:11,marginLeft:3}}>✓✓</span>;
-    if(msg.delivered_at)return<span style={{color:"rgba(255,255,255,.5)",fontSize:11,marginLeft:3}}>✓</span>;
-    return<span style={{color:"rgba(255,255,255,.4)",fontSize:11,marginLeft:3}}>⏳</span>;
+    if(msg.delivered_at)return<span style={{color:"rgba(0,0,0,.35)",fontSize:11,marginLeft:3}}>✓</span>;
+    return<span style={{color:"rgba(0,0,0,.25)",fontSize:11,marginLeft:3}}>⏳</span>;
   };
 
-  // Render message bubble content
   const MsgContent=({msg,me})=>{
     const c=me?"#fff":LBL;
     if(msg.message_type==="image"&&msg.media_url)return(
       <div style={{borderRadius:10,overflow:"hidden",maxWidth:220}}>
         <img src={msg.media_url} alt="photo" style={{width:"100%",display:"block"}}/>
-        {msg.content&&msg.content!=="📷 Photo"&&<div style={{fontSize:14,color:c,padding:"6px 4px 0"}}>{msg.content}</div>}
       </div>
     );
     if(msg.message_type==="video"&&msg.media_url)return(
@@ -151,10 +144,9 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
       style={{position:"fixed",inset:0,background:"#ece5dd",zIndex:100,display:"flex",flexDirection:"column",maxWidth:430,margin:"0 auto",fontFamily:SF}}
       onTouchStart={e=>touchStartX.current=e.touches[0].clientX}
       onTouchEnd={e=>{if(e.changedTouches[0].clientX-touchStartX.current>80)onBack();}}>
-
-      {/* WhatsApp-style header */}
+      {/* Header */}
       <div style={{background:"#075e54",padding:"10px 12px",display:"flex",alignItems:"center",gap:10,flexShrink:0,paddingTop:"max(10px,env(safe-area-inset-top))"}}>
-        <button onClick={onBack} style={{background:"none",border:"none",color:"#fff",fontSize:20,cursor:"pointer",padding:"4px 8px 4px 0",display:"flex",alignItems:"center",fontFamily:SF}}>←</button>
+        <button onClick={onBack} className="btn" style={{background:"none",border:"none",color:"#fff",fontSize:20,cursor:"pointer",padding:"4px 8px 4px 0",fontFamily:SF}}>←</button>
         <div onClick={()=>setViewingProfile&&setViewingProfile(dmWith)} style={{width:40,height:40,borderRadius:"50%",background:dmWith.avatar_url?`url(${dmWith.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0,cursor:"pointer"}}>
           {!dmWith.avatar_url&&(dmWith.avatar||"?")}
         </div>
@@ -163,9 +155,8 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
           <div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>{dmWith.role}</div>
         </div>
       </div>
-
-      {/* Messages area */}
-      <div style={{flex:1,overflowY:"auto",padding:"10px 12px",display:"flex",flexDirection:"column",gap:4,background:"#ece5dd"}}>
+      {/* Messages */}
+      <div style={{flex:1,overflowY:"auto",padding:"10px 12px",display:"flex",flexDirection:"column",gap:4}}>
         {messages.length===0&&(
           <div style={{textAlign:"center",padding:"40px 20px",color:"#667781"}}>
             <div style={{fontSize:40,marginBottom:12}}>💬</div>
@@ -184,16 +175,17 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
           return(
             <div key={msg.id} style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:2}}>
               {!me&&(
-                <div style={{width:28,height:28,borderRadius:"50%",background:msg.sender_avatar_url?`url(${msg.sender_avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",marginRight:6,alignSelf:"flex-end"}}>
+                <div style={{width:28,height:28,borderRadius:"50%",background:msg.sender_avatar_url?`url(${msg.sender_avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",marginRight:6,alignSelf:"flex-end",cursor:"pointer"}}
+                  onClick={()=>{const s=allProfiles?.find(p=>p.id===msg.user_id);if(s&&setViewingProfile)setViewingProfile(s);}}>
                   {!msg.sender_avatar_url&&(msg.sender_avatar||"?")}
                 </div>
               )}
               <div style={{maxWidth:"78%"}}>
-                <div style={{background:me?"#dcf8c6":"#fff",borderRadius:me?"12px 12px 4px 12px":"12px 12px 12px 4px",padding:"8px 12px",boxShadow:"0 1px 2px rgba(0,0,0,.12)",position:"relative"}}>
+                <div style={{background:me?"#dcf8c6":"#fff",borderRadius:me?"12px 12px 4px 12px":"12px 12px 12px 4px",padding:"8px 12px",boxShadow:"0 1px 2px rgba(0,0,0,.12)"}}>
                   {!me&&<div style={{fontSize:11,color:"#075e54",fontWeight:700,marginBottom:3}}>{msg.sender_name}</div>}
                   <MsgContent msg={msg} me={me}/>
                   <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:2,marginTop:3}}>
-                    <span style={{fontSize:10,color:me?"rgba(0,0,0,.45)":"#aaa"}}>{fmt(msg.created_at)}</span>
+                    <span style={{fontSize:10,color:"rgba(0,0,0,.45)"}}>{fmt(msg.created_at)}</span>
                     <Ticks msg={msg}/>
                   </div>
                 </div>
@@ -203,7 +195,6 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
         })}
         <div ref={bottomRef}/>
       </div>
-
       {/* Attach menu */}
       {showAttach&&(
         <div style={{background:"#fff",padding:"16px",display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap",borderTop:"1px solid #e0e0e0",flexShrink:0}}>
@@ -213,8 +204,7 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
             {icon:"🖼️",label:"Photo",accept:"image/*",type:"image"},
             {icon:"📄",label:"Document",accept:"*/*",type:"document"},
           ].map((item,i)=>(
-            <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,cursor:"pointer"}}
-              onClick={()=>document.getElementById(`attach_${item.label}`).click()}>
+            <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,cursor:"pointer"}} onClick={()=>document.getElementById(`attach_${item.label}`).click()}>
               <div style={{width:52,height:52,borderRadius:"50%",background:"#f0f0f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{item.icon}</div>
               <span style={{fontSize:12,color:"#667781"}}>{item.label}</span>
               <input id={`attach_${item.label}`} type="file" accept={item.accept} capture={item.capture} onChange={e=>handleFile(e,item.type)} style={{display:"none"}}/>
@@ -223,19 +213,15 @@ function WhatsAppChat({profile,dmWith,allProfiles,onBack,setViewingProfile,SF,BG
           <button onClick={()=>setShowAttach(false)} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"#ff3b30",fontSize:15,cursor:"pointer",fontFamily:SF}}>Cancel</button>
         </div>
       )}
-
-      {/* Input bar */}
+      {/* Input */}
       <div style={{background:"#f0f0f0",padding:"6px 8px",display:"flex",alignItems:"center",gap:8,flexShrink:0,paddingBottom:"max(6px,env(safe-area-inset-bottom))"}}>
-        <button onClick={()=>setShowAttach(p=>!p)}
-          style={{width:40,height:40,borderRadius:"50%",background:"#25d366",border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",flexShrink:0}}>
+        <button onClick={()=>setShowAttach(p=>!p)} style={{width:40,height:40,borderRadius:"50%",background:"#25d366",border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",flexShrink:0}}>
           ➕
         </button>
-        <input ref={inputRef} value={text} onChange={e=>setText(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
-          placeholder="Type a message…"
+        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Type a message…"
           style={{flex:1,background:"#fff",border:"none",outline:"none",borderRadius:24,padding:"10px 16px",fontSize:16,color:LBL,fontFamily:SF,boxShadow:"0 1px 2px rgba(0,0,0,.1)"}}/>
         {text.trim()?(
-          <button onClick={()=>send()} disabled={sending}
+          <button onClick={()=>send()} disabled={sending} className="btn"
             style={{width:44,height:44,borderRadius:"50%",background:"#25d366",border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,boxShadow:"0 2px 8px rgba(37,211,102,.4)"}}>
             {sending?"…":"▶"}
           </button>
@@ -260,20 +246,21 @@ function MissionDetailPage({mission,claim,profile,onBack,onAccept,onDecline,onRe
   const [showSubForm,setShowSubForm]=useState(false);
   const [localClaim,setLocalClaim]=useState(claim);
   useEffect(()=>{setLocalClaim(claim);},[claim]);
-  const done=localClaim?.completed;
-  const submitted=localClaim?.submitted;
-  const accepted=!!localClaim;
-  const dl=daysLeft(mission.due_date);
-  const overdue=dl!==null&&dl<0;
+  const done=localClaim?.completed,submitted=localClaim?.submitted,accepted=!!localClaim;
+  const dl=daysLeft(mission.due_date),overdue=dl!==null&&dl<0;
   const handleImg=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>setSubImg(ev.target.result);reader.readAsDataURL(file);};
+
   const submitProof=async()=>{
     if(!subText.trim()&&!subImg){showToast("Please add text or photo proof");return;}
     if(!localClaim?.id){showToast("Mission not accepted yet");return;}
     setSubLoading(true);
     try{
       const{data:existing}=await supabase.from("mission_submissions").select("id").eq("claim_id",localClaim.id).maybeSingle();
-      if(existing){showToast("Already submitted — awaiting admin review");setSubLoading(false);return;}
-      const{error:subErr}=await supabase.from("mission_submissions").insert({user_id:profile.id,mission_id:mission.id,claim_id:localClaim.id,submission_text:subText,submission_image:subImg,status:"Pending",submitted_at:new Date().toISOString()});
+      if(existing){showToast("Already submitted — awaiting review");setSubLoading(false);return;}
+      const{error:subErr}=await supabase.from("mission_submissions").insert({
+        user_id:profile.id,mission_id:mission.id,claim_id:localClaim.id,
+        submission_text:subText,submission_image:subImg,status:"Pending",submitted_at:new Date().toISOString(),
+      });
       if(subErr)throw subErr;
       await supabase.from("mission_claims").update({submitted:true}).eq("id",localClaim.id);
       const{data:updated}=await supabase.from("mission_claims").select("*").eq("id",localClaim.id).single();
@@ -284,8 +271,9 @@ function MissionDetailPage({mission,claim,profile,onBack,onAccept,onDecline,onRe
     }catch(err){console.error("Submission error:",err);showToast("Submission failed — please try again");}
     setSubLoading(false);
   };
+
   return(
-    <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
+    <div style={{minHeight:"100vh",background:BG,fontFamily:SF}}>
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px",position:"sticky",top:0,zIndex:20,display:"flex",alignItems:"center",gap:12}}>
         <button onClick={onBack} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,fontFamily:SF}}>← Back</button>
         <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{mission.title}</div>
@@ -348,8 +336,9 @@ function MissionDetailPage({mission,claim,profile,onBack,onAccept,onDecline,onRe
             </div>
             <input id="proof_img" type="file" accept="image/*" onChange={handleImg} style={{display:"none"}}/>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>{setShowSubForm(false);setSubText("");setSubImg(null);}} style={{flex:1,padding:"13px",background:"rgba(0,0,0,.05)",borderRadius:12,fontSize:15,color:LB2,border:"none",cursor:"pointer",fontFamily:SF}}>Cancel</button>
-              <button onClick={submitProof} disabled={subLoading||(!subText.trim()&&!subImg)}
+              <button onClick={()=>{setShowSubForm(false);setSubText("");setSubImg(null);}} className="btn"
+                style={{flex:1,padding:"13px",background:"rgba(0,0,0,.05)",borderRadius:12,fontSize:15,color:LB2,border:"none",cursor:"pointer",fontFamily:SF}}>Cancel</button>
+              <button onClick={submitProof} disabled={subLoading||(!subText.trim()&&!subImg)} className="btn-primary ripple-container" onPointerDown={addRipple}
                 style={{flex:2,padding:"13px",background:(subLoading||(!subText.trim()&&!subImg))?"#e5e5ea":ACC,borderRadius:12,fontSize:15,color:(subLoading||(!subText.trim()&&!subImg))?LB3:"#fff",fontWeight:600,border:"none",cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                 {subLoading&&<div style={{width:16,height:16,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
                 {subLoading?"Submitting…":"Submit Proof"}
@@ -358,16 +347,22 @@ function MissionDetailPage({mission,claim,profile,onBack,onAccept,onDecline,onRe
           </div>
         ):accepted?(
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>onDecline(mission.id)} style={{flex:1,padding:"14px",background:"rgba(255,59,48,.08)",color:"#ff3b30",borderRadius:13,fontSize:15,border:"none",cursor:"pointer",fontFamily:SF}}>Withdraw</button>
-            <button onClick={()=>setShowSubForm(true)} disabled={overdue}
+            <button onClick={()=>onDecline(mission.id)} className="btn"
+              style={{flex:1,padding:"14px",background:"rgba(255,59,48,.08)",color:"#ff3b30",borderRadius:13,fontSize:15,border:"none",cursor:"pointer",fontFamily:SF}}>
+              Withdraw
+            </button>
+            <button onClick={()=>setShowSubForm(true)} disabled={overdue} className="btn-primary ripple-container" onPointerDown={addRipple}
               style={{flex:2,padding:"14px",background:overdue?"#e5e5ea":ACC,borderRadius:13,fontSize:15,color:overdue?LB3:"#fff",fontWeight:600,border:"none",cursor:overdue?"default":"pointer",fontFamily:SF}}>
               {overdue?"Past Due Date":"Submit Proof 📤"}
             </button>
           </div>
         ):(
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>onDecline(mission.id)} style={{flex:1,padding:"14px",background:"rgba(255,59,48,.08)",color:"#ff3b30",borderRadius:13,fontSize:15,border:"none",cursor:"pointer",fontFamily:SF}}>Not Interested</button>
-            <button onClick={()=>onAccept(mission.id)} disabled={overdue}
+            <button onClick={()=>onDecline(mission.id)} className="btn"
+              style={{flex:1,padding:"14px",background:"rgba(255,59,48,.08)",color:"#ff3b30",borderRadius:13,fontSize:15,border:"none",cursor:"pointer",fontFamily:SF}}>
+              Not Interested
+            </button>
+            <button onClick={()=>onAccept(mission.id)} disabled={overdue} className="btn-primary ripple-container" onPointerDown={addRipple}
               style={{flex:2,padding:"14px",background:overdue?"#e5e5ea":ACC,borderRadius:13,fontSize:16,color:overdue?LB3:"#fff",fontWeight:700,border:"none",cursor:overdue?"default":"pointer",fontFamily:SF}}>
               {overdue?"Past Due Date":"Accept Mission 🎯"}
             </button>
@@ -383,27 +378,58 @@ export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,Chi
   const [filter,setFilter]=useState("All");
   const [selected,setSelected]=useState(null);
   const cats=["All",...new Set(missions.map(m=>m.category).filter(Boolean))];
+
   const accept=async missionId=>{
     if(myClaims.find(c=>c.mission_id===missionId))return;
     const{error}=await supabase.from("mission_claims").insert({user_id:profile.id,mission_id:missionId,status:"accepted",submitted:false});
-    if(!error){const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);showToast("Mission accepted! Submit proof before the due date.");setSelected(null);}
-    else showToast("Failed to accept. Try again.");
+    if(!error){
+      const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
+      if(data)setMyClaims(data);
+      showToast("Mission accepted! Submit proof before the due date.");setSelected(null);
+    }else showToast("Failed to accept. Try again.");
   };
+
   const decline=async missionId=>{
     const existing=myClaims.find(c=>c.mission_id===missionId);
-    if(existing&&!existing.completed){await supabase.from("mission_claims").delete().eq("id",existing.id);const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);}
+    if(existing&&!existing.completed){
+      await supabase.from("mission_claims").delete().eq("id",existing.id);
+      const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
+      if(data)setMyClaims(data);
+    }
     setSelected(null);
   };
-  const refresh=async()=>{const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);};
+
+  const refresh=async()=>{
+    const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
+    if(data)setMyClaims(data);
+  };
+
   const list=filter==="All"?missions:missions.filter(m=>m.category===filter);
+
   if(selected){
     const claim=myClaims.find(c=>c.mission_id===selected.id);
-    return<MissionDetailPage mission={selected} claim={claim} profile={profile} onBack={()=>setSelected(null)} onAccept={accept} onDecline={decline} onRefresh={refresh} showToast={showToast} Chip={Chip} SF={SF} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} ACC={ACC} ORG={ORG}/>;
+    return(
+      <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:50,maxWidth:430,margin:"0 auto",background:BG,overflowY:"auto"}}>
+        <MissionDetailPage
+          mission={selected} claim={claim} profile={profile}
+          onBack={()=>setSelected(null)}
+          onAccept={accept} onDecline={decline} onRefresh={refresh}
+          showToast={showToast} Chip={Chip}
+          SF={SF} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} ACC={ACC} ORG={ORG}
+        />
+      </div>
+    );
   }
+
   return(
     <div style={{padding:"0 16px 12px"}}>
       <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:4}}>
-        {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{flexShrink:0,padding:"6px 15px",borderRadius:99,fontSize:13,fontWeight:filter===c?600:400,background:filter===c?ACC:"rgba(0,0,0,.06)",color:filter===c?"#fff":LB2,border:"none",cursor:"pointer",fontFamily:SF}}>{c}</button>)}
+        {cats.map(c=>(
+          <button key={c} onClick={()=>setFilter(c)} className="btn"
+            style={{flexShrink:0,padding:"6px 15px",borderRadius:99,fontSize:13,fontWeight:filter===c?600:400,background:filter===c?ACC:"rgba(0,0,0,.06)",color:filter===c?"#fff":LB2,border:"none",cursor:"pointer",fontFamily:SF}}>
+            {c}
+          </button>
+        ))}
       </div>
       <div style={{display:"flex",gap:8,marginBottom:12}}>
         {[{l:"Total",v:missions.length,c:LB3},{l:"Accepted",v:myClaims.filter(c=>!c.completed).length,c:ACC},{l:"Completed",v:myClaims.filter(c=>c.completed).length,c:"#34c759"}].map((s,i)=>(
@@ -492,12 +518,18 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
   const display=prizes.length>0?prizes:PRIZES.map(x=>({...x,cost:x.pts,category:x.cat}));
   const cats=["All",...new Set(display.map(p=>p.cat||p.category).filter(Boolean))];
   const filtered=filter==="All"?display:display.filter(p=>(p.cat||p.category)===filter);
-  const Sb=({status})=>{const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";return<span style={{fontSize:12,color:c,fontWeight:600,background:c+"18",padding:"3px 8px",borderRadius:99}}>{status==="Approved"?"✓ Delivered":status==="Pending"?"⏳ Pending":"✕ Rejected"}</span>;};
+  const Sb=({status})=>{
+    const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";
+    return<span style={{fontSize:12,color:c,fontWeight:600,background:c+"18",padding:"3px 8px",borderRadius:99}}>{status==="Approved"?"✓ Delivered":status==="Pending"?"⏳ Pending":"✕ Rejected"}</span>;
+  };
   return(
     <div style={{padding:"0 16px 12px"}}>
       <div style={{display:"flex",gap:8,marginBottom:12}}>
         {[["shop","🎁 Prize Shop"],["history","📋 My Prizes"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setView(id)} style={{flex:1,padding:"10px",background:view===id?ACC:"rgba(0,0,0,.06)",color:view===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{label}</button>
+          <button key={id} onClick={()=>setView(id)} className="btn"
+            style={{flex:1,padding:"10px",background:view===id?ACC:"rgba(0,0,0,.06)",color:view===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+            {label}
+          </button>
         ))}
       </div>
       <div className="fade" style={{background:BG2,borderRadius:13,padding:"12px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -507,7 +539,12 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
       {view==="shop"&&(
         <>
           <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:8}}>
-            {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{flexShrink:0,padding:"5px 13px",borderRadius:99,fontSize:13,fontWeight:filter===c?600:400,background:filter===c?ACC:"rgba(0,0,0,.06)",color:filter===c?"#fff":LB2,border:"none",cursor:"pointer",fontFamily:SF}}>{c}</button>)}
+            {cats.map(c=>(
+              <button key={c} onClick={()=>setFilter(c)} className="btn"
+                style={{flexShrink:0,padding:"5px 13px",borderRadius:99,fontSize:13,fontWeight:filter===c?600:400,background:filter===c?ACC:"rgba(0,0,0,.06)",color:filter===c?"#fff":LB2,border:"none",cursor:"pointer",fontFamily:SF}}>
+                {c}
+              </button>
+            ))}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             {filtered.map(p=>{
@@ -515,7 +552,7 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
               const can=cost>0&&profile.xp>=cost;
               const out=(p.stock!=null&&p.stock<1);
               return(
-                <div key={p.id||p.name} className="fade" style={{background:BG2,borderRadius:13,padding:"15px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",opacity:out?.5:1}}>
+                <div key={p.id||p.name} className="fade card-press" style={{background:BG2,borderRadius:13,padding:"15px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",opacity:out?.5:1}}>
                   <div style={{fontSize:32,marginBottom:6}}>{p.icon||"🎁"}</div>
                   <div style={{fontSize:14,color:LBL,fontWeight:500,marginBottom:4,lineHeight:1.3}}>{p.name}</div>
                   <Chip color="#8e8e93">{p.cat||p.category||"General"}</Chip>
@@ -523,6 +560,8 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
                   <div style={{fontSize:18,fontWeight:700,color:can&&!out?ACC:"#8e8e93",marginBottom:2}}>{cost?.toLocaleString()}</div>
                   <div style={{fontSize:10,color:LB3,marginBottom:10}}>pts · {p.stock!=null?p.stock:"∞"} left</div>
                   <button onClick={()=>!out&&can&&doRedeem(p)} disabled={!can||out}
+                    className={(!can||out)?"":"btn-primary ripple-container"}
+                    onPointerDown={(!can||out)?undefined:addRipple}
                     style={{width:"100%",padding:"9px",background:(!can||out)?"rgba(0,0,0,.06)":ACC,color:(!can||out)?LB3:"#fff",border:"none",borderRadius:9,fontSize:13,fontWeight:600,cursor:(!can||out)?"default":"pointer",fontFamily:SF,transition:"background .15s"}}>
                     {out?"Sold Out":can?"Redeem":"Need More"}
                   </button>
@@ -533,28 +572,26 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
         </>
       )}
       {view==="history"&&(
-        <>
-          {myRedemptions.length===0?(
-            <div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:15}}><div style={{fontSize:40,marginBottom:12}}>🎁</div>No prizes redeemed yet.</div>
-          ):(
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {myRedemptions.map(r=>(
-                <div key={r.id} className="fade" style={{background:BG2,borderRadius:13,padding:"14px 16px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                    <div style={{flex:1,marginRight:10}}>
-                      <div style={{fontSize:17,color:LBL,fontWeight:500}}>{r.prize_name}</div>
-                      <div style={{fontSize:13,color:LB3,marginTop:2}}>{new Date(r.redeemed_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}</div>
-                    </div>
-                    <Sb status={r.status}/>
+        myRedemptions.length===0?(
+          <div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:15}}><div style={{fontSize:40,marginBottom:12}}>🎁</div>No prizes redeemed yet.</div>
+        ):(
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {myRedemptions.map(r=>(
+              <div key={r.id} className="fade" style={{background:BG2,borderRadius:13,padding:"14px 16px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                  <div style={{flex:1,marginRight:10}}>
+                    <div style={{fontSize:17,color:LBL,fontWeight:500}}>{r.prize_name}</div>
+                    <div style={{fontSize:13,color:LB3,marginTop:2}}>{new Date(r.redeemed_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}</div>
                   </div>
-                  <div style={{background:r.status==="Pending"?"#ff950010":"#34c75910",borderRadius:8,padding:"8px 12px",fontSize:12,color:r.status==="Pending"?"#ff9500":"#34c759",marginTop:6}}>
-                    {r.status==="Pending"?"⏳ Processing — you'll be notified when delivered.":"✓ Delivered! Enjoy your prize."}
-                  </div>
+                  <Sb status={r.status}/>
                 </div>
-              ))}
-            </div>
-          )}
-        </>
+                <div style={{background:r.status==="Pending"?"#ff950010":"#34c75910",borderRadius:8,padding:"8px 12px",fontSize:12,color:r.status==="Pending"?"#ff9500":"#34c759",marginTop:6}}>
+                  {r.status==="Pending"?"⏳ Processing — you'll be notified when delivered.":"✓ Delivered! Enjoy your prize."}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
@@ -570,9 +607,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const [showPeople,setShowPeople]=useState(false);
   const bottomRef=useRef(null);
 
-  useEffect(()=>{
-    if(dmTarget){setDmWith(dmTarget);setMode("dm");}
-  },[dmTarget]);
+  useEffect(()=>{if(dmTarget){setDmWith(dmTarget);setMode("dm");}},[dmTarget]);
 
   useEffect(()=>{
     if(mode==="group"){
@@ -589,24 +624,30 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
     if(data)setMessages(data);
   };
 
-  // If in DM mode, render full-screen WhatsApp chat
   if(mode==="dm"&&dmWith){
     return(
-      <WhatsAppChat
-        profile={profile} dmWith={dmWith} allProfiles={allProfiles}
-        onBack={()=>{setMode("group");setDmWith(null);if(setDmTarget)setDmTarget(null);}}
-        setViewingProfile={setViewingProfile}
-        SF={SF} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} ACC={ACC} ORG={ORG}
-      />
+      <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:50,maxWidth:430,margin:"0 auto"}}>
+        <WhatsAppChat
+          profile={profile} dmWith={dmWith} allProfiles={allProfiles}
+          onBack={()=>{setMode("group");setDmWith(null);if(setDmTarget)setDmTarget(null);}}
+          setViewingProfile={setViewingProfile}
+          SF={SF} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} ACC={ACC} ORG={ORG}
+        />
+      </div>
     );
   }
 
   const send=async()=>{
     if(!text.trim()||sending)return;
     setSending(true);
-    await supabase.from("messages").insert({user_id:profile.id,sender_name:profile.nickname||profile.name,sender_avatar:profile.avatar||"",sender_avatar_url:profile.avatar_url||"",content:text.trim(),is_dm:false,message_type:"text"});
+    await supabase.from("messages").insert({
+      user_id:profile.id,sender_name:profile.nickname||profile.name,
+      sender_avatar:profile.avatar||"",sender_avatar_url:profile.avatar_url||"",
+      content:text.trim(),is_dm:false,message_type:"text",
+    });
     setText("");await loadGroupMsgs();setSending(false);
   };
+
   const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
 
   return(
@@ -618,6 +659,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
             <div style={{fontSize:17,fontWeight:600,color:LBL,marginBottom:14}}>Start a conversation</div>
             {(allProfiles||[]).filter(p=>p.id!==profile.id&&!p.is_admin).map(u=>(
               <div key={u.id} onClick={()=>{setDmWith(u);setMode("dm");setShowPeople(false);if(setDmTarget)setDmTarget(null);}}
+                className="card-press"
                 style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${SEP}`,cursor:"pointer"}}>
                 <div style={{width:46,height:46,borderRadius:"50%",background:u.avatar_url?`url(${u.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0}}>
                   {!u.avatar_url&&(u.avatar||"?")}
@@ -629,23 +671,24 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
                 <div style={{fontSize:20,color:LB3}}>›</div>
               </div>
             ))}
-            <button onClick={()=>setShowPeople(false)} style={{width:"100%",marginTop:16,padding:"14px",background:"rgba(0,0,0,.06)",border:"none",borderRadius:12,fontSize:16,color:"#ff3b30",cursor:"pointer",fontFamily:SF}}>Cancel</button>
+            <button onClick={()=>setShowPeople(false)} className="btn"
+              style={{width:"100%",marginTop:16,padding:"14px",background:"rgba(0,0,0,.06)",border:"none",borderRadius:12,fontSize:16,color:"#ff3b30",cursor:"pointer",fontFamily:SF}}>
+              Cancel
+            </button>
           </div>
         </div>
       )}
-
-      {/* Group chat header */}
+      {/* Group header */}
       <div style={{padding:"10px 16px",borderBottom:`1px solid ${SEP}`,background:BG,flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
         <div style={{flex:1}}>
           <div style={{fontSize:16,fontWeight:600,color:LBL}}>💬 Team Group Chat</div>
           <div style={{fontSize:12,color:LB3}}>{(allProfiles||[]).filter(p=>!p.is_admin).length} members</div>
         </div>
-        <button onClick={()=>setShowPeople(true)}
+        <button onClick={()=>setShowPeople(true)} className="btn-primary ripple-container" onPointerDown={addRipple}
           style={{background:ACC,color:"#fff",border:"none",borderRadius:99,padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
           💌 DM
         </button>
       </div>
-
       {/* Messages */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
         {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:15}}>No messages yet. Say hi! 👋</div>}
@@ -660,7 +703,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
           return(
             <div key={msg.id} style={{display:"flex",flexDirection:me?"row-reverse":"row",alignItems:"flex-end",gap:8}}>
               {!me&&(
-                <div onClick={()=>{const sender=allProfiles?.find(p=>p.id===msg.user_id);if(sender&&setViewingProfile)setViewingProfile(sender);}}
+                <div onClick={()=>{const s=allProfiles?.find(p=>p.id===msg.user_id);if(s&&setViewingProfile)setViewingProfile(s);}}
                   style={{width:34,height:34,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",cursor:"pointer",border:`2px solid ${BG}`}}>
                   {!avatarUrl&&(msg.sender_avatar||msg.sender_name?.charAt(0)||"?")}
                 </div>
@@ -677,12 +720,11 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
         })}
         <div ref={bottomRef}/>
       </div>
-
-      {/* Group chat input */}
+      {/* Input */}
       <div style={{padding:"8px 16px",background:BG2,borderTop:`1px solid ${SEP}`,display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
         <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Message the team…"
           style={{flex:1,background:"#f2f2f7",border:"none",outline:"none",borderRadius:22,padding:"10px 16px",fontSize:16,color:LBL,fontFamily:SF}}/>
-        <button onClick={send} disabled={!text.trim()||sending} className="btn"
+        <button onClick={send} disabled={!text.trim()||sending} className={text.trim()?"btn":""}
           style={{width:40,height:40,borderRadius:"50%",background:text.trim()?ACC:"#e5e5ea",border:"none",cursor:text.trim()?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,color:"#fff",transition:"background .15s"}}>
           {sending?"…":"▶"}
         </button>
@@ -746,15 +788,14 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
 
   const save=async()=>{
     setSaving(true);
-    // ── Optimistic update first — instant UI ──
+    // ── Optimistic update — instant UI response ──
     const payload={...form};
     if(profile.joined_date_verified)payload.joined_date=profile.joined_date;
     if(profile.birthday_verified)payload.birthday=profile.birthday;
     syncProfile({...profile,...payload});
     setEditing(false);
     showToast("Profile updated ✓");
-
-    // ── Then save to DB in background ──
+    // Save to DB in background
     const reqs=[];
     if(form.joined_date!==profile.joined_date&&form.joined_date&&!profile.joined_date_verified)
       reqs.push({user_id:profile.id,field_name:"joined_date",field_value:form.joined_date,status:"Pending"});
@@ -786,6 +827,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
   const bn=form.banner_url||profile.banner_url;
   const age=profile.birthday_verified&&profile.birthday?calcAge(profile.birthday):null;
   const daysWorking=profile.joined_date_verified&&profile.joined_date?calcDaysWorking(profile.joined_date):null;
+
   const publicRows=[
     ["🎂 Age",age?`${age} years old`:null],
     ["⚧ Gender",profile.gender||null],
@@ -798,6 +840,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
     ["🎮 Hobby",profile.hobby||null],
     ["🍜 Fav Food",profile.favorite_food||null],
   ].filter(([,v])=>v);
+
   const SHOW_INIT=5;
   const visibleRows=infoExpanded?publicRows:publicRows.slice(0,SHOW_INIT);
   const hasMore=publicRows.length>SHOW_INIT;
@@ -813,7 +856,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
         {editing&&(<><button onClick={e=>{e.stopPropagation();document.getElementById("bnP").click();}} style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:SF}}>Change Banner</button><input id="bnP" type="file" accept="image/*" onChange={handleBannerSelect} style={{display:"none"}}/></>)}
       </div>
 
-      {/* Avatar — NO edit button here, moved to below */}
+      {/* Avatar */}
       <div style={{padding:"0 16px",marginTop:-44,marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
         <div style={{position:"relative"}}>
           <div onClick={()=>!editing&&setShowAvatarFull(true)} style={{width:84,height:84,borderRadius:"50%",background:av?`url(${av}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,border:`3px solid ${BG}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:700,color:ACC,overflow:"hidden",cursor:!editing?"zoom-in":"default"}}>
@@ -822,7 +865,6 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
           {editing&&<button onClick={()=>document.getElementById("avP").click()} style={{position:"absolute",bottom:2,right:2,width:26,height:26,background:ACC,border:`2px solid ${BG}`,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13}}>📷</button>}
           <input id="avP" type="file" accept="image/*" onChange={handleFileSelect} style={{display:"none"}}/>
         </div>
-        {/* Edit / Cancel button top right — only show when NOT editing */}
         {!editing&&(
           <button onClick={()=>setEditing(true)} className="btn"
             style={{background:"rgba(0,0,0,.07)",color:LBL,border:"none",borderRadius:99,padding:"8px 18px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
@@ -915,11 +957,13 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                 {!profile.joined_date_verified&&form.joined_date&&<div style={{fontSize:11,color:"#ff9500",marginTop:3}}>⏳ Shown after admin verification</div>}
               </div>
             </div>
-
             {/* ── Save button at BOTTOM ── */}
             <div style={{display:"flex",gap:8,marginBottom:16}}>
-              <button onClick={()=>setEditing(false)} style={{flex:1,padding:"14px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:13,fontSize:16,color:"#ff3b30",cursor:"pointer",fontFamily:SF}}>Cancel</button>
-              <button onClick={save} disabled={saving}
+              <button onClick={()=>setEditing(false)} className="btn"
+                style={{flex:1,padding:"14px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:13,fontSize:16,color:"#ff3b30",cursor:"pointer",fontFamily:SF}}>
+                Cancel
+              </button>
+              <button onClick={save} disabled={saving} className="btn-primary ripple-container" onPointerDown={addRipple}
                 style={{flex:2,padding:"14px",background:saving?"#e5e5ea":ACC,color:saving?LB3:"#fff",border:"none",borderRadius:13,fontSize:16,fontWeight:700,cursor:saving?"default":"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                 {saving&&<div style={{width:16,height:16,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
                 {saving?"Saving…":"Save Changes ✓"}
@@ -962,13 +1006,12 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                     style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none",marginBottom:6,letterSpacing:1}}/>
                   <div style={{fontSize:12,color:getICDigits(privateForm.ic_number).length===12?"#34c759":LB3,marginBottom:8}}>{getICDigits(privateForm.ic_number).length}/12 digits</div>
                   <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setPrivateEditing(null)} style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
-                    <button onClick={()=>submitPrivate("ic_number",privateForm.ic_number)} disabled={submittingPrivate||getICDigits(privateForm.ic_number).length!==12}
-                      style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
+                    <button onClick={()=>setPrivateEditing(null)} className="btn" style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
+                    <button onClick={()=>submitPrivate("ic_number",privateForm.ic_number)} disabled={submittingPrivate||getICDigits(privateForm.ic_number).length!==12} className="btn-primary" style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
                   </div>
                 </div>
               ):(
-                <button onClick={()=>setPrivateEditing("ic")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.ic_number?"Update IC":"Add IC Number"}</button>
+                <button onClick={()=>setPrivateEditing("ic")} className="btn" style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.ic_number?"Update IC":"Add IC Number"}</button>
               ))}
             </div>
           </div>
@@ -985,13 +1028,12 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                   <input value={privateForm.epf_number} onChange={e=>setPrivateForm(p=>({...p,epf_number:e.target.value.replace(/\D/g,"")}))} placeholder="XXXXXXXXXXXX" type="tel"
                     style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none",marginBottom:8}}/>
                   <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setPrivateEditing(null)} style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
-                    <button onClick={()=>submitPrivate("epf_number",privateForm.epf_number)} disabled={submittingPrivate||!privateForm.epf_number}
-                      style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
+                    <button onClick={()=>setPrivateEditing(null)} className="btn" style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
+                    <button onClick={()=>submitPrivate("epf_number",privateForm.epf_number)} disabled={submittingPrivate||!privateForm.epf_number} className="btn-primary" style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
                   </div>
                 </div>
               ):(
-                <button onClick={()=>setPrivateEditing("epf")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.epf_number?"Update EPF":"Add EPF Number"}</button>
+                <button onClick={()=>setPrivateEditing("epf")} className="btn" style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.epf_number?"Update EPF":"Add EPF Number"}</button>
               ))}
             </div>
           </div>
@@ -1016,13 +1058,12 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                     <div style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setPrivateEditing(null)} style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
-                    <button onClick={()=>submitPrivate("bank_account",privateForm.bank_account,privateForm.bank_type)} disabled={submittingPrivate||!privateForm.bank_account}
-                      style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
+                    <button onClick={()=>setPrivateEditing(null)} className="btn" style={{flex:1,padding:"10px",background:"rgba(0,0,0,.05)",border:"none",borderRadius:9,fontSize:14,color:LB2,cursor:"pointer",fontFamily:SF}}>Cancel</button>
+                    <button onClick={()=>submitPrivate("bank_account",privateForm.bank_account,privateForm.bank_type)} disabled={submittingPrivate||!privateForm.bank_account} className="btn-primary" style={{flex:2,padding:"10px",background:ACC,border:"none",borderRadius:9,fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:SF}}>Submit</button>
                   </div>
                 </div>
               ):(
-                <button onClick={()=>setPrivateEditing("bank")} style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.bank_account?"Update Bank Account":"Add Bank Account"}</button>
+                <button onClick={()=>setPrivateEditing("bank")} className="btn" style={{width:"100%",padding:"10px",background:`${ACC}10`,border:"none",borderRadius:9,fontSize:14,color:ACC,fontWeight:600,cursor:"pointer",fontFamily:SF}}>{profile.bank_account?"Update Bank Account":"Add Bank Account"}</button>
               )}
             </div>
           </div>

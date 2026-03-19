@@ -6,7 +6,16 @@ import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}
 
 const MISSION_CATS=["Sales","Teamwork","Admin","Creativity","KOL","Content","Live Hosting","Others"];
 const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
-const isoToDate=iso=>{if(!iso)return null;const d=new Date(iso);return isNaN(d.getTime())?null:d;};
+
+function addRipple(e){
+  const el=e.currentTarget;if(!el)return;
+  const rect=el.getBoundingClientRect();
+  const dot=document.createElement("div");
+  dot.className="ripple-dot";
+  dot.style.left=(e.clientX-rect.left)+"px";
+  dot.style.top=(e.clientY-rect.top)+"px";
+  el.appendChild(dot);setTimeout(()=>dot.remove(),500);
+}
 
 // ── GIFT POINTS ───────────────────────────────────────────────────────
 function GiftPointsTab({allProfiles,onGift}){
@@ -14,25 +23,28 @@ function GiftPointsTab({allProfiles,onGift}){
   const [points,setPoints]=useState(100);
   const [reason,setReason]=useState("");
   const [sending,setSending]=useState(false);
+
   const send=async()=>{
     if(!toId||!points||!reason.trim())return;
     setSending(true);
     await onGift(toId,+points,reason);
-    setToId("");setPoints(100);setReason("");setSending(false);
+    setToId("");setPoints(100);setReason("");
+    setSending(false);
   };
+
   return(
     <div>
       <div style={{background:`${ORG}10`,borderRadius:12,padding:"12px 14px",marginBottom:14,fontSize:13,color:ORG,lineHeight:1.7,fontWeight:500}}>
-        🎁 Points are sent instantly and the user will receive a live notification.
+        🎁 Points are sent instantly. The recipient will receive a live notification immediately.
       </div>
       <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
         <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
           <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Select Staff Member</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:240,overflowY:"auto"}}>
             {allProfiles.map(p=>(
               <button key={p.id} onClick={()=>setToId(p.id)}
-                style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",background:toId===p.id?`${ACC}14`:"rgba(0,0,0,.04)",border:toId===p.id?`1.5px solid ${ACC}`:"1.5px solid transparent",borderRadius:10,cursor:"pointer",fontFamily:SF,textAlign:"left"}}>
-                <div style={{width:34,height:34,borderRadius:"50%",background:p.avatar_url?`url(${p.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0}}>
+                style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",background:toId===p.id?`${ACC}14`:"rgba(0,0,0,.04)",border:toId===p.id?`1.5px solid ${ACC}`:"1.5px solid transparent",borderRadius:10,cursor:"pointer",fontFamily:SF,textAlign:"left",transition:"all .15s"}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:p.avatar_url?`url(${p.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0}}>
                   {!p.avatar_url&&(p.avatar||"?")}
                 </div>
                 <div style={{flex:1}}>
@@ -49,7 +61,7 @@ function GiftPointsTab({allProfiles,onGift}){
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             {[50,100,200,500].map(p=>(
               <button key={p} onClick={()=>setPoints(p)}
-                style={{flex:1,padding:"9px",background:points===p?ACC:"rgba(0,0,0,.06)",color:points===p?"#fff":LB2,border:"none",borderRadius:9,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+                style={{flex:1,padding:"9px",background:points===p?ACC:"rgba(0,0,0,.06)",color:points===p?"#fff":LB2,border:"none",borderRadius:9,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF,transition:"all .12s"}}>
                 {p}
               </button>
             ))}
@@ -60,14 +72,15 @@ function GiftPointsTab({allProfiles,onGift}){
         <div style={{padding:"11px 16px"}}>
           <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Reason</div>
           <textarea value={reason} onChange={e=>setReason(e.target.value)}
-            placeholder="e.g. Outstanding performance! Happy Birthday!…" rows={3}
+            placeholder="e.g. Outstanding performance! Happy Birthday! Thank you for your hard work…" rows={3}
             style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:16,color:LBL,resize:"none",lineHeight:1.5,fontFamily:SF}}/>
         </div>
       </div>
       <button onClick={send} disabled={!toId||!points||!reason.trim()||sending}
+        className="btn-primary ripple-container" onPointerDown={addRipple}
         style={{width:"100%",background:(!toId||!points||!reason.trim()||sending)?"#e5e5ea":ORG,color:(!toId||!points||!reason.trim()||sending)?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
         {sending&&<div style={{width:18,height:18,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
-        {sending?"Sending…":`🎁 Gift ${points} pts`}
+        {sending?"Sending Gift…":`🎁 Gift ${points} pts`}
       </button>
     </div>
   );
@@ -75,7 +88,7 @@ function GiftPointsTab({allProfiles,onGift}){
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────
 function DashTab({allProfiles,totalPending,pendingVerif,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,calcScore}){
-  const staff=allProfiles.filter(p=>!p.is_admin); // ← filter out admins
+  const staff=allProfiles.filter(p=>!p.is_admin);
   const checkedIn=staff.filter(p=>p.last_checkin===today).length;
   const Av=({p,size=38})=>(
     <div style={{width:size,height:size,borderRadius:"50%",background:p?.avatar_url?`url(${p.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:size*0.3,color:"#fff",flexShrink:0,overflow:"hidden"}}>
@@ -86,10 +99,10 @@ function DashTab({allProfiles,totalPending,pendingVerif,today,ACC,ORG,BG,BG2,SEP
     <div style={{padding:"0 16px 12px"}}>
       <div className="fade" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
         {[
-          {l:"Total Staff",    v:staff.length,                      i:"👥",c:ACC},
-          {l:"Checked In",     v:`${checkedIn}/${staff.length}`,    i:"✅",c:"#34c759"},
-          {l:"Pending Actions",v:totalPending,                      i:"⚠️",c:"#ff9500"},
-          {l:"Verifications",  v:pendingVerif,                      i:"🔒",c:"#ff3b30"},
+          {l:"Total Staff",    v:staff.length,                       i:"👥",c:ACC},
+          {l:"Checked In",     v:`${checkedIn}/${staff.length}`,     i:"✅",c:"#34c759"},
+          {l:"Pending Actions",v:totalPending,                       i:"⚠️",c:"#ff9500"},
+          {l:"Verifications",  v:pendingVerif,                       i:"🔒",c:"#ff3b30"},
         ].map((s,i)=>(
           <div key={i} style={{background:BG2,borderRadius:13,padding:"16px"}}>
             <div style={{fontSize:24,marginBottom:8}}>{s.i}</div>
@@ -100,6 +113,7 @@ function DashTab({allProfiles,totalPending,pendingVerif,today,ACC,ORG,BG,BG2,SEP
       </div>
       <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"16px 4px 8px"}}>🏆 Top Performers</div>
       <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
+        {staff.length===0&&<div style={{padding:"14px 16px",fontSize:15,color:LB3}}>No staff yet</div>}
         {staff.slice(0,5).map((s,i)=>{
           const sTier=getTier(calcScore(s.joined_date,0));
           return(
@@ -120,10 +134,10 @@ function DashTab({allProfiles,totalPending,pendingVerif,today,ACC,ORG,BG,BG2,SEP
             </div>
           );
         })}
-        {staff.length===0&&<div style={{padding:"14px 16px",fontSize:15,color:LB3}}>No staff yet</div>}
       </div>
       <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"16px 4px 8px"}}>📅 Today's Attendance</div>
       <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
+        {staff.length===0&&<div style={{padding:"14px 16px",fontSize:15,color:LB3}}>No staff yet</div>}
         {staff.map((s,i)=>(
           <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:i<staff.length-1?`1px solid ${SEP}`:"none"}}>
             <div style={{width:8,height:8,borderRadius:"50%",background:s.last_checkin===today?"#34c759":"#e5e5ea",flexShrink:0}}/>
@@ -151,25 +165,18 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
     </div>
   );
 
-  // ── Full-screen profile overlay ──
   if(selected){
-    const age=selected.birthday_verified&&selected.birthday
-      ?new Date().getFullYear()-new Date(selected.birthday).getFullYear():null;
-    const days=selected.joined_date_verified&&selected.joined_date
-      ?Math.floor((Date.now()-new Date(selected.joined_date))/86400000):null;
+    const age=selected.birthday_verified&&selected.birthday?new Date().getFullYear()-new Date(selected.birthday).getFullYear():null;
+    const days=selected.joined_date_verified&&selected.joined_date?Math.floor((Date.now()-new Date(selected.joined_date))/86400000):null;
     return(
-      <div style={{position:"fixed",inset:0,background:BG,zIndex:100,overflowY:"auto",fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
-        {/* Header */}
+      <div className="page-enter-forward" style={{position:"fixed",inset:0,background:BG,zIndex:100,overflowY:"auto",fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
         <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px",position:"sticky",top:0,zIndex:10,display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={()=>setSelected(null)} className="btn"
-            style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,fontFamily:SF}}>← Back</button>
-          <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px"}}>{selected.name}</div>
+          <button onClick={()=>setSelected(null)} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,fontFamily:SF}}>← Back</button>
+          <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL}}>{selected.name}</div>
         </div>
-        {/* Banner */}
-        <div style={{height:130,background:selected.banner_url?`url(${selected.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`}}/>
-        {/* Avatar */}
-        <div style={{padding:"0 16px",marginTop:-48,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-          <div style={{width:88,height:88,borderRadius:"50%",border:`3px solid ${BG}`,background:selected.avatar_url?`url(${selected.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:28,color:ACC,overflow:"hidden",flexShrink:0}}>
+        <div style={{height:120,background:selected.banner_url?`url(${selected.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`}}/>
+        <div style={{padding:"0 16px",marginTop:-46,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+          <div style={{width:84,height:84,borderRadius:"50%",border:`3px solid ${BG}`,background:selected.avatar_url?`url(${selected.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:26,color:ACC,overflow:"hidden",flexShrink:0}}>
             {!selected.avatar_url&&(selected.avatar||"?")}
           </div>
           <div style={{background:getTier(calcScore(selected.joined_date,0)).color+"18",borderRadius:99,padding:"5px 12px",display:"inline-flex",alignItems:"center",gap:5,marginBottom:4}}>
@@ -178,11 +185,10 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
           </div>
         </div>
         <div style={{padding:"0 16px 32px"}}>
-          <div style={{fontSize:22,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>{selected.name}</div>
+          <div style={{fontSize:22,fontWeight:700,color:LBL}}>{selected.name}</div>
           {selected.nickname&&<div style={{fontSize:14,color:LB3,marginTop:1}}>"{selected.nickname}"</div>}
           <div style={{fontSize:14,color:ACC,fontWeight:500,marginTop:4}}>{selected.role}</div>
-          {/* Stats */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:14,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:14,marginBottom:16}}>
             {[{l:"Points",v:(selected.xp||0).toLocaleString(),e:"⚡"},{l:"Streak",v:`${selected.streak||0}d`,e:"🔥"},{l:"Check-In",v:selected.last_checkin===today?"Today":"—",e:"✅"}].map((s,i)=>(
               <div key={i} style={{background:BG2,borderRadius:13,padding:"12px 8px",textAlign:"center"}}>
                 <div style={{fontSize:18,marginBottom:3}}>{s.e}</div>
@@ -191,7 +197,6 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
               </div>
             ))}
           </div>
-          {/* Public info */}
           <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8}}>Public Info</div>
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:14}}>
             {[
@@ -202,7 +207,7 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
               ["🏠 Hometown",selected.hometown],
               ["🎂 Birthday",selected.birthday_verified?fmtDate(selected.birthday):null],
               ["📅 Joined",selected.joined_date_verified?fmtDate(selected.joined_date):null],
-              ["⏳ Been Working",days!==null?`${days.toLocaleString()} days`:null],
+              ["⏳ Working",days!==null?`${days.toLocaleString()} days`:null],
               ["🎮 Hobby",selected.hobby],
               ["🍜 Fav Food",selected.favorite_food],
               ["📝 Bio",selected.bio],
@@ -213,7 +218,6 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
               </div>
             ))}
           </div>
-          {/* Private info */}
           <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8}}>🔒 Private (Admin Only)</div>
           <div style={{background:`${ACC}08`,borderRadius:13,overflow:"hidden"}}>
             {[
@@ -240,43 +244,47 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
     <div style={{padding:"0 16px 12px"}}>
       <div className="fade" style={{display:"flex",gap:8,marginBottom:14}}>
         {[["list","Staff List"],["private","Private Info"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setView(id)}
+          <button key={id} onClick={()=>setView(id)} className="btn"
             style={{flex:1,padding:"10px",background:view===id?ACC:"rgba(0,0,0,.06)",color:view===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:14,fontWeight:view===id?600:400,cursor:"pointer",fontFamily:SF}}>
             {label}
           </button>
         ))}
       </div>
       {view==="list"&&(
-        <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
-          {staff.length===0&&<div style={{padding:"14px 16px",fontSize:15,color:LB3}}>No staff yet</div>}
-          {staff.map((s,i)=>{
-            const sTier=getTier(calcScore(s.joined_date,0));
-            return(
-              <div key={s.id} onClick={()=>setSelected(s)}
-                style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<staff.length-1?`1px solid ${SEP}`:"none",cursor:"pointer"}}>
-                <Av p={s}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5}}>
-                    <div style={{fontSize:16,color:LBL,fontWeight:500}}>{s.name}</div>
-                    <span>{sTier.emoji}</span>
+        <>
+          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>All Staff ({staff.length})</div>
+          <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
+            {staff.length===0&&<div style={{padding:"14px 16px",fontSize:15,color:LB3}}>No staff yet</div>}
+            {staff.map((s,i)=>{
+              const sTier=getTier(calcScore(s.joined_date,0));
+              return(
+                <div key={s.id} onClick={()=>setSelected(s)} className="card-press"
+                  style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<staff.length-1?`1px solid ${SEP}`:"none",cursor:"pointer"}}>
+                  <Av p={s}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
+                      <div style={{fontSize:16,color:LBL,fontWeight:500}}>{s.name}</div>
+                      <span>{sTier.emoji}</span>
+                    </div>
+                    <div style={{fontSize:13,color:LB3}}>{s.role}</div>
                   </div>
-                  <div style={{fontSize:13,color:LB3}}>{s.role}</div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:15,fontWeight:700,color:ACC}}>{(s.xp||0).toLocaleString()}</div>
+                    <div style={{fontSize:11,color:s.last_checkin===today?"#34c759":"#ff3b30",marginTop:2}}>{s.last_checkin===today?"✓ In":"— Out"}</div>
+                  </div>
+                  <div style={{color:LB3,fontSize:18}}>›</div>
                 </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:15,fontWeight:700,color:ACC}}>{(s.xp||0).toLocaleString()}</div>
-                  <div style={{fontSize:11,color:s.last_checkin===today?"#34c759":"#ff3b30",marginTop:2}}>{s.last_checkin===today?"✓ In":"— Out"}</div>
-                </div>
-                <div style={{color:LB3,fontSize:18}}>›</div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
       {view==="private"&&(
         <>
-          <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:14,fontSize:13,color:ACC}}>🔒 Strictly confidential. Tap a staff card to view full details.</div>
+          <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:14,fontSize:13,color:ACC}}>🔒 Strictly confidential. Tap a staff member to view full details.</div>
           {staff.map(s=>(
-            <div key={s.id} onClick={()=>setSelected(s)} style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,cursor:"pointer"}}>
+            <div key={s.id} onClick={()=>setSelected(s)} className="card-press"
+              style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,cursor:"pointer"}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${SEP}`}}>
                 <Av p={s} size={36}/>
                 <div style={{flex:1}}>
@@ -313,20 +321,24 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
   const doneReds=redemptions.filter(r=>r.status!=="Pending");
   const pendVerif=verifReqs.filter(v=>v.status==="Pending");
   const doneVerif=verifReqs.filter(v=>v.status!=="Pending");
+
   const Sb=({status})=>{
     const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";
     return<div style={{background:c+"18",color:c,fontSize:12,fontWeight:600,padding:"3px 9px",borderRadius:99,flexShrink:0,whiteSpace:"nowrap"}}>{status}</div>;
   };
+
   return(
     <div style={{padding:"0 16px 12px"}}>
       <div className="fade" style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto"}}>
         {[["missions","Submissions",pending.length],["redemptions","Redemptions",pendReds.length],["verif","Verifications",pendVerif.length]].map(([id,label,count])=>(
-          <button key={id} onClick={()=>setSec(id)}
-            style={{flexShrink:0,padding:"9px 14px",background:sec===id?ACC:"rgba(0,0,0,.06)",color:sec===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:13,fontWeight:sec===id?600:400,cursor:"pointer",fontFamily:SF}}>
-            {label}{count>0&&<span style={{marginLeft:5,background:sec===id?"rgba(255,255,255,.3)":ORG,color:"#fff",fontSize:10,padding:"1px 5px",borderRadius:99,fontWeight:700}}>{count}</span>}
+          <button key={id} onClick={()=>setSec(id)} className="btn"
+            style={{flexShrink:0,padding:"9px 14px",background:sec===id?ACC:"rgba(0,0,0,.06)",color:sec===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:13,fontWeight:sec===id?600:400,cursor:"pointer",fontFamily:SF,position:"relative"}}>
+            {label}
+            {count>0&&<span style={{marginLeft:5,background:sec===id?"rgba(255,255,255,.3)":ORG,color:"#fff",fontSize:10,padding:"1px 5px",borderRadius:99,fontWeight:700}}>{count}</span>}
           </button>
         ))}
       </div>
+
       {sec==="missions"&&(
         <>
           {pending.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:LB3,fontSize:15}}>All clear! 🎉</div>}
@@ -346,8 +358,14 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
               {sub.submission_image&&<img src={sub.submission_image} alt="proof" style={{width:"100%",borderRadius:10,marginBottom:10,maxHeight:220,objectFit:"cover"}}/>}
               <div style={{fontSize:11,color:LB3,marginBottom:12}}>{new Date(sub.submitted_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}</div>
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>onApproveSubmission(sub,false)} style={{flex:1,padding:"11px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>Reject</button>
-                <button onClick={()=>onApproveSubmission(sub,true)} style={{flex:2,padding:"11px",background:"#34c759",color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>Approve ✓</button>
+                <button onClick={()=>onApproveSubmission(sub,false)} className="btn"
+                  style={{flex:1,padding:"11px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+                  Reject
+                </button>
+                <button onClick={()=>onApproveSubmission(sub,true)} className="btn-primary ripple-container" onPointerDown={addRipple}
+                  style={{flex:2,padding:"11px",background:"#34c759",color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+                  Approve ✓
+                </button>
               </div>
             </div>
           ))}
@@ -366,6 +384,7 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
           )}
         </>
       )}
+
       {sec==="redemptions"&&(
         <>
           {pendReds.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:LB3,fontSize:15}}>No pending redemptions 🎉</div>}
@@ -376,7 +395,10 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
                 <Sb status={r.status}/>
               </div>
               <div style={{fontSize:12,color:LB3,marginBottom:12}}>{new Date(r.redeemed_at).toLocaleDateString("en-MY",{day:"numeric",month:"short"})}</div>
-              <button onClick={()=>onApproveRedemption(r.id)} style={{width:"100%",padding:"11px",background:ACC,color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>Mark Delivered ✓</button>
+              <button onClick={()=>onApproveRedemption(r.id)} className="btn-primary ripple-container" onPointerDown={addRipple}
+                style={{width:"100%",padding:"11px",background:ACC,color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+                Mark Delivered ✓
+              </button>
             </div>
           ))}
           {doneReds.length>0&&(
@@ -394,6 +416,7 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
           )}
         </>
       )}
+
       {sec==="verif"&&(
         <>
           {pendVerif.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:LB3,fontSize:15}}>No pending verifications 🎉</div>}
@@ -414,8 +437,14 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
               </div>
               <div style={{fontSize:11,color:LB3,marginBottom:12}}>{new Date(req.submitted_at).toLocaleDateString("en-MY",{day:"numeric",month:"short"})}</div>
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>onApproveVerification(req,false)} style={{flex:1,padding:"11px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>Reject</button>
-                <button onClick={()=>onApproveVerification(req,true)} style={{flex:2,padding:"11px",background:"#34c759",color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>Verify ✓</button>
+                <button onClick={()=>onApproveVerification(req,false)} className="btn"
+                  style={{flex:1,padding:"11px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+                  Reject
+                </button>
+                <button onClick={()=>onApproveVerification(req,true)} className="btn-primary ripple-container" onPointerDown={addRipple}
+                  style={{flex:2,padding:"11px",background:"#34c759",color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+                  Verify ✓
+                </button>
               </div>
             </div>
           ))}
@@ -451,7 +480,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
     <div style={{padding:"0 16px 12px"}}>
       <div className="fade" style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto"}}>
         {[["missions","Missions"],["announcements","Announcements"],["prizes","Prizes"],["gifts","🎁 Gift Points"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setSec(id)}
+          <button key={id} onClick={()=>setSec(id)} className="btn"
             style={{flexShrink:0,padding:"8px 14px",background:sec===id?ACC:"rgba(0,0,0,.06)",color:sec===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:13,fontWeight:sec===id?600:400,cursor:"pointer",fontFamily:SF}}>
             {label}
           </button>
@@ -463,19 +492,16 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
         <>
           <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>➕ Post Campaign Mission</div>
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
-            {/* Title */}
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Title <span style={{color:"#ff3b30"}}>*</span></div>
               <input value={mForm.title} onChange={e=>setMForm(p=>({...p,title:e.target.value}))} placeholder="Mission title"
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
             </div>
-            {/* Description */}
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Description</div>
               <textarea value={mForm.description} onChange={e=>setMForm(p=>({...p,description:e.target.value}))} placeholder="What needs to be done…" rows={3}
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",fontFamily:SF}}/>
             </div>
-            {/* Category Dropdown */}
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Category <span style={{color:"#ff3b30"}}>*</span></div>
               <div style={{position:"relative"}}>
@@ -487,22 +513,18 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                 <div style={{position:"absolute",right:0,top:"50%",transform:"translateY(-50%)",fontSize:14,color:LB3,pointerEvents:"none"}}>▾</div>
               </div>
             </div>
-            {/* Points */}
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Reward Points</div>
               <input value={mForm.xp} onChange={e=>setMForm(p=>({...p,xp:e.target.value}))} placeholder="150" type="number"
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
             </div>
-            {/* Due Date — DatePicker DD/MM/YYYY */}
             <div style={{padding:"11px 16px"}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Due Date <span style={{color:"#ff3b30"}}>*</span></div>
               <DatePicker
                 selected={mForm.due_date}
                 onChange={date=>setMForm(p=>({...p,due_date:date}))}
-                dateFormat="dd/MM/yyyy"
-                placeholderText="DD/MM/YYYY"
-                minDate={new Date()}
-                showMonthDropdown showYearDropdown dropdownMode="select"
+                dateFormat="dd/MM/yyyy" placeholderText="DD/MM/YYYY"
+                minDate={new Date()} showMonthDropdown showYearDropdown dropdownMode="select"
                 customInput={<input readOnly placeholder="DD/MM/YYYY" style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,cursor:"pointer",fontFamily:SF}}/>}
               />
               {mForm.due_date&&<div style={{fontSize:12,color:ACC,marginTop:4,fontWeight:500}}>📅 Due: {mForm.due_date.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"})}</div>}
@@ -514,15 +536,14 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
             onAddMission({title:mForm.title,description:mForm.description,xp:+mForm.xp,category:mForm.category,due_date:dueDateISO});
             setMForm({title:"",description:"",xp:150,category:"",due_date:null});
           }}
-            style={{width:"100%",background:canAddMission?ACC:"#e5e5ea",color:canAddMission?"#fff":LB3,border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:canAddMission?"pointer":"default",fontFamily:SF,marginBottom:16}}>
+            className="btn-primary ripple-container" onPointerDown={addRipple}
+            style={{width:"100%",background:canAddMission?ACC:"#e5e5ea",color:canAddMission?"#fff":LB3,border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:canAddMission?"pointer":"default",fontFamily:SF,marginBottom:8}}>
             Post Campaign Mission
           </button>
           {!canAddMission&&(mForm.title||mForm.category||mForm.due_date)&&(
-            <div style={{fontSize:12,color:"#ff9500",textAlign:"center",marginBottom:12,fontWeight:500}}>
-              ⚠️ Please fill in Title, Category, and Due Date
-            </div>
+            <div style={{fontSize:12,color:"#ff9500",textAlign:"center",marginBottom:12,fontWeight:500}}>⚠️ Please fill in Title, Category and Due Date</div>
           )}
-          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>Active Missions</div>
+          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"8px 4px 8px"}}>Active Missions</div>
           <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
             {missions.length===0&&<div style={{padding:"14px 16px",fontSize:15,color:LB3}}>No missions yet</div>}
             {missions.map((m,i)=>(
@@ -531,7 +552,10 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                   <div style={{fontSize:15,color:LBL,fontWeight:500}}>{m.title}</div>
                   <div style={{fontSize:12,color:LB3}}>{m.category} · {m.xp} pts{m.due_date?` · Due ${fmtDate(m.due_date)}`:""}</div>
                 </div>
-                <button onClick={()=>onDeleteMission(m.id)} style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,cursor:"pointer",fontFamily:SF,flexShrink:0}}>Remove</button>
+                <button onClick={()=>onDeleteMission(m.id)} className="btn"
+                  style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,cursor:"pointer",fontFamily:SF,flexShrink:0}}>
+                  Remove
+                </button>
               </div>
             ))}
           </div>
@@ -550,7 +574,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
             </div>
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Body</div>
-              <textarea value={aForm.body} onChange={e=>setAForm(p=>({...p,body:e.target.value}))} placeholder="Write your message…" rows={3}
+              <textarea value={aForm.body} onChange={e=>setAForm(p=>({...p,body:e.target.value}))} placeholder="Write your announcement…" rows={3}
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",fontFamily:SF}}/>
             </div>
             <div style={{padding:"11px 16px"}}>
@@ -564,6 +588,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
             </div>
           </div>
           <button onClick={()=>{if(aForm.title.trim()){onAddAnn(aForm);setAForm({title:"",body:"",pinned:false});}}}
+            className="btn-primary ripple-container" onPointerDown={addRipple}
             style={{width:"100%",background:aForm.title.trim()?ACC:"#e5e5ea",color:aForm.title.trim()?"#fff":LB3,border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:aForm.title.trim()?"pointer":"default",fontFamily:SF,marginBottom:16}}>
             Post Announcement
           </button>
@@ -576,8 +601,8 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                   <div style={{fontSize:16,color:LBL,fontWeight:500}}>{a.title}</div>
                 </div>
                 <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>onTogglePin(a)} style={{background:`${ORG}18`,color:ORG,border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,cursor:"pointer",fontFamily:SF}}>{a.pinned?"Unpin":"Pin"}</button>
-                  <button onClick={()=>onDeleteAnn(a.id)} style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,cursor:"pointer",fontFamily:SF}}>Delete</button>
+                  <button onClick={()=>onTogglePin(a)} className="btn" style={{background:`${ORG}18`,color:ORG,border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,cursor:"pointer",fontFamily:SF}}>{a.pinned?"Unpin":"Pin"}</button>
+                  <button onClick={()=>onDeleteAnn(a.id)} className="btn" style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,cursor:"pointer",fontFamily:SF}}>Delete</button>
                 </div>
               </div>
               {a.body&&<div style={{fontSize:14,color:LB3,lineHeight:1.5,whiteSpace:"pre-line"}}>{a.body}</div>}
@@ -612,15 +637,20 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
             </div>
           </div>
           <button onClick={()=>{if(pForm.name.trim()){onAddPrize(pForm);setPForm({name:"",cost:500,stock:10,icon:"🎁",category:"Cash",desc:""});}}}
+            className="btn-primary ripple-container" onPointerDown={addRipple}
             style={{width:"100%",background:pForm.name.trim()?ACC:"#e5e5ea",color:pForm.name.trim()?"#fff":LB3,border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:pForm.name.trim()?"pointer":"default",fontFamily:SF,marginBottom:16}}>
             Add Prize
           </button>
+          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>Active Prizes</div>
           <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
             {prizes.length===0&&<div style={{padding:"14px 16px",fontSize:15,color:LB3}}>No prizes yet</div>}
             {prizes.map((p,i)=>(
               <div key={p.id||i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<prizes.length-1?`1px solid ${SEP}`:"none"}}>
-                <div style={{fontSize:26}}>{p.icon}</div>
-                <div style={{flex:1}}><div style={{fontSize:15,color:LBL,fontWeight:500}}>{p.name}</div><div style={{fontSize:12,color:LB3}}>{p.stock??0} left · {(p.pts||p.cost)?.toLocaleString()} pts</div></div>
+                <div style={{fontSize:26}}>{p.icon||"🎁"}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:15,color:LBL,fontWeight:500}}>{p.name}</div>
+                  <div style={{fontSize:12,color:LB3}}>{p.stock??0} left · {(p.pts||p.cost)?.toLocaleString()} pts</div>
+                </div>
               </div>
             ))}
           </div>
@@ -632,25 +662,30 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
   );
 }
 
-// ── COMMUNITY (Read-Only Monitor) ─────────────────────────────────────
+// ── COMMUNITY (Monitor) ───────────────────────────────────────────────
 function CommunityTab({profile,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
   const [messages,setMessages]=useState([]);
   const bottomRef=useRef(null);
+
   useEffect(()=>{
     loadMsgs();
     const iv=setInterval(loadMsgs,4000);
     return()=>clearInterval(iv);
   },[]);
+
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+
   const loadMsgs=async()=>{
     const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
     if(data)setMessages(data);
   };
+
   const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
+
   return(
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 170px)"}}>
       <div style={{background:`${ACC}10`,borderRadius:10,padding:"10px 14px",margin:"0 16px 8px",fontSize:13,color:ACC,fontWeight:500,flexShrink:0}}>
-        👁️ Monitor Mode — Admins can view but not send messages
+        👁️ Monitor Mode — Admins can view but not send messages in group chat
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"0 16px 12px",display:"flex",flexDirection:"column",gap:10}}>
         {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:15}}>No messages yet 👋</div>}
@@ -660,10 +695,11 @@ function CommunityTab({profile,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
               <div style={{display:"inline-block",background:`${ACC}10`,borderRadius:12,padding:"8px 14px",fontSize:13,color:ACC,lineHeight:1.55,maxWidth:"88%",whiteSpace:"pre-line"}}>{msg.content}</div>
             </div>
           );
+          const avatarUrl=msg.sender_avatar_url||"";
           return(
             <div key={msg.id} style={{display:"flex",alignItems:"flex-end",gap:8}}>
-              <div style={{width:32,height:32,borderRadius:"50%",background:msg.sender_avatar_url?`url(${msg.sender_avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden"}}>
-                {!msg.sender_avatar_url&&(msg.sender_avatar||"?")}
+              <div style={{width:32,height:32,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden"}}>
+                {!avatarUrl&&(msg.sender_avatar||"?")}
               </div>
               <div style={{maxWidth:"75%"}}>
                 <div style={{fontSize:11,color:LB3,marginBottom:3,paddingLeft:4}}>{msg.sender_name}</div>
@@ -683,15 +719,15 @@ function CommunityTab({profile,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
 
 // ── MAIN ADMIN APP ────────────────────────────────────────────────────
 export default function AdminApp({profile,onProfileUpdate}){
-  const [tab,setTab]=useState("dash");
-  const [allProfiles,setAllProfiles]=useState([]);
-  const [missions,setMissions]=useState([]);
-  const [submissions,setSubmissions]=useState([]);
-  const [prizes,setPrizes]=useState([]);
+  const [tab,setTab]                    =useState("dash");
+  const [allProfiles,setAllProfiles]    =useState([]);
+  const [missions,setMissions]          =useState([]);
+  const [submissions,setSubmissions]    =useState([]);
+  const [prizes,setPrizes]              =useState([]);
   const [announcements,setAnnouncements]=useState([]);
-  const [redemptions,setRedemptions]=useState([]);
-  const [verifReqs,setVerifReqs]=useState([]);
-  const [toast,setToast]=useState(null);
+  const [redemptions,setRedemptions]    =useState([]);
+  const [verifReqs,setVerifReqs]        =useState([]);
+  const [toast,setToast]                =useState(null);
 
   useEffect(()=>{
     loadAll();
@@ -723,7 +759,7 @@ export default function AdminApp({profile,onProfileUpdate}){
     if(vr.data)setVerifReqs(vr.data);
   };
 
-  const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),2800);};
+  const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),3000);};
 
   const today=new Date().toISOString().split("T")[0];
   const staff=allProfiles.filter(p=>!p.is_admin);
@@ -732,12 +768,14 @@ export default function AdminApp({profile,onProfileUpdate}){
   const pendingVerifCount=verifReqs.filter(v=>v.status==="Pending").length;
   const totalPending=pendingSubs+pendingReds+pendingVerifCount;
 
+  // ── Notify all staff ──
   const notifyAll=async(title,body,type="info")=>{
     const nonAdmins=allProfiles.filter(p=>!p.is_admin);
     if(nonAdmins.length===0)return;
-    await supabase.from("notifications").insert(nonAdmins.map(p=>({user_id:p.id,title,body,type})));
+    await supabase.from("notifications").insert(nonAdmins.map(p=>({user_id:p.id,title,body,type}))).catch(()=>{});
   };
 
+  // ── Approve mission ──
   const approveSubmission=async(sub,approve)=>{
     const status=approve?"Approved":"Rejected";
     setSubmissions(p=>p.map(s=>s.id===sub.id?{...s,status}:s));
@@ -757,13 +795,14 @@ export default function AdminApp({profile,onProfileUpdate}){
       const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
       if(newAnn)setAnnouncements(p=>[newAnn,...p]);
       await notifyAll(annTitle,annBody,"mission");
-      await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`+${pts} pts added to your account for completing "${sub.missions?.title}"`,type:"approval"});
+      await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`+${pts} pts added for completing "${sub.missions?.title}"`,type:"approval"});
     } else {
       await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Not Approved",body:`Your submission for "${sub.missions?.title}" was rejected. Please review and try again.`,type:"rejection"});
     }
-    showToast(approve?"✅ Approved!":"❌ Rejected.");
+    showToast(approve?"✅ Approved! Points awarded.":"❌ Rejected.");
   };
 
+  // ── Approve redemption ──
   const approveRedemption=async id=>{
     setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
     const red=redemptions.find(r=>r.id===id);
@@ -780,6 +819,7 @@ export default function AdminApp({profile,onProfileUpdate}){
     showToast("✅ Prize delivered!");
   };
 
+  // ── Approve verification ──
   const approveVerification=async(req,approve)=>{
     setVerifReqs(p=>p.map(v=>v.id===req.id?{...v,status:approve?"Approved":"Rejected"}:v));
     await supabase.from("verification_requests").update({status:approve?"Approved":"Rejected",reviewed_at:new Date().toISOString()}).eq("id",req.id);
@@ -802,37 +842,47 @@ export default function AdminApp({profile,onProfileUpdate}){
     showToast(approve?"✅ Verified!":"❌ Rejected.");
   };
 
-  // ── Gift Points — fixed with fresh DB fetch ──
+  // ── Gift points — FIXED ──
   const giftPoints=async(toId,points,reason)=>{
     const recipient=allProfiles.find(p=>p.id===toId);
-    if(!recipient)return;
-    const newXp=(recipient.xp||0)+points;
-    // Update DB
-    const{error}=await supabase.from("profiles").update({xp:newXp}).eq("id",toId);
-    if(error){showToast("❌ Failed to gift points");return;}
-    // Update local state
-    setAllProfiles(p=>p.map(x=>x.id===toId?{...x,xp:newXp}:x));
-    // Points history
-    await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"}).catch(()=>{});
-    await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason}).catch(()=>{});
-    // Announcement
-    const annTitle=`🎁 ${recipient.nickname||recipient.name} received a gift!`;
-    const annBody=`${recipient.nickname||recipient.name} has been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`;
-    const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();
-    if(newAnn)setAnnouncements(p=>[newAnn,...p]);
-    // Notify recipient — will trigger on-screen popup via realtime
-    await supabase.from("notifications").insert({user_id:toId,title:"🎁 You received a gift!",body:`You've been gifted ${points.toLocaleString()} pts! Reason: ${reason}`,type:"gift"});
-    // Notify everyone
-    await notifyAll(`📢 ${annTitle}`,annBody,"gift");
-    showToast(`🎁 Gifted ${points} pts to ${recipient.name}!`);
+    if(!recipient){showToast("❌ Staff member not found");return;}
+    try{
+      const newXp=(recipient.xp||0)+points;
+      // 1. Update DB
+      const{error:updateErr}=await supabase.from("profiles").update({xp:newXp}).eq("id",toId);
+      if(updateErr)throw updateErr;
+      // 2. Update local state immediately
+      setAllProfiles(p=>p.map(x=>x.id===toId?{...x,xp:newXp}:x));
+      // 3. Points history
+      await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"}).catch(()=>{});
+      // 4. Gift log
+      await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason}).catch(()=>{});
+      // 5. Announcement
+      const annTitle=`🎁 ${recipient.nickname||recipient.name} received a gift!`;
+      const annBody=`${recipient.nickname||recipient.name} has been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`;
+      const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();
+      if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      // 6. Notify recipient (triggers live popup)
+      await supabase.from("notifications").insert({user_id:toId,title:"🎁 You received a gift!",body:`You've been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`,type:"gift"});
+      // 7. Notify all other staff
+      const others=allProfiles.filter(p=>!p.is_admin&&p.id!==toId);
+      if(others.length>0){
+        await supabase.from("notifications").insert(others.map(p=>({user_id:p.id,title:annTitle,body:annBody,type:"gift"}))).catch(()=>{});
+      }
+      showToast(`🎁 Gifted ${points} pts to ${recipient.name}!`);
+    }catch(err){
+      console.error("Gift points error:",err);
+      showToast("❌ Failed to send gift — "+err.message);
+    }
   };
 
+  // ── Add mission ──
   const addMission=async(mForm)=>{
     const{data}=await supabase.from("missions").insert({...mForm,xp:+mForm.xp,active:true}).select().single();
     if(data){
       setMissions(p=>[...p,data]);
       const annTitle=`🎯 New Mission: ${mForm.title}`;
-      const annBody=`A new campaign is live! Complete "${mForm.title}" and earn ${mForm.xp} pts.\nDue: ${fmtDate(mForm.due_date)}`;
+      const annBody=`A new campaign mission is live! Complete "${mForm.title}" and earn ${mForm.xp} pts.\nDue: ${fmtDate(mForm.due_date)}`;
       const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
       if(newAnn)setAnnouncements(p=>[newAnn,...p]);
       await notifyAll(annTitle,annBody,"mission");
@@ -883,6 +933,7 @@ export default function AdminApp({profile,onProfileUpdate}){
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
+      {/* Header */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px 10px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:9}}>
@@ -891,7 +942,10 @@ export default function AdminApp({profile,onProfileUpdate}){
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontSize:13,color:LB3}}>👋 {profile.name?.split(" ")[0]}</div>
-            <button onClick={()=>supabase.auth.signOut()} style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
+            <button onClick={()=>supabase.auth.signOut()} className="btn"
+              style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>
+              Sign Out
+            </button>
           </div>
         </div>
         <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginTop:6}}>
@@ -899,24 +953,54 @@ export default function AdminApp({profile,onProfileUpdate}){
           {tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
         </div>
       </div>
+
+      {/* Content */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 0 90px"}}>
-        {tab==="dash"&&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF} getTier={getTier} calcScore={calcScore}/>}
-        {tab==="staff"&&<StaffTab allProfiles={allProfiles} today={today} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF} getTier={getTier} calcScore={calcScore} formatContact={formatContact}/>}
-        {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
-        {tab==="content"&&<ContentTab missions={missions} announcements={announcements} prizes={prizes} allProfiles={staff} onAddMission={addMission} onDeleteMission={deleteMission} onAddAnn={addAnn} onDeleteAnn={deleteAnn} onTogglePin={togglePin} onAddPrize={addPrize} onGift={giftPoints} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
-        {tab==="community"&&<CommunityTab profile={profile} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
+        {tab==="dash"&&(
+          <DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount}
+            today={today} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}
+            getTier={getTier} calcScore={calcScore}/>
+        )}
+        {tab==="staff"&&(
+          <StaffTab allProfiles={allProfiles} today={today}
+            ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}
+            getTier={getTier} calcScore={calcScore} formatContact={formatContact}/>
+        )}
+        {tab==="approvals"&&(
+          <ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs}
+            onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification}
+            ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>
+        )}
+        {tab==="content"&&(
+          <ContentTab missions={missions} announcements={announcements} prizes={prizes} allProfiles={staff}
+            onAddMission={addMission} onDeleteMission={deleteMission} onAddAnn={addAnn}
+            onDeleteAnn={deleteAnn} onTogglePin={togglePin} onAddPrize={addPrize} onGift={giftPoints}
+            ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>
+        )}
+        {tab==="community"&&(
+          <CommunityTab profile={profile}
+            ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>
+        )}
       </div>
+
+      {/* Tab bar */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.94)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20}}>
         {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)}
+          <button key={t.id} onClick={()=>setTab(t.id)} className="tab-btn"
             style={{flex:1,padding:"7px 2px 11px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer",position:"relative"}}>
-            <div style={{fontSize:tab===t.id?21:17,lineHeight:1,filter:tab===t.id?"none":"grayscale(1) opacity(.35)",transition:"font-size .15s"}}>{t.emoji}</div>
-            <div style={{fontSize:9,fontWeight:tab===t.id?600:400,color:tab===t.id?ACC:"#8e8e93",fontFamily:SF}}>{t.label}</div>
+            <div style={{fontSize:tab===t.id?21:17,lineHeight:1,filter:tab===t.id?"none":"grayscale(1) opacity(.35)",transition:"font-size .2s cubic-bezier(.34,1.56,.64,1)"}}>{t.emoji}</div>
+            <div style={{fontSize:9,fontWeight:tab===t.id?600:400,color:tab===t.id?ACC:"#8e8e93",fontFamily:SF,transition:"color .15s"}}>{t.label}</div>
             {t.badge>0&&<div style={{position:"absolute",top:4,right:"10%",minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:9,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>{t.badge}</div>}
           </button>
         ))}
       </div>
-      {toast&&<div className="toast-in" style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.78)",backdropFilter:"blur(16px)",borderRadius:99,padding:"10px 20px",fontSize:14,color:"#fff",fontWeight:500,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"85vw",textAlign:"center"}}>{toast}</div>}
+
+      {/* Toast */}
+      {toast&&(
+        <div className="toast-in" style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.78)",backdropFilter:"blur(16px)",borderRadius:99,padding:"10px 20px",fontSize:14,color:"#fff",fontWeight:500,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"85vw",textAlign:"center"}}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

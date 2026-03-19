@@ -6,20 +6,11 @@ import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}
 
 const MISSION_CATS=["Sales","Teamwork","Admin","Creativity","KOL","Content","Live Hosting","Others"];
 const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
-
-function addRipple(e){
-  const el=e.currentTarget;if(!el)return;
-  const rect=el.getBoundingClientRect();
-  const dot=document.createElement("div");
-  dot.className="ripple-dot";
-  dot.style.left=(e.clientX-rect.left)+"px";
-  dot.style.top=(e.clientY-rect.top)+"px";
-  el.appendChild(dot);setTimeout(()=>dot.remove(),500);
-}
+function addRipple(e){const el=e.currentTarget;if(!el)return;const rect=el.getBoundingClientRect();const dot=document.createElement("div");dot.className="ripple-dot";dot.style.left=(e.clientX-rect.left)+"px";dot.style.top=(e.clientY-rect.top)+"px";el.appendChild(dot);setTimeout(()=>dot.remove(),500);}
 
 const autoIcon=name=>{
   const n=(name||"").toLowerCase();
-  if(n.includes("bubble")||n.includes("boba")||n.includes("teh tarik"))return"🧋";
+  if(n.includes("bubble")||n.includes("boba")||n.includes("teh"))return"🧋";
   if(n.includes("netflix")||n.includes("disney")||n.includes("movie"))return"🎬";
   if(n.includes("grab")&&!n.includes("food"))return"🚗";
   if(n.includes("food")||n.includes("makan")||n.includes("meal")||n.includes("grab food"))return"🍽️";
@@ -32,8 +23,6 @@ const autoIcon=name=>{
   if(n.includes("tng")||n.includes("touch n go")||n.includes("ewallet"))return"💳";
   if(n.includes("voucher")||n.includes("coupon"))return"🎫";
   if(n.includes("birthday")||n.includes("cake"))return"🎂";
-  if(n.includes("phone")||n.includes("mobile"))return"📱";
-  if(n.includes("laptop")||n.includes("computer"))return"💻";
   if(n.includes("coffee")||n.includes("kopi"))return"☕";
   if(n.includes("pizza")||n.includes("burger")||n.includes("mcd")||n.includes("kfc"))return"🍟";
   if(n.includes("book")||n.includes("read"))return"📚";
@@ -43,10 +32,8 @@ const autoIcon=name=>{
   if(n.includes("shopee")||n.includes("lazada")||n.includes("shopping"))return"🛍️";
   if(n.includes("petrol")||n.includes("fuel"))return"⛽";
   if(n.includes("game")||n.includes("gaming"))return"🎮";
-  if(n.includes("sushi")||n.includes("japanese")||n.includes("korean"))return"🍱";
   if(n.includes("bundle")||n.includes("pack")||n.includes("set"))return"📦";
   if(n.includes("dinner")||n.includes("lunch")||n.includes("team"))return"🍽️";
-  if(n.includes("star")||n.includes("gold")||n.includes("premium"))return"⭐";
   return"🎁";
 };
 
@@ -65,7 +52,7 @@ function GiftPointsTab({allProfiles,onGift}){
   return(
     <div style={{paddingBottom:40}}>
       <div style={{background:`${ORG}10`,borderRadius:14,padding:"14px 16px",marginBottom:16,fontSize:15,color:ORG,lineHeight:1.7,fontWeight:500}}>
-        🎁 Points are sent instantly. The recipient will receive a live notification immediately.
+        🎁 Points are sent instantly with live in-app notification + sound.
       </div>
       <div style={{background:BG2,borderRadius:14,overflow:"hidden",marginBottom:14}}>
         <div style={{padding:"14px 16px",borderBottom:`1px solid ${SEP}`}}>
@@ -128,12 +115,7 @@ function DashTab({allProfiles,totalPending,pendingVerif,today}){
   return(
     <div style={{padding:"0 16px 16px"}}>
       <div className="fade" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-        {[
-          {l:"Total Staff",    v:staff.length,                    i:"👥",c:ACC},
-          {l:"Checked In",     v:`${checkedIn}/${staff.length}`,  i:"✅",c:"#34c759"},
-          {l:"Pending Actions",v:totalPending,                    i:"⚠️",c:"#ff9500"},
-          {l:"Verifications",  v:pendingVerif,                    i:"🔒",c:"#ff3b30"},
-        ].map((s,i)=>(
+        {[{l:"Total Staff",v:staff.length,i:"👥",c:ACC},{l:"Checked In",v:`${checkedIn}/${staff.length}`,i:"✅",c:"#34c759"},{l:"Pending Actions",v:totalPending,i:"⚠️",c:"#ff9500"},{l:"Verifications",v:pendingVerif,i:"🔒",c:"#ff3b30"}].map((s,i)=>(
           <div key={i} style={{background:BG2,borderRadius:16,padding:"18px"}}>
             <div style={{fontSize:30,marginBottom:10}}>{s.i}</div>
             <div style={{fontSize:32,fontWeight:700,color:s.c,letterSpacing:"-1px",lineHeight:1}}>{s.v}</div>
@@ -172,10 +154,7 @@ function DashTab({allProfiles,totalPending,pendingVerif,today}){
           <div key={s.id} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 16px",borderBottom:i<staff.length-1?`1px solid ${SEP}`:"none"}}>
             <div style={{width:10,height:10,borderRadius:"50%",background:s.last_checkin===today?"#34c759":"#e5e5ea",flexShrink:0}}/>
             <Av p={s} size={36}/>
-            <div style={{flex:1}}>
-              <div style={{fontSize:16,color:LBL}}>{s.name}</div>
-              <div style={{fontSize:13,color:LB3}}>{s.role}</div>
-            </div>
+            <div style={{flex:1}}><div style={{fontSize:16,color:LBL}}>{s.name}</div><div style={{fontSize:13,color:LB3}}>{s.role}</div></div>
             <div style={{fontSize:14,color:s.last_checkin===today?"#34c759":"#ff3b30",fontWeight:600}}>{s.last_checkin===today?"✓ Present":"Absent"}</div>
           </div>
         ))}
@@ -292,7 +271,7 @@ function StaffTab({allProfiles,today}){
       )}
       {view==="private"&&(
         <>
-          <div style={{background:`${ACC}10`,borderRadius:14,padding:"14px 16px",marginBottom:16,fontSize:15,color:ACC}}>🔒 Strictly confidential. Tap to view full details.</div>
+          <div style={{background:`${ACC}10`,borderRadius:14,padding:"14px 16px",marginBottom:16,fontSize:15,color:ACC}}>🔒 Tap a staff member to view full details.</div>
           {staff.map(s=>(
             <div key={s.id} onClick={()=>setSelected(s)} className="card-press"
               style={{background:BG2,borderRadius:16,padding:"16px",marginBottom:10,cursor:"pointer"}}>
@@ -329,10 +308,7 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
   const doneReds=redemptions.filter(r=>r.status!=="Pending");
   const pendVerif=verifReqs.filter(v=>v.status==="Pending");
   const doneVerif=verifReqs.filter(v=>v.status!=="Pending");
-  const Sb=({status})=>{
-    const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";
-    return<div style={{background:c+"18",color:c,fontSize:13,fontWeight:700,padding:"4px 10px",borderRadius:99,flexShrink:0,whiteSpace:"nowrap"}}>{status}</div>;
-  };
+  const Sb=({status})=>{const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";return<div style={{background:c+"18",color:c,fontSize:13,fontWeight:700,padding:"4px 10px",borderRadius:99,flexShrink:0,whiteSpace:"nowrap"}}>{status}</div>;};
   return(
     <div style={{padding:"0 16px 40px"}}>
       <div className="fade" style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto"}}>
@@ -362,10 +338,8 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
               {sub.submission_image&&<img src={sub.submission_image} alt="proof" style={{width:"100%",borderRadius:12,marginBottom:12,maxHeight:240,objectFit:"cover"}}/>}
               <div style={{fontSize:13,color:LB3,marginBottom:14}}>{new Date(sub.submitted_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}</div>
               <div style={{display:"flex",gap:10}}>
-                <button onClick={()=>onApproveSubmission(sub,false)} className="btn"
-                  style={{flex:1,padding:"14px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Reject</button>
-                <button onClick={()=>onApproveSubmission(sub,true)} className="btn-primary ripple-container" onPointerDown={addRipple}
-                  style={{flex:2,padding:"14px",background:"#34c759",color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Approve ✓</button>
+                <button onClick={()=>onApproveSubmission(sub,false)} className="btn" style={{flex:1,padding:"14px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Reject</button>
+                <button onClick={()=>onApproveSubmission(sub,true)} className="btn-primary ripple-container" onPointerDown={addRipple} style={{flex:2,padding:"14px",background:"#34c759",color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Approve ✓</button>
               </div>
             </div>
           ))}
@@ -395,9 +369,7 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
               </div>
               <div style={{fontSize:13,color:LB3,marginBottom:14}}>{new Date(r.redeemed_at).toLocaleDateString("en-MY",{day:"numeric",month:"short"})}</div>
               <button onClick={()=>onApproveRedemption(r.id)} className="btn-primary ripple-container" onPointerDown={addRipple}
-                style={{width:"100%",padding:"14px",background:ACC,color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
-                Mark Delivered ✓
-              </button>
+                style={{width:"100%",padding:"14px",background:ACC,color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Mark Delivered ✓</button>
             </div>
           ))}
           {doneReds.length>0&&(
@@ -433,10 +405,8 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
               </div>
               <div style={{fontSize:13,color:LB3,marginBottom:14}}>{new Date(req.submitted_at).toLocaleDateString("en-MY",{day:"numeric",month:"short"})}</div>
               <div style={{display:"flex",gap:10}}>
-                <button onClick={()=>onApproveVerification(req,false)} className="btn"
-                  style={{flex:1,padding:"14px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Reject</button>
-                <button onClick={()=>onApproveVerification(req,true)} className="btn-primary ripple-container" onPointerDown={addRipple}
-                  style={{flex:2,padding:"14px",background:"#34c759",color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Verify ✓</button>
+                <button onClick={()=>onApproveVerification(req,false)} className="btn" style={{flex:1,padding:"14px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Reject</button>
+                <button onClick={()=>onApproveVerification(req,true)} className="btn-primary ripple-container" onPointerDown={addRipple} style={{flex:2,padding:"14px",background:"#34c759",color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Verify ✓</button>
               </div>
             </div>
           ))}
@@ -532,29 +502,17 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
             </div>
             <div style={{padding:"14px 16px"}}>
               <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,marginBottom:8}}>Due Date <span style={{color:"#ff3b30"}}>*</span></div>
-              <DatePicker
-                selected={mForm.due_date}
-                onChange={date=>setMForm(p=>({...p,due_date:date}))}
-                dateFormat="dd/MM/yyyy" placeholderText="DD/MM/YYYY"
-                minDate={new Date()} showMonthDropdown showYearDropdown dropdownMode="select"
-                customInput={<input readOnly placeholder="DD/MM/YYYY" style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:18,color:LBL,cursor:"pointer",fontFamily:SF}}/>}
-              />
+              <DatePicker selected={mForm.due_date} onChange={date=>setMForm(p=>({...p,due_date:date}))} dateFormat="dd/MM/yyyy" placeholderText="DD/MM/YYYY" minDate={new Date()} showMonthDropdown showYearDropdown dropdownMode="select"
+                customInput={<input readOnly placeholder="DD/MM/YYYY" style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:18,color:LBL,cursor:"pointer",fontFamily:SF}}/>}/>
               {mForm.due_date&&<div style={{fontSize:13,color:ACC,marginTop:6,fontWeight:600}}>📅 Due: {mForm.due_date.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"})}</div>}
             </div>
           </div>
-          <button onClick={()=>{
-            if(!canAddMission)return;
-            const dueDateISO=mForm.due_date?mForm.due_date.toISOString().split("T")[0]:null;
-            onAddMission({title:mForm.title,description:mForm.description,xp:+mForm.xp,category:mForm.category,due_date:dueDateISO,completion_type:mForm.completion_type,max_completions:mForm.max_completions,completion_count:0});
-            setMForm({title:"",description:"",xp:150,category:"",due_date:null,completion_type:"once_per_user",max_completions:1});
-          }}
+          <button onClick={()=>{if(!canAddMission)return;const dueDateISO=mForm.due_date?mForm.due_date.toISOString().split("T")[0]:null;onAddMission({title:mForm.title,description:mForm.description,xp:+mForm.xp,category:mForm.category,due_date:dueDateISO,completion_type:mForm.completion_type,max_completions:mForm.max_completions,completion_count:0});setMForm({title:"",description:"",xp:150,category:"",due_date:null,completion_type:"once_per_user",max_completions:1});}}
             className="btn-primary ripple-container" onPointerDown={addRipple}
             style={{width:"100%",background:canAddMission?ACC:"#e5e5ea",color:canAddMission?"#fff":LB3,border:"none",borderRadius:16,padding:"18px",fontSize:18,fontWeight:700,cursor:canAddMission?"pointer":"default",fontFamily:SF,marginBottom:8}}>
             Post Campaign Mission
           </button>
-          {!canAddMission&&(mForm.title||mForm.category||mForm.due_date)&&(
-            <div style={{fontSize:14,color:"#ff9500",textAlign:"center",marginBottom:14,fontWeight:600}}>⚠️ Please fill in Title, Category and Due Date</div>
-          )}
+          {!canAddMission&&(mForm.title||mForm.category||mForm.due_date)&&<div style={{fontSize:14,color:"#ff9500",textAlign:"center",marginBottom:14,fontWeight:600}}>⚠️ Please fill in Title, Category and Due Date</div>}
           <div style={{fontSize:14,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,margin:"8px 4px 10px"}}>Active Missions</div>
           <div style={{background:BG2,borderRadius:16,overflow:"hidden",marginBottom:40}}>
             {missions.length===0&&<div style={{padding:"16px",fontSize:16,color:LB3}}>No missions yet</div>}
@@ -566,8 +524,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                     <div style={{fontSize:16,color:LBL,fontWeight:600}}>{m.title}</div>
                     <div style={{fontSize:13,color:LB3,marginTop:3}}>{m.category} · {m.xp} pts · {ct}{m.due_date?` · Due ${fmtDate(m.due_date)}`:""}</div>
                   </div>
-                  <button onClick={()=>onDeleteMission(m.id)} className="btn"
-                    style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:10,padding:"8px 12px",fontSize:14,cursor:"pointer",fontFamily:SF,flexShrink:0}}>Remove</button>
+                  <button onClick={()=>onDeleteMission(m.id)} className="btn" style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:10,padding:"8px 12px",fontSize:14,cursor:"pointer",fontFamily:SF,flexShrink:0}}>Remove</button>
                 </div>
               );
             })}
@@ -592,8 +549,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
             <div style={{padding:"14px 16px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div style={{fontSize:17,color:LBL}}>📌 Pin to top</div>
-                <div onClick={()=>setAForm(p=>({...p,pinned:!p.pinned}))}
-                  style={{width:54,height:32,borderRadius:99,background:aForm.pinned?ACC:"#e5e5ea",position:"relative",cursor:"pointer",transition:"background .2s"}}>
+                <div onClick={()=>setAForm(p=>({...p,pinned:!p.pinned}))} style={{width:54,height:32,borderRadius:99,background:aForm.pinned?ACC:"#e5e5ea",position:"relative",cursor:"pointer",transition:"background .2s"}}>
                   <div style={{width:28,height:28,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:aForm.pinned?24:2,transition:"left .2s",boxShadow:"0 1px 4px rgba(0,0,0,.25)"}}/>
                 </div>
               </div>
@@ -640,7 +596,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
             </div>
             <div style={{padding:"14px 16px",borderBottom:`1px solid ${SEP}`}}>
-              <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,marginBottom:8}}>Icon (auto-filled, you can change)</div>
+              <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,marginBottom:8}}>Icon (auto-filled, editable)</div>
               <input value={pForm.icon} onChange={e=>setPForm(p=>({...p,icon:e.target.value}))} placeholder="🎁"
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:32,color:LBL,fontFamily:SF}}/>
             </div>
@@ -657,13 +613,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
               </div>
             </div>
           </div>
-          <button onClick={()=>{
-            if(pForm.name.trim()){
-              const icon=pForm.icon||autoIcon(pForm.name);
-              onAddPrize({...pForm,icon});
-              setPForm({name:"",cost:500,stock:10,icon:"",category:"Cash",desc:""});
-            }
-          }}
+          <button onClick={()=>{if(pForm.name.trim()){const icon=pForm.icon||autoIcon(pForm.name);onAddPrize({...pForm,icon});setPForm({name:"",cost:500,stock:10,icon:"",category:"Cash",desc:""});}}}
             className="btn-primary ripple-container" onPointerDown={addRipple}
             style={{width:"100%",background:pForm.name.trim()?ACC:"#e5e5ea",color:pForm.name.trim()?"#fff":LB3,border:"none",borderRadius:16,padding:"18px",fontSize:18,fontWeight:700,cursor:pForm.name.trim()?"pointer":"default",fontFamily:SF,marginBottom:18}}>
             Add Prize
@@ -683,14 +633,13 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
           </div>
         </>
       )}
-
       {sec==="gifts"&&<GiftPointsTab allProfiles={allProfiles} onGift={onGift}/>}
     </div>
   );
 }
 
 // ── COMMUNITY (Monitor Only) ──────────────────────────────────────────
-function CommunityTab(){
+function CommunityTab({allProfiles}){
   const [messages,setMessages]=useState([]);
   const bottomRef=useRef(null);
   useEffect(()=>{
@@ -700,14 +649,15 @@ function CommunityTab(){
   },[]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
   const loadMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
+    // Join profiles to get avatar_url
+    const{data}=await supabase.from("messages").select("*, sender:user_id(avatar_url,avatar)").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
     if(data)setMessages(data);
   };
   const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
   return(
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 170px)"}}>
       <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 16px",margin:"0 16px 10px",fontSize:15,color:ACC,fontWeight:600,flexShrink:0}}>
-        👁️ Monitor Mode — view only
+        👁️ Monitor Mode — admins can only view, not send messages
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"0 16px 16px",display:"flex",flexDirection:"column",gap:10}}>
         {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:16}}>No messages yet 👋</div>}
@@ -717,11 +667,13 @@ function CommunityTab(){
               <div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%",whiteSpace:"pre-line"}}>{msg.content}</div>
             </div>
           );
-          const avatarUrl=msg.sender_avatar_url||"";
+          // Get avatar from joined sender profile or stored url
+          const avatarUrl=msg.sender?.avatar_url||msg.sender_avatar_url||"";
+          const avatarLetter=msg.sender?.avatar||msg.sender_avatar||"?";
           return(
             <div key={msg.id} style={{display:"flex",alignItems:"flex-end",gap:10}}>
-              <div style={{width:36,height:36,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden"}}>
-                {!avatarUrl&&(msg.sender_avatar||"?")}
+              <div style={{width:38,height:38,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",border:`2px solid ${BG2}`}}>
+                {!avatarUrl&&avatarLetter}
               </div>
               <div style={{maxWidth:"75%"}}>
                 <div style={{fontSize:13,color:LB3,marginBottom:4,paddingLeft:4}}>{msg.sender_name}</div>
@@ -772,13 +724,9 @@ export default function AdminApp({profile,onProfileUpdate}){
       supabase.from("redemptions").select("*, profiles(name)").order("redeemed_at",{ascending:false}),
       supabase.from("verification_requests").select("*, profiles(name,role)").order("submitted_at",{ascending:false}),
     ]);
-    if(pr.data)setAllProfiles(pr.data);
-    if(mi.data)setMissions(mi.data);
-    if(su.data)setSubmissions(su.data);
+    if(pr.data)setAllProfiles(pr.data);if(mi.data)setMissions(mi.data);if(su.data)setSubmissions(su.data);
     if(pz.data)setPrizes(pz.data.length>0?pz.data:PRIZES.map(x=>({...x,cost:x.pts,category:x.cat})));
-    if(an.data)setAnnouncements(an.data);
-    if(re.data)setRedemptions(re.data);
-    if(vr.data)setVerifReqs(vr.data);
+    if(an.data)setAnnouncements(an.data);if(re.data)setRedemptions(re.data);if(vr.data)setVerifReqs(vr.data);
   };
 
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),3000);};
@@ -789,37 +737,47 @@ export default function AdminApp({profile,onProfileUpdate}){
   const pendingVerifCount=verifReqs.filter(v=>v.status==="Pending").length;
   const totalPending=pendingSubs+pendingReds+pendingVerifCount;
 
-  // ── Notify all staff — fixed, no .catch() ──
   const notifyAll=async(title,body,type="info")=>{
     const nonAdmins=allProfiles.filter(p=>!p.is_admin);
     if(nonAdmins.length===0)return;
-    try{
-      await supabase.from("notifications").insert(
-        nonAdmins.map(p=>({user_id:p.id,title,body,type}))
-      );
-    }catch(e){console.warn("notifyAll error:",e);}
+    try{ await supabase.from("notifications").insert(nonAdmins.map(p=>({user_id:p.id,title,body,type}))); }
+    catch(e){ console.warn("notifyAll:",e); }
   };
 
-  // ── Approve mission ──
+  // ── FIXED: approve submission with claim fallback ──
   const approveSubmission=async(sub,approve)=>{
     const status=approve?"Approved":"Rejected";
     setSubmissions(p=>p.map(s=>s.id===sub.id?{...s,status}:s));
     await supabase.from("mission_submissions").update({status,reviewed_at:new Date().toISOString()}).eq("id",sub.id);
     if(approve){
-      await supabase.from("mission_claims").update({completed:true}).eq("id",sub.claim_id);
+      // Find claim by claim_id OR by user_id + mission_id as fallback
+      let claimId=sub.claim_id;
+      if(!claimId){
+        try{
+          const{data:cl}=await supabase.from("mission_claims").select("id").eq("user_id",sub.user_id).eq("mission_id",sub.mission_id||sub.missions?.id).maybeSingle();
+          claimId=cl?.id;
+        }catch(e){ console.warn("claim lookup:",e); }
+      }
+      if(claimId){
+        try{ await supabase.from("mission_claims").update({completed:true,submitted:true}).eq("id",claimId); }
+        catch(e){ console.warn("claim update:",e); }
+      }
       const prof=allProfiles.find(p=>p.id===sub.user_id);
       const pts=sub.missions?.xp||100;
       const newXp=(prof?.xp||0)+pts;
       if(prof){
         setAllProfiles(p=>p.map(x=>x.id===sub.user_id?{...x,xp:newXp}:x));
-        await supabase.from("profiles").update({xp:newXp}).eq("id",sub.user_id);
-        try{ await supabase.from("points_history").insert({user_id:sub.user_id,amount:pts,reason:`Mission completed: ${sub.missions?.title}`,type:"credit"}); }catch(e){ console.warn(e); }
+        // Update XP — this triggers realtime for the user
+        try{ await supabase.from("profiles").update({xp:newXp}).eq("id",sub.user_id); }
+        catch(e){ console.warn("xp update:",e); }
+        try{ await supabase.from("points_history").insert({user_id:sub.user_id,amount:pts,reason:`Mission completed: ${sub.missions?.title}`,type:"credit"}); }
+        catch(e){ console.warn("points_history:",e); }
       }
       // Increment completion count
       try{
-        const{data:mc}=await supabase.from("missions").select("completion_count").eq("id",sub.mission_id).single();
-        if(mc)await supabase.from("missions").update({completion_count:(mc.completion_count||0)+1}).eq("id",sub.mission_id);
-      }catch(e){ console.warn(e); }
+        const{data:mc}=await supabase.from("missions").select("completion_count").eq("id",sub.mission_id||sub.missions?.id).single();
+        if(mc)await supabase.from("missions").update({completion_count:(mc.completion_count||0)+1}).eq("id",sub.mission_id||sub.missions?.id);
+      }catch(e){ console.warn("completion_count:",e); }
       const annTitle=`🎯 ${prof?.nickname||prof?.name} completed a mission!`;
       const annBody=`${prof?.nickname||prof?.name} successfully completed "${sub.missions?.title}" and earned ${pts} pts!`;
       try{
@@ -827,14 +785,16 @@ export default function AdminApp({profile,onProfileUpdate}){
         if(newAnn)setAnnouncements(p=>[newAnn,...p]);
       }catch(e){ console.warn(e); }
       await notifyAll(annTitle,annBody,"mission");
-      try{ await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`+${pts} pts added for completing "${sub.missions?.title}"`,type:"approval"}); }catch(e){ console.warn(e); }
+      // Personal notification — triggers in-app popup + sound
+      try{ await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`+${pts} pts added for completing "${sub.missions?.title}"`,type:"approval"}); }
+      catch(e){ console.warn(e); }
     } else {
-      try{ await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Not Approved",body:`Your submission for "${sub.missions?.title}" was rejected. Please review and try again.`,type:"rejection"}); }catch(e){ console.warn(e); }
+      try{ await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Not Approved",body:`Your submission for "${sub.missions?.title}" was rejected. Please review and try again.`,type:"rejection"}); }
+      catch(e){ console.warn(e); }
     }
     showToast(approve?"✅ Approved! Points awarded.":"❌ Rejected.");
   };
 
-  // ── Approve redemption ──
   const approveRedemption=async id=>{
     setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
     const red=redemptions.find(r=>r.id===id);
@@ -844,16 +804,12 @@ export default function AdminApp({profile,onProfileUpdate}){
       const prof=allProfiles.find(p=>p.id===red.user_id);
       const annTitle=`🎁 ${prof?.nickname||prof?.name} redeemed a prize!`;
       const annBody=`${prof?.nickname||prof?.name} just received "${red.prize_name}". Congratulations! 🎉`;
-      try{
-        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
-        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
-      }catch(e){ console.warn(e); }
+      try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
       await notifyAll(annTitle,annBody,"redemption");
     }
     showToast("✅ Prize delivered!");
   };
 
-  // ── Approve verification ──
   const approveVerification=async(req,approve)=>{
     setVerifReqs(p=>p.map(v=>v.id===req.id?{...v,status:approve?"Approved":"Rejected"}:v));
     await supabase.from("verification_requests").update({status:approve?"Approved":"Rejected",reviewed_at:new Date().toISOString()}).eq("id",req.id);
@@ -866,7 +822,7 @@ export default function AdminApp({profile,onProfileUpdate}){
       else if(req.field_name==="joined_date")update.joined_date_verified=true;
       else if(req.field_name==="birthday")update.birthday_verified=true;
       setAllProfiles(p=>p.map(x=>x.id===req.user_id?{...x,...update}:x));
-      await supabase.from("profiles").update(update).eq("id",req.user_id);
+      try{ await supabase.from("profiles").update(update).eq("id",req.user_id); }catch(e){ console.warn(e); }
       const fieldLabel={"ic_number":"IC Number","epf_number":"EPF Number","bank_account":"Bank Account","position":"Position","joined_date":"Joining Date","birthday":"Birthday"}[req.field_name]||req.field_name;
       try{ await supabase.from("notifications").insert({user_id:req.user_id,title:"✅ Information Verified!",body:`Your ${fieldLabel} has been verified and updated.`,type:"verification"}); }catch(e){ console.warn(e); }
     } else {
@@ -876,41 +832,24 @@ export default function AdminApp({profile,onProfileUpdate}){
     showToast(approve?"✅ Verified!":"❌ Rejected.");
   };
 
-  // ── Gift Points — fully fixed, no .catch() ──
   const giftPoints=async(toId,points,reason)=>{
     const recipient=allProfiles.find(p=>p.id===toId);
     if(!recipient){showToast("❌ Staff not found");return;}
     try{
       const newXp=(recipient.xp||0)+points;
-      // 1. Update DB
       const{error:updateErr}=await supabase.from("profiles").update({xp:newXp}).eq("id",toId);
       if(updateErr)throw new Error(updateErr.message);
-      // 2. Update local state
       setAllProfiles(p=>p.map(x=>x.id===toId?{...x,xp:newXp}:x));
-      // 3. Points history
       try{ await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"}); }catch(e){ console.warn("points_history:",e); }
-      // 4. Gift log
       try{ await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason}); }catch(e){ console.warn("point_gifts:",e); }
-      // 5. Announcement
       const annTitle=`🎁 ${recipient.nickname||recipient.name} received a gift!`;
       const annBody=`${recipient.nickname||recipient.name} has been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`;
-      try{
-        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();
-        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
-      }catch(e){ console.warn("announcement:",e); }
-      // 6. Notify recipient — triggers live popup
-      const{error:notifErr}=await supabase.from("notifications").insert({
-        user_id:toId,
-        title:"🎁 You received a gift!",
-        body:`You've been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`,
-        type:"gift",
-      });
-      if(notifErr)console.warn("notif recipient:",notifErr.message);
-      // 7. Notify others
+      try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
+      // Notify recipient — triggers instant in-app popup + notification sound
+      const{error:notifErr}=await supabase.from("notifications").insert({user_id:toId,title:"🎁 You received a gift!",body:`You've been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`,type:"gift"});
+      if(notifErr)console.warn("notif:",notifErr.message);
       const others=allProfiles.filter(p=>!p.is_admin&&p.id!==toId);
-      if(others.length>0){
-        try{ await supabase.from("notifications").insert(others.map(p=>({user_id:p.id,title:annTitle,body:annBody,type:"gift"}))); }catch(e){ console.warn("notif others:",e); }
-      }
+      if(others.length>0){ try{ await supabase.from("notifications").insert(others.map(p=>({user_id:p.id,title:annTitle,body:annBody,type:"gift"}))); }catch(e){ console.warn(e); } }
       showToast(`🎁 Gifted ${points} pts to ${recipient.name}!`);
     }catch(err){
       console.error("Gift error:",err);
@@ -925,48 +864,17 @@ export default function AdminApp({profile,onProfileUpdate}){
       const ct=mForm.completion_type==="once_total"?"Only 1 winner!":mForm.completion_type==="unlimited"?"Unlimited completions":"Once per user";
       const annTitle=`🎯 New Mission: ${mForm.title}`;
       const annBody=`A new campaign mission is live!\n\n"${mForm.title}"\nEarn ${mForm.xp} pts | ${ct}\nDue: ${fmtDate(mForm.due_date)}`;
-      try{
-        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
-        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
-      }catch(e){ console.warn(e); }
+      try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
       await notifyAll(annTitle,annBody,"mission");
     }
     showToast("Campaign mission posted ✅");
   };
 
-  const deleteMission=async id=>{
-    setMissions(p=>p.filter(m=>m.id!==id));
-    await supabase.from("missions").update({active:false}).eq("id",id);
-    showToast("Mission removed");
-  };
-
-  const addAnn=async(aForm)=>{
-    const{data}=await supabase.from("announcements").insert({...aForm,author:"Admin"}).select().single();
-    if(data){
-      setAnnouncements(p=>[data,...p]);
-      await notifyAll(`📢 ${aForm.title}`,aForm.body||"","announcement");
-    }
-    showToast("Announcement posted ✅");
-  };
-
-  const deleteAnn=async id=>{
-    setAnnouncements(p=>p.filter(a=>a.id!==id));
-    await supabase.from("announcements").delete().eq("id",id);
-    showToast("Deleted");
-  };
-
-  const togglePin=async ann=>{
-    const pinned=!ann.pinned;
-    setAnnouncements(p=>p.map(a=>a.id===ann.id?{...a,pinned}:a));
-    await supabase.from("announcements").update({pinned}).eq("id",ann.id);
-  };
-
-  const addPrize=async(pForm)=>{
-    const icon=pForm.icon||autoIcon(pForm.name);
-    const{data}=await supabase.from("prizes").insert({...pForm,icon,cost:+pForm.cost,stock:+pForm.stock,active:true}).select().single();
-    if(data)setPrizes(p=>[...p,data]);
-    showToast("Prize added ✅");
-  };
+  const deleteMission=async id=>{setMissions(p=>p.filter(m=>m.id!==id));await supabase.from("missions").update({active:false}).eq("id",id);showToast("Mission removed");};
+  const addAnn=async(aForm)=>{const{data}=await supabase.from("announcements").insert({...aForm,author:"Admin"}).select().single();if(data){setAnnouncements(p=>[data,...p]);await notifyAll(`📢 ${aForm.title}`,aForm.body||"","announcement");}showToast("Announcement posted ✅");};
+  const deleteAnn=async id=>{setAnnouncements(p=>p.filter(a=>a.id!==id));await supabase.from("announcements").delete().eq("id",id);showToast("Deleted");};
+  const togglePin=async ann=>{const pinned=!ann.pinned;setAnnouncements(p=>p.map(a=>a.id===ann.id?{...a,pinned}:a));await supabase.from("announcements").update({pinned}).eq("id",ann.id);};
+  const addPrize=async(pForm)=>{const icon=pForm.icon||autoIcon(pForm.name);const{data}=await supabase.from("prizes").insert({...pForm,icon,cost:+pForm.cost,stock:+pForm.stock,active:true}).select().single();if(data)setPrizes(p=>[...p,data]);showToast("Prize added ✅");};
 
   const TABS=[
     {id:"dash",      label:"Dashboard",emoji:"📊"},
@@ -982,38 +890,31 @@ export default function AdminApp({profile,onProfileUpdate}){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:34,height:34,borderRadius:8,objectFit:"cover"}}/>
-            <div style={{fontSize:18,fontWeight:700,color:LBL,letterSpacing:"-.3px"}}>Admin Panel</div>
+            <div style={{fontSize:18,fontWeight:700,color:LBL}}>Admin Panel</div>
           </div>
-          <button onClick={()=>supabase.auth.signOut()} className="btn"
-            style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>
-            Sign Out
-          </button>
+          <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
         </div>
         <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>
-          {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}
-          {tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
+          {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}{tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
         </div>
       </div>
-
       <div style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}>
         {tab==="dash"&&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today}/>}
         {tab==="staff"&&<StaffTab allProfiles={allProfiles} today={today}/>}
         {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification}/>}
         {tab==="content"&&<ContentTab missions={missions} announcements={announcements} prizes={prizes} allProfiles={staff} onAddMission={addMission} onDeleteMission={deleteMission} onAddAnn={addAnn} onDeleteAnn={deleteAnn} onTogglePin={togglePin} onAddPrize={addPrize} onGift={giftPoints}/>}
-        {tab==="community"&&<CommunityTab/>}
+        {tab==="community"&&<CommunityTab allProfiles={allProfiles}/>}
       </div>
-
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} className="tab-btn"
             style={{flex:1,padding:"10px 2px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,background:"none",border:"none",cursor:"pointer",position:"relative"}}>
-            <div style={{fontSize:tab===t.id?26:22,lineHeight:1,filter:tab===t.id?"none":"grayscale(1) opacity(.35)",transition:"font-size .2s cubic-bezier(.34,1.56,.64,1)"}}>{t.emoji}</div>
-            <div style={{fontSize:10,fontWeight:tab===t.id?700:400,color:tab===t.id?ACC:"#8e8e93",fontFamily:SF,transition:"color .15s"}}>{t.label}</div>
+            <div style={{fontSize:tab===t.id?28:24,lineHeight:1,filter:tab===t.id?"none":"grayscale(1) opacity(.35)",transition:"font-size .2s cubic-bezier(.34,1.56,.64,1)"}}>{t.emoji}</div>
+            <div style={{fontSize:11,fontWeight:tab===t.id?700:400,color:tab===t.id?ACC:"#8e8e93",fontFamily:SF}}>{t.label}</div>
             {t.badge>0&&<div style={{position:"absolute",top:6,right:"8%",minWidth:18,height:18,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 5px"}}>{t.badge}</div>}
           </button>
         ))}
       </div>
-
       {toast&&<div className="toast-in" style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>{toast}</div>}
     </div>
   );

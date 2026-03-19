@@ -452,7 +452,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
           </button>
         ))}
       </div>
-
       {sec==="missions"&&(
         <>
           <div style={{fontSize:14,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,margin:"0 4px 10px"}}>➕ Post Campaign Mission</div>
@@ -531,7 +530,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
           </div>
         </>
       )}
-
       {sec==="announcements"&&(
         <>
           <div style={{fontSize:14,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,margin:"0 4px 10px"}}>📢 Post Announcement</div>
@@ -579,7 +577,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
           <div style={{height:40}}/>
         </>
       )}
-
       {sec==="prizes"&&(
         <>
           <div style={{fontSize:14,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,margin:"0 4px 10px"}}>🎁 Add Prize</div>
@@ -649,7 +646,6 @@ function CommunityTab({allProfiles}){
   },[]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
   const loadMsgs=async()=>{
-    // Join profiles to get avatar_url
     const{data}=await supabase.from("messages").select("*, sender:user_id(avatar_url,avatar)").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
     if(data)setMessages(data);
   };
@@ -667,7 +663,6 @@ function CommunityTab({allProfiles}){
               <div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%",whiteSpace:"pre-line"}}>{msg.content}</div>
             </div>
           );
-          // Get avatar from joined sender profile or stored url
           const avatarUrl=msg.sender?.avatar_url||msg.sender_avatar_url||"";
           const avatarLetter=msg.sender?.avatar||msg.sender_avatar||"?";
           return(
@@ -732,65 +727,62 @@ export default function AdminApp({profile,onProfileUpdate}){
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),3000);};
   const today=new Date().toISOString().split("T")[0];
   const staff=allProfiles.filter(p=>!p.is_admin);
-  const pendingSubs=submissions.filter(s=>s.status==="Pending").length;
-  const pendingReds=redemptions.filter(r=>r.status==="Pending").length;
+  const totalPending=submissions.filter(s=>s.status==="Pending").length+redemptions.filter(r=>r.status==="Pending").length+verifReqs.filter(v=>v.status==="Pending").length;
   const pendingVerifCount=verifReqs.filter(v=>v.status==="Pending").length;
-  const totalPending=pendingSubs+pendingReds+pendingVerifCount;
 
   const notifyAll=async(title,body,type="info")=>{
     const nonAdmins=allProfiles.filter(p=>!p.is_admin);
     if(nonAdmins.length===0)return;
-    try{ await supabase.from("notifications").insert(nonAdmins.map(p=>({user_id:p.id,title,body,type}))); }
-    catch(e){ console.warn("notifyAll:",e); }
+    try{await supabase.from("notifications").insert(nonAdmins.map(p=>({user_id:p.id,title,body,type})));}
+    catch(e){console.warn("notifyAll:",e);}
   };
 
-  // ── FIXED: approve submission with claim fallback ──
+  // ── Approve submission — always fetch fresh XP ──
   const approveSubmission=async(sub,approve)=>{
     const status=approve?"Approved":"Rejected";
     setSubmissions(p=>p.map(s=>s.id===sub.id?{...s,status}:s));
     await supabase.from("mission_submissions").update({status,reviewed_at:new Date().toISOString()}).eq("id",sub.id);
     if(approve){
-      // Find claim by claim_id OR by user_id + mission_id as fallback
+      // Find claim
       let claimId=sub.claim_id;
       if(!claimId){
         try{
           const{data:cl}=await supabase.from("mission_claims").select("id").eq("user_id",sub.user_id).eq("mission_id",sub.mission_id||sub.missions?.id).maybeSingle();
           claimId=cl?.id;
-        }catch(e){ console.warn("claim lookup:",e); }
+        }catch(e){console.warn("claim lookup:",e);}
       }
       if(claimId){
-        try{ await supabase.from("mission_claims").update({completed:true,submitted:true}).eq("id",claimId); }
-        catch(e){ console.warn("claim update:",e); }
+        try{await supabase.from("mission_claims").update({completed:true,submitted:true}).eq("id",claimId);}
+        catch(e){console.warn("claim update:",e);}
       }
       const prof=allProfiles.find(p=>p.id===sub.user_id);
       const pts=sub.missions?.xp||100;
-      const newXp=(prof?.xp||0)+pts;
-      if(prof){
-        setAllProfiles(p=>p.map(x=>x.id===sub.user_id?{...x,xp:newXp}:x));
-        // Update XP — this triggers realtime for the user
-        try{ await supabase.from("profiles").update({xp:newXp}).eq("id",sub.user_id); }
-        catch(e){ console.warn("xp update:",e); }
-        try{ await supabase.from("points_history").insert({user_id:sub.user_id,amount:pts,reason:`Mission completed: ${sub.missions?.title}`,type:"credit"}); }
-        catch(e){ console.warn("points_history:",e); }
-      }
+      // ── ALWAYS fetch fresh XP from DB ──
+      let currentXp=0;
+      try{
+        const{data:fp}=await supabase.from("profiles").select("xp").eq("id",sub.user_id).single();
+        currentXp=fp?.xp||0;
+      }catch(e){currentXp=prof?.xp||0;}
+      const newXp=currentXp+pts;
+      setAllProfiles(p=>p.map(x=>x.id===sub.user_id?{...x,xp:newXp}:x));
+      try{await supabase.from("profiles").update({xp:newXp}).eq("id",sub.user_id);}
+      catch(e){console.warn("xp update:",e);}
+      try{await supabase.from("points_history").insert({user_id:sub.user_id,amount:pts,reason:`Mission completed: ${sub.missions?.title}`,type:"credit"});}
+      catch(e){console.warn("points_history:",e);}
       // Increment completion count
       try{
         const{data:mc}=await supabase.from("missions").select("completion_count").eq("id",sub.mission_id||sub.missions?.id).single();
         if(mc)await supabase.from("missions").update({completion_count:(mc.completion_count||0)+1}).eq("id",sub.mission_id||sub.missions?.id);
-      }catch(e){ console.warn("completion_count:",e); }
+      }catch(e){console.warn("completion_count:",e);}
       const annTitle=`🎯 ${prof?.nickname||prof?.name} completed a mission!`;
       const annBody=`${prof?.nickname||prof?.name} successfully completed "${sub.missions?.title}" and earned ${pts} pts!`;
-      try{
-        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
-        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
-      }catch(e){ console.warn(e); }
+      try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
       await notifyAll(annTitle,annBody,"mission");
-      // Personal notification — triggers in-app popup + sound
-      try{ await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`+${pts} pts added for completing "${sub.missions?.title}"`,type:"approval"}); }
-      catch(e){ console.warn(e); }
+      try{await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`+${pts} pts added for completing "${sub.missions?.title}"\nNew balance: ${newXp.toLocaleString()} pts`,type:"approval"});}
+      catch(e){console.warn(e);}
     } else {
-      try{ await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Not Approved",body:`Your submission for "${sub.missions?.title}" was rejected. Please review and try again.`,type:"rejection"}); }
-      catch(e){ console.warn(e); }
+      try{await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Not Approved",body:`Your submission for "${sub.missions?.title}" was rejected. Please review and try again.`,type:"rejection"});}
+      catch(e){console.warn(e);}
     }
     showToast(approve?"✅ Approved! Points awarded.":"❌ Rejected.");
   };
@@ -800,7 +792,7 @@ export default function AdminApp({profile,onProfileUpdate}){
     const red=redemptions.find(r=>r.id===id);
     await supabase.from("redemptions").update({status:"Approved"}).eq("id",id);
     if(red){
-      try{ await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"}); }catch(e){ console.warn(e); }
+      try{await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"});}catch(e){console.warn(e);}
       const prof=allProfiles.find(p=>p.id===red.user_id);
       const annTitle=`🎁 ${prof?.nickname||prof?.name} redeemed a prize!`;
       const annBody=`${prof?.nickname||prof?.name} just received "${red.prize_name}". Congratulations! 🎉`;
@@ -822,35 +814,63 @@ export default function AdminApp({profile,onProfileUpdate}){
       else if(req.field_name==="joined_date")update.joined_date_verified=true;
       else if(req.field_name==="birthday")update.birthday_verified=true;
       setAllProfiles(p=>p.map(x=>x.id===req.user_id?{...x,...update}:x));
-      try{ await supabase.from("profiles").update(update).eq("id",req.user_id); }catch(e){ console.warn(e); }
+      try{await supabase.from("profiles").update(update).eq("id",req.user_id);}catch(e){console.warn(e);}
       const fieldLabel={"ic_number":"IC Number","epf_number":"EPF Number","bank_account":"Bank Account","position":"Position","joined_date":"Joining Date","birthday":"Birthday"}[req.field_name]||req.field_name;
-      try{ await supabase.from("notifications").insert({user_id:req.user_id,title:"✅ Information Verified!",body:`Your ${fieldLabel} has been verified and updated.`,type:"verification"}); }catch(e){ console.warn(e); }
+      try{await supabase.from("notifications").insert({user_id:req.user_id,title:"✅ Information Verified!",body:`Your ${fieldLabel} has been verified and updated.`,type:"verification"});}catch(e){console.warn(e);}
     } else {
       const fieldLabel={"ic_number":"IC Number","epf_number":"EPF Number","bank_account":"Bank Account","position":"Position","joined_date":"Joining Date","birthday":"Birthday"}[req.field_name]||req.field_name;
-      try{ await supabase.from("notifications").insert({user_id:req.user_id,title:"❌ Verification Failed",body:`Your ${fieldLabel} could not be verified. Please check and resubmit.`,type:"rejection"}); }catch(e){ console.warn(e); }
+      try{await supabase.from("notifications").insert({user_id:req.user_id,title:"❌ Verification Failed",body:`Your ${fieldLabel} could not be verified. Please check and resubmit.`,type:"rejection"});}catch(e){console.warn(e);}
     }
     showToast(approve?"✅ Verified!":"❌ Rejected.");
   };
 
+  // ── GIFT POINTS — always fetch fresh XP first ──
   const giftPoints=async(toId,points,reason)=>{
     const recipient=allProfiles.find(p=>p.id===toId);
     if(!recipient){showToast("❌ Staff not found");return;}
     try{
-      const newXp=(recipient.xp||0)+points;
+      // Step 1: Fetch fresh XP from DB — never trust local state
+      const{data:freshProfile,error:fetchErr}=await supabase
+        .from("profiles").select("xp").eq("id",toId).single();
+      if(fetchErr)throw new Error("Could not fetch current points: "+fetchErr.message);
+      const currentXp=freshProfile?.xp||0;
+      const newXp=currentXp+points;
+      console.log(`Gift: ${recipient.name} | DB XP=${currentXp} + ${points} = ${newXp}`);
+      // Step 2: Update DB
       const{error:updateErr}=await supabase.from("profiles").update({xp:newXp}).eq("id",toId);
-      if(updateErr)throw new Error(updateErr.message);
+      if(updateErr)throw new Error("Update failed: "+updateErr.message);
+      // Step 3: Update admin local state with correct value
       setAllProfiles(p=>p.map(x=>x.id===toId?{...x,xp:newXp}:x));
-      try{ await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"}); }catch(e){ console.warn("points_history:",e); }
-      try{ await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason}); }catch(e){ console.warn("point_gifts:",e); }
+      // Step 4: Points history
+      try{await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"});}
+      catch(e){console.warn("points_history:",e);}
+      // Step 5: Gift log
+      try{await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason});}
+      catch(e){console.warn("point_gifts:",e);}
+      // Step 6: Announcement
       const annTitle=`🎁 ${recipient.nickname||recipient.name} received a gift!`;
       const annBody=`${recipient.nickname||recipient.name} has been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`;
-      try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
-      // Notify recipient — triggers instant in-app popup + notification sound
-      const{error:notifErr}=await supabase.from("notifications").insert({user_id:toId,title:"🎁 You received a gift!",body:`You've been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`,type:"gift"});
-      if(notifErr)console.warn("notif:",notifErr.message);
+      try{
+        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();
+        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      }catch(e){console.warn("announcement:",e);}
+      // Step 7: Notify recipient — triggers realtime + sound in user app
+      const{error:notifErr}=await supabase.from("notifications").insert({
+        user_id:toId,
+        title:"🎁 You received a gift!",
+        body:`You've been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}\n\nNew balance: ${newXp.toLocaleString()} pts`,
+        type:"gift",
+      });
+      if(notifErr)console.warn("notif recipient:",notifErr.message);
+      // Step 8: Notify other staff
       const others=allProfiles.filter(p=>!p.is_admin&&p.id!==toId);
-      if(others.length>0){ try{ await supabase.from("notifications").insert(others.map(p=>({user_id:p.id,title:annTitle,body:annBody,type:"gift"}))); }catch(e){ console.warn(e); } }
-      showToast(`🎁 Gifted ${points} pts to ${recipient.name}!`);
+      if(others.length>0){
+        try{await supabase.from("notifications").insert(others.map(p=>({user_id:p.id,title:annTitle,body:annBody,type:"gift"})));}
+        catch(e){console.warn("notif others:",e);}
+      }
+      // Step 9: Reload all profiles to sync admin panel
+      await loadAll();
+      showToast(`🎁 Gifted ${points} pts to ${recipient.name}! Total: ${newXp.toLocaleString()} pts`);
     }catch(err){
       console.error("Gift error:",err);
       showToast("❌ Failed — "+err.message);

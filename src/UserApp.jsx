@@ -16,7 +16,6 @@ const calcAge=birthday=>{
   return age;
 };
 const calcDaysWorking=joinedDate=>{if(!joinedDate)return null;return Math.floor((Date.now()-new Date(joinedDate))/86400000);};
-
 const WX_ICON=code=>{if(code===0)return"☀️";if(code<=3)return"⛅";if(code<=48)return"🌫️";if(code<=67)return"🌧️";if(code<=77)return"❄️";if(code<=82)return"🌦️";return"⛈️";};
 const WX_DESC=code=>{if(code===0)return"Clear Sky";if(code<=3)return"Partly Cloudy";if(code<=48)return"Foggy";if(code<=67)return"Rainy";if(code<=77)return"Snowy";if(code<=82)return"Showers";return"Thunderstorm";};
 
@@ -40,7 +39,6 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
     ["🎮 Hobby",user.hobby||null],
     ["🍜 Fav Food",user.favorite_food||null],
   ].filter(([,v])=>v);
-
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
       {showAvatarFull&&(
@@ -59,17 +57,13 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
       )}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px",position:"sticky",top:0,zIndex:20,display:"flex",alignItems:"center",gap:12}}>
         <button onClick={onBack} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:ACC,fontWeight:600,padding:0,fontFamily:SF}}>← Back</button>
-        <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nickname||user.name}</div>
-        {currentUserId!==user.id&&(
-          <button onClick={()=>onDM(user)} className="btn" style={{background:ACC,color:"#fff",border:"none",borderRadius:99,padding:"7px 16px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF,flexShrink:0}}>💬 Message</button>
-        )}
+        <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nickname||user.name}</div>
+        {currentUserId!==user.id&&<button onClick={()=>onDM(user)} className="btn" style={{background:ACC,color:"#fff",border:"none",borderRadius:99,padding:"7px 16px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF,flexShrink:0}}>💬 Message</button>}
       </div>
       <div style={{overflowY:"auto",paddingBottom:40}}>
-        <div onClick={()=>user.banner_url&&setShowBannerFull(true)}
-          style={{height:150,background:user.banner_url?`url(${user.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,cursor:user.banner_url?"zoom-in":"default"}}/>
+        <div onClick={()=>user.banner_url&&setShowBannerFull(true)} style={{height:150,background:user.banner_url?`url(${user.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,cursor:user.banner_url?"zoom-in":"default"}}/>
         <div style={{padding:"0 16px",marginTop:-50,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-          <div onClick={()=>setShowAvatarFull(true)}
-            style={{width:90,height:90,borderRadius:"50%",border:`3px solid ${BG}`,background:user.avatar_url?`url(${user.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:28,color:ACC,overflow:"hidden",flexShrink:0,cursor:"zoom-in"}}>
+          <div onClick={()=>setShowAvatarFull(true)} style={{width:90,height:90,borderRadius:"50%",border:`3px solid ${BG}`,background:user.avatar_url?`url(${user.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:28,color:ACC,overflow:"hidden",flexShrink:0,cursor:"zoom-in"}}>
             {!user.avatar_url&&(user.avatar||"?")}
           </div>
           <div style={{display:"inline-flex",alignItems:"center",gap:5,background:tier.color+"18",borderRadius:99,padding:"5px 12px",marginBottom:4}}>
@@ -78,7 +72,7 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
           </div>
         </div>
         <div style={{padding:"0 16px 20px"}}>
-          <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px",lineHeight:1.2}}>{user.nickname||user.name}</div>
+          <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>{user.nickname||user.name}</div>
           {user.nickname&&<div style={{fontSize:15,color:LB3,marginTop:2}}>{user.name}</div>}
           {user.role&&<div style={{fontSize:14,color:ACC,fontWeight:500,marginTop:4}}>{user.role}</div>}
           {user.bio&&<div style={{background:BG2,borderRadius:13,padding:"14px 16px",marginTop:14,fontSize:15,color:LB2,lineHeight:1.6}}>{user.bio}</div>}
@@ -116,7 +110,7 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
 // ── MAIN USER APP ─────────────────────────────────────────────────────
 export default function UserApp({profile:init,session,onProfileUpdate}){
   const [profile,setProfile]             =useState(init);
-  const profileRef                       =useRef(init); // fix stale closure
+  const profileRef                       =useRef(init);
   const [tab,setTab]                     =useState("home");
   const [missions,setMissions]           =useState([]);
   const [myClaims,setMyClaims]           =useState([]);
@@ -126,76 +120,56 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const [prizes,setPrizes]               =useState([]);
   const [notifications,setNotifications] =useState([]);
   const [toast,setToast]                 =useState(null);
-  const [popupNotif,setPopupNotif]       =useState(null); // on-screen popup
+  const [popupNotif,setPopupNotif]       =useState(null);
   const [dmTarget,setDmTarget]           =useState(null);
   const [showNotif,setShowNotif]         =useState(false);
   const [viewingProfile,setViewingProfile]=useState(null);
   const [weather,setWeather]             =useState(null);
 
-  const syncProfile=u=>{
-    profileRef.current=u;
-    setProfile(u);
-    onProfileUpdate(u);
-  };
+  const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
 
   useEffect(()=>{
     loadAll();
     loadNotifications();
     fetchWeather();
-
-    // ── Realtime ──
     const ch=supabase.channel("user_rt_"+profile.id)
-      // Profile update → fetch fresh (fixes stale closure & gift points)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"profiles",filter:`id=eq.${profile.id}`},async()=>{
         const{data}=await supabase.from("profiles").select("*").eq("id",profile.id).single();
         if(data)syncProfile(data);
       })
-      // Announcement INSERT
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"announcements"},payload=>{
         if(payload.new)setAnnouncements(p=>{
-          const exists=p.find(a=>a.id===payload.new.id);
-          if(exists)return p;
-          const updated=[payload.new,...p].sort((a,b)=>b.pinned-a.pinned||(new Date(b.created_at)-new Date(a.created_at)));
-          return updated;
+          if(p.find(a=>a.id===payload.new.id))return p;
+          return[payload.new,...p].sort((a,b)=>b.pinned-a.pinned||(new Date(b.created_at)-new Date(a.created_at)));
         });
       })
-      // Announcement UPDATE (pin/unpin)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"announcements"},payload=>{
         if(payload.new)setAnnouncements(p=>p.map(a=>a.id===payload.new.id?payload.new:a));
       })
-      // Announcement DELETE → remove immediately
       .on("postgres_changes",{event:"DELETE",schema:"public",table:"announcements"},payload=>{
         if(payload.old?.id)setAnnouncements(p=>p.filter(a=>a.id!==payload.old.id));
       })
-      // New notification → show on-screen popup
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:`user_id=eq.${profile.id}`},payload=>{
         if(!payload.new)return;
         setNotifications(p=>[payload.new,...p]);
-        // Show on-screen notification popup
         setPopupNotif(payload.new);
         setTimeout(()=>setPopupNotif(null),5000);
-        // Browser push notification
         if("Notification" in window&&Notification.permission==="granted")
           new Notification(payload.new.title,{body:payload.new.body,icon:"/TECHWIDE_LOGO.png"});
       })
-      // Redemption update
       .on("postgres_changes",{event:"*",schema:"public",table:"redemptions",filter:`user_id=eq.${profile.id}`},()=>{
         supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});
       })
-      // Mission claims update
       .on("postgres_changes",{event:"*",schema:"public",table:"mission_claims",filter:`user_id=eq.${profile.id}`},()=>{
         supabase.from("mission_claims").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyClaims(data);});
       })
-      // New mission posted
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"missions"},payload=>{
         if(payload.new?.active)setMissions(p=>[...p,payload.new]);
       })
-      // Mission removed
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"missions"},payload=>{
         if(payload.new&&!payload.new.active)setMissions(p=>p.filter(m=>m.id!==payload.new.id));
       })
       .subscribe();
-
     const iv=setInterval(loadNotifications,60000);
     return()=>{clearInterval(iv);supabase.removeChannel(ch);};
   },[]);
@@ -204,16 +178,14 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
 
   const fetchWeather=()=>{
     if(!navigator.geolocation)return;
-    navigator.geolocation.getCurrentPosition(
-      async pos=>{
-        try{
-          const{latitude,longitude}=pos.coords;
-          const res=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`);
-          const data=await res.json();
-          if(data.current_weather)setWeather(data.current_weather);
-        }catch{}
-      },()=>{}
-    );
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      try{
+        const{latitude,longitude}=pos.coords;
+        const res=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`);
+        const data=await res.json();
+        if(data.current_weather)setWeather(data.current_weather);
+      }catch{}
+    },()=>{});
   };
 
   const loadAll=async()=>{
@@ -245,8 +217,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   };
 
   useEffect(()=>{
-    if("Notification" in window&&Notification.permission==="default")
-      Notification.requestPermission();
+    if("Notification" in window&&Notification.permission==="default")Notification.requestPermission();
   },[]);
 
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),2800);};
@@ -256,27 +227,39 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     if(profileRef.current.last_checkin===today){showToast("Already checked in today 😊");return;}
     const bonus=profileRef.current.streak>=7?100:profileRef.current.streak>=3?75:50;
     const streak=profileRef.current.streak+1;
-    await supabase.from("profiles").update({xp:profileRef.current.xp+bonus,streak,last_checkin:today}).eq("id",profile.id);
-    await supabase.from("points_history").insert({user_id:profile.id,amount:bonus,reason:`Daily check-in — ${streak} day streak`,type:"credit"}).catch(()=>{});
+    // Optimistic update first
     const updated={...profileRef.current,xp:profileRef.current.xp+bonus,streak,last_checkin:today};
     syncProfile(updated);
     setAllProfiles(p=>p.map(x=>x.id===profile.id?updated:x).sort((a,b)=>b.xp-a.xp));
     showToast(`+${bonus} pts  •  ${streak}-day streak 🔥`);
+    // Then save to DB
+    await supabase.from("profiles").update({xp:profileRef.current.xp,streak,last_checkin:today}).eq("id",profile.id);
+    await supabase.from("points_history").insert({user_id:profile.id,amount:bonus,reason:`Daily check-in — ${streak} day streak`,type:"credit"}).catch(()=>{});
   };
 
   const doRedeem=async prize=>{
-    const pts=prize.pts||prize.cost;
+    const pts=prize.pts||prize.cost||0;
     const cur=profileRef.current;
+    if(!pts||pts<=0){showToast("Invalid prize");return;}
     if(cur.xp<pts){showToast(`Need ${(pts-cur.xp).toLocaleString()} more pts`);return;}
     if((prize.stock||99)<1){showToast("Out of stock");return;}
-    await supabase.from("redemptions").insert({user_id:profile.id,prize_id:prize.id?.toString(),prize_name:prize.name,status:"Pending"});
-    await supabase.from("profiles").update({xp:cur.xp-pts}).eq("id",profile.id);
-    await supabase.from("points_history").insert({user_id:profile.id,amount:pts,reason:`Redeemed: ${prize.name}`,type:"debit"}).catch(()=>{});
-    if(prize.stock)await supabase.from("prizes").update({stock:prize.stock-1}).eq("id",prize.id);
-    syncProfile({...cur,xp:cur.xp-pts});
-    const{data}=await supabase.from("redemptions").select("*").eq("user_id",profile.id);
-    if(data)setMyRedemptions(data);
+    // Optimistic update
+    const newXp=cur.xp-pts;
+    syncProfile({...cur,xp:newXp});
     showToast(`${prize.name} redeemed! 🎉`);
+    // Save to DB
+    try{
+      await supabase.from("redemptions").insert({user_id:profile.id,prize_id:prize.id?.toString(),prize_name:prize.name,status:"Pending"});
+      await supabase.from("profiles").update({xp:newXp}).eq("id",profile.id);
+      await supabase.from("points_history").insert({user_id:profile.id,amount:pts,reason:`Redeemed: ${prize.name}`,type:"debit"}).catch(()=>{});
+      if(prize.stock!=null)await supabase.from("prizes").update({stock:Math.max(0,prize.stock-1)}).eq("id",prize.id);
+      const{data}=await supabase.from("redemptions").select("*").eq("user_id",profile.id);
+      if(data)setMyRedemptions(data);
+    }catch(err){
+      // Rollback on failure
+      syncProfile(cur);
+      showToast("Redemption failed — please try again");
+    }
   };
 
   const today=new Date().toISOString().split("T")[0];
@@ -292,7 +275,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const Row=({label,detail,badge,last,onPress})=>(
     <div onClick={onPress} className={onPress?"btn":""} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",background:BG2,borderBottom:last?"none":`1px solid ${SEP}`,cursor:onPress?"pointer":"default"}}>
       <div style={{flex:1}}>
-        <div style={{fontSize:17,color:LBL,letterSpacing:"-.3px"}}>{label}</div>
+        <div style={{fontSize:17,color:LBL}}>{label}</div>
         {detail&&<div style={{fontSize:13,color:LB3,marginTop:1}}>{detail}</div>}
       </div>
       {badge&&<div style={{background:ORG,color:"#fff",fontSize:12,fontWeight:600,padding:"2px 8px",borderRadius:99}}>{badge}</div>}
@@ -336,13 +319,12 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     );
   }
 
-  // ── Notifications panel ──
   function NotifPanel(){
     return(
       <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
         <div style={{background:BG,borderRadius:"20px 20px 0 0",maxHeight:"75vh",display:"flex",flexDirection:"column"}}>
           <div style={{padding:"16px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
-            <div style={{fontSize:18,fontWeight:700,color:LBL,letterSpacing:"-.4px"}}>Notifications</div>
+            <div style={{fontSize:18,fontWeight:700,color:LBL}}>Notifications</div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
               {unreadCount>0&&<button onClick={markAllRead} className="btn" style={{fontSize:13,color:ACC,fontWeight:600,background:`${ACC}10`,padding:"4px 10px",borderRadius:99,border:"none",cursor:"pointer",fontFamily:SF}}>Mark all read</button>}
               <button onClick={()=>setShowNotif(false)} className="btn" style={{background:"rgba(0,0,0,.07)",border:"none",borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:16,fontFamily:SF}}>✕</button>
@@ -366,40 +348,27 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     );
   }
 
-  // ── Home tab ──
   function HomeTab(){
-    const [now,setNow]              =useState(new Date());
+    const [now,setNow]=useState(new Date());
     const [showAllAnn,setShowAllAnn]=useState(false);
     useEffect(()=>{const iv=setInterval(()=>setNow(new Date()),1000);return()=>clearInterval(iv);},[]);
-    const DAYS  =["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
-    const pad   =n=>String(n).padStart(2,"0");
-    const hours =now.getHours();
-    const ampm  =hours>=12?"PM":"AM";
-    const h12   =hours%12||12;
+    const pad=n=>String(n).padStart(2,"0");
+    const hours=now.getHours();const ampm=hours>=12?"PM":"AM";const h12=hours%12||12;
     const timeStr=`${pad(h12)}:${pad(now.getMinutes())} ${ampm}`;
     const dateStr=`${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
-
     return(
       <div style={{padding:"0 16px 12px"}}>
-        {/* Date/Time/Weather */}
         <div className="fade" style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:14,padding:"14px 18px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginBottom:3}}>{dateStr}</div>
             <div style={{fontSize:36,fontWeight:700,color:"#fff",letterSpacing:1,fontVariantNumeric:"tabular-nums"}}>{timeStr}</div>
           </div>
           <div style={{textAlign:"center",minWidth:64}}>
-            {weather?(
-              <>
-                <div style={{fontSize:34,lineHeight:1}}>{WX_ICON(weather.weathercode)}</div>
-                <div style={{fontSize:20,fontWeight:700,color:"#fff",marginTop:4}}>{Math.round(weather.temperature)}°C</div>
-                <div style={{fontSize:10,color:"rgba(255,255,255,.5)",marginTop:2}}>{WX_DESC(weather.weathercode)}</div>
-              </>
-            ):<div style={{fontSize:28,opacity:.3}}>🌡️</div>}
+            {weather?(<><div style={{fontSize:34,lineHeight:1}}>{WX_ICON(weather.weathercode)}</div><div style={{fontSize:20,fontWeight:700,color:"#fff",marginTop:4}}>{Math.round(weather.temperature)}°C</div><div style={{fontSize:10,color:"rgba(255,255,255,.5)",marginTop:2}}>{WX_DESC(weather.weathercode)}</div></>):<div style={{fontSize:28,opacity:.3}}>🌡️</div>}
           </div>
         </div>
-
-        {/* Hero */}
         <div className="fade" style={{background:`linear-gradient(145deg,${ACC},#0e2140)`,borderRadius:18,padding:20,marginBottom:8,position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:`${ORG}15`,pointerEvents:"none"}}/>
           <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
@@ -429,8 +398,6 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </div>
           </div>
         </div>
-
-        {/* Tier */}
         <div className="fade" style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,borderLeft:`3px solid ${tier.color}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <div style={{fontSize:12,color:LB3,fontWeight:700,letterSpacing:".4px",textTransform:"uppercase"}}>Contribution Tier</div>
@@ -450,16 +417,11 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             })}
           </div>
         </div>
-
-        {/* Check-in */}
         <div className="fade" style={{background:BG2,borderRadius:13,padding:16,marginBottom:8}}>
           {checkedIn?(
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:40,height:40,borderRadius:"50%",background:"#34c75920",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>✅</div>
-              <div>
-                <div style={{fontSize:17,color:LBL,fontWeight:500}}>Checked in today</div>
-                <div style={{fontSize:14,color:LB3,marginTop:1}}>{profile.streak}-day streak 🔥</div>
-              </div>
+              <div><div style={{fontSize:17,color:LBL,fontWeight:500}}>Checked in today</div><div style={{fontSize:14,color:LB3,marginTop:1}}>{profile.streak}-day streak 🔥</div></div>
             </div>
           ):(
             <>
@@ -469,8 +431,6 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </>
           )}
         </div>
-
-        {/* Stats */}
         <div className="fade" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
           {[{l:"Points",v:profile.xp.toLocaleString(),e:"⚡"},{l:"Streak",v:`${profile.streak}d`,e:"🔥"},{l:"Missions",v:completedCount,e:"✅"}].map((s,i)=>(
             <div key={i} style={{background:BG2,borderRadius:13,padding:"13px 10px",textAlign:"center"}}>
@@ -480,18 +440,11 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </div>
           ))}
         </div>
-
-        {/* Announcements */}
         {announcements.length>0&&(
           <div className="fade">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"12px 4px 8px"}}>
               <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>📢 Announcements</div>
-              {announcements.length>2&&(
-                <button onClick={()=>setShowAllAnn(p=>!p)} className="btn"
-                  style={{fontSize:13,color:ACC,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>
-                  {showAllAnn?"Show Less":"See All"}
-                </button>
-              )}
+              {announcements.length>2&&<button onClick={()=>setShowAllAnn(p=>!p)} className="btn" style={{fontSize:13,color:ACC,fontWeight:600,background:"none",border:"none",cursor:"pointer",fontFamily:SF}}>{showAllAnn?"Show Less":"See All"}</button>}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {(showAllAnn?announcements:announcements.slice(0,2)).map(a=>(
@@ -505,8 +458,6 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </div>
           </div>
         )}
-
-        {/* Pending rewards */}
         {myRedemptions.filter(r=>r.status==="Pending").length>0&&(
           <div className="fade" style={{marginTop:8}}>
             <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"12px 4px 8px"}}>Pending Rewards</div>
@@ -544,7 +495,8 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       {/* Header */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px 10px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:9}}>
+          {/* Logo + name → go home on tap */}
+          <div onClick={()=>setTab("home")} style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer"}} className="btn">
             <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:30,height:30,borderRadius:7,objectFit:"cover"}}/>
             <div style={{fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px"}}>Techwide Hub</div>
           </div>
@@ -553,9 +505,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             <button onClick={()=>setShowNotif(true)} className="btn" style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:4}}>
               <span style={{fontSize:20}}>🔔</span>
               {unreadCount>0&&(
-                <div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>
-                  {unreadCount}
-                </div>
+                <div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadCount}</div>
               )}
             </button>
             <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>Out</button>

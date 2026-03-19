@@ -17,40 +17,36 @@ function addRipple(e){
   el.appendChild(dot);setTimeout(()=>dot.remove(),500);
 }
 
-// ── Auto-generate prize icon from name ───────────────────────────────
 const autoIcon=name=>{
-  const n=name.toLowerCase();
+  const n=(name||"").toLowerCase();
   if(n.includes("bubble")||n.includes("boba")||n.includes("teh tarik"))return"🧋";
-  if(n.includes("netflix")||n.includes("disney")||n.includes("movie")||n.includes("film"))return"🎬";
-  if(n.includes("grab")||n.includes("ride")||n.includes("taxi")||n.includes("uber"))return"🚗";
-  if(n.includes("food")||n.includes("makan")||n.includes("lunch")||n.includes("dinner")||n.includes("meal"))return"🍽️";
-  if(n.includes("spotify")||n.includes("music")||n.includes("song"))return"🎵";
-  if(n.includes("spa")||n.includes("massage")||n.includes("relax"))return"💆";
-  if(n.includes("leave")||n.includes("holiday")||n.includes("off day")||n.includes("wfh")||n.includes("work from home"))return"📅";
-  if(n.includes("airpod")||n.includes("earphone")||n.includes("headphone")||n.includes("earbuds"))return"🎧";
-  if(n.includes("cash")||n.includes("money")||n.includes("rm")||n.includes("ringgit")||n.includes("duit"))return"💰";
-  if(n.includes("tng")||n.includes("touch n go")||n.includes("ewallet")||n.includes("e-wallet"))return"💳";
-  if(n.includes("voucher")||n.includes("coupon")||n.includes("discount"))return"🎫";
-  if(n.includes("birthday")||n.includes("cake")||n.includes("celebrate"))return"🎂";
-  if(n.includes("phone")||n.includes("mobile")||n.includes("smartphone"))return"📱";
-  if(n.includes("laptop")||n.includes("computer")||n.includes("mac"))return"💻";
-  if(n.includes("bag")||n.includes("handbag")||n.includes("backpack"))return"👜";
-  if(n.includes("shirt")||n.includes("cloth")||n.includes("fashion")||n.includes("baju"))return"👕";
-  if(n.includes("watch")||n.includes("jam"))return"⌚";
-  if(n.includes("coffee")||n.includes("kopi")||n.includes("cafe"))return"☕";
-  if(n.includes("pizza")||n.includes("burger")||n.includes("mcd")||n.includes("kfc")||n.includes("fast food"))return"🍟";
-  if(n.includes("book")||n.includes("read")||n.includes("novel"))return"📚";
-  if(n.includes("gym")||n.includes("fitness")||n.includes("sport")||n.includes("exercise"))return"🏋️";
-  if(n.includes("travel")||n.includes("trip")||n.includes("flight")||n.includes("percutian"))return"✈️";
-  if(n.includes("hotel")||n.includes("resort")||n.includes("stay"))return"🏨";
-  if(n.includes("shopee")||n.includes("lazada")||n.includes("amazon")||n.includes("shopping"))return"🛍️";
-  if(n.includes("petrol")||n.includes("fuel")||n.includes("petronas")||n.includes("shell"))return"⛽";
-  if(n.includes("game")||n.includes("gaming")||n.includes("steam"))return"🎮";
-  if(n.includes("parking"))return"🅿️";
+  if(n.includes("netflix")||n.includes("disney")||n.includes("movie"))return"🎬";
+  if(n.includes("grab")&&!n.includes("food"))return"🚗";
+  if(n.includes("food")||n.includes("makan")||n.includes("meal")||n.includes("grab food"))return"🍽️";
+  if(n.includes("spotify")||n.includes("music"))return"🎵";
+  if(n.includes("spa")||n.includes("massage"))return"💆";
+  if(n.includes("leave")||n.includes("off day"))return"📅";
+  if(n.includes("wfh")||n.includes("work from home"))return"🏠";
+  if(n.includes("airpod")||n.includes("earphone")||n.includes("headphone"))return"🎧";
+  if(n.includes("cash")||n.includes("money")||n.includes("rm")||n.includes("ringgit"))return"💰";
+  if(n.includes("tng")||n.includes("touch n go")||n.includes("ewallet"))return"💳";
+  if(n.includes("voucher")||n.includes("coupon"))return"🎫";
+  if(n.includes("birthday")||n.includes("cake"))return"🎂";
+  if(n.includes("phone")||n.includes("mobile"))return"📱";
+  if(n.includes("laptop")||n.includes("computer"))return"💻";
+  if(n.includes("coffee")||n.includes("kopi"))return"☕";
+  if(n.includes("pizza")||n.includes("burger")||n.includes("mcd")||n.includes("kfc"))return"🍟";
+  if(n.includes("book")||n.includes("read"))return"📚";
+  if(n.includes("gym")||n.includes("fitness"))return"🏋️";
+  if(n.includes("travel")||n.includes("flight"))return"✈️";
+  if(n.includes("hotel")||n.includes("resort"))return"🏨";
+  if(n.includes("shopee")||n.includes("lazada")||n.includes("shopping"))return"🛍️";
+  if(n.includes("petrol")||n.includes("fuel"))return"⛽";
+  if(n.includes("game")||n.includes("gaming"))return"🎮";
   if(n.includes("sushi")||n.includes("japanese")||n.includes("korean"))return"🍱";
-  if(n.includes("bundle")||n.includes("kit")||n.includes("pack")||n.includes("set"))return"📦";
-  if(n.includes("star")||n.includes("gold")||n.includes("premium"))return"⭐";
+  if(n.includes("bundle")||n.includes("pack")||n.includes("set"))return"📦";
   if(n.includes("dinner")||n.includes("lunch")||n.includes("team"))return"🍽️";
+  if(n.includes("star")||n.includes("gold")||n.includes("premium"))return"⭐";
   return"🎁";
 };
 
@@ -77,7 +73,7 @@ function GiftPointsTab({allProfiles,onGift}){
           <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:260,overflowY:"auto"}}>
             {allProfiles.map(p=>(
               <button key={p.id} onClick={()=>setToId(p.id)}
-                style={{display:"flex",alignItems:"center",gap:12,padding:"12px 12px",background:toId===p.id?`${ACC}14`:"rgba(0,0,0,.04)",border:toId===p.id?`2px solid ${ACC}`:"2px solid transparent",borderRadius:12,cursor:"pointer",fontFamily:SF,textAlign:"left",transition:"all .15s"}}>
+                style={{display:"flex",alignItems:"center",gap:12,padding:"12px",background:toId===p.id?`${ACC}14`:"rgba(0,0,0,.04)",border:toId===p.id?`2px solid ${ACC}`:"2px solid transparent",borderRadius:12,cursor:"pointer",fontFamily:SF,textAlign:"left",transition:"all .15s"}}>
                 <div style={{width:44,height:44,borderRadius:"50%",background:p.avatar_url?`url(${p.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0}}>
                   {!p.avatar_url&&(p.avatar||"?")}
                 </div>
@@ -112,7 +108,7 @@ function GiftPointsTab({allProfiles,onGift}){
       </div>
       <button onClick={send} disabled={!toId||!points||!reason.trim()||sending}
         className="btn-primary ripple-container" onPointerDown={addRipple}
-        style={{width:"100%",background:(!toId||!points||!reason.trim()||sending)?"#e5e5ea":ORG,color:(!toId||!points||!reason.trim()||sending)?LB3:"#fff",border:"none",borderRadius:14,padding:"18px",fontSize:18,fontWeight:700,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:40}}>
+        style={{width:"100%",background:(!toId||!points||!reason.trim()||sending)?"#e5e5ea":ORG,color:(!toId||!points||!reason.trim()||sending)?LB3:"#fff",border:"none",borderRadius:14,padding:"18px",fontSize:18,fontWeight:700,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
         {sending&&<div style={{width:20,height:20,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
         {sending?"Sending Gift…":`🎁 Gift ${points} pts`}
       </button>
@@ -121,7 +117,7 @@ function GiftPointsTab({allProfiles,onGift}){
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────
-function DashTab({allProfiles,totalPending,pendingVerif,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,calcScore}){
+function DashTab({allProfiles,totalPending,pendingVerif,today}){
   const staff=allProfiles.filter(p=>!p.is_admin);
   const checkedIn=staff.filter(p=>p.last_checkin===today).length;
   const Av=({p,size=44})=>(
@@ -189,7 +185,7 @@ function DashTab({allProfiles,totalPending,pendingVerif,today,ACC,ORG,BG,BG2,SEP
 }
 
 // ── STAFF ─────────────────────────────────────────────────────────────
-function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,calcScore,formatContact}){
+function StaffTab({allProfiles,today}){
   const [view,setView]=useState("list");
   const [selected,setSelected]=useState(null);
   const staff=allProfiles.filter(p=>!p.is_admin);
@@ -198,13 +194,12 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
       {!p?.avatar_url&&(p?.avatar||"?")}
     </div>
   );
-
   if(selected){
     const age=selected.birthday_verified&&selected.birthday?new Date().getFullYear()-new Date(selected.birthday).getFullYear():null;
     const days=selected.joined_date_verified&&selected.joined_date?Math.floor((Date.now()-new Date(selected.joined_date))/86400000):null;
     return(
       <div className="page-enter-forward" style={{position:"fixed",inset:0,background:BG,zIndex:100,overflowY:"auto",fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
-        <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px",position:"sticky",top:0,zIndex:10,display:"flex",alignItems:"center",gap:12}}>
+        <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px",position:"sticky",top:0,zIndex:10,display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>setSelected(null)} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:ACC,fontWeight:700,padding:0,fontFamily:SF}}>← Back</button>
           <div style={{flex:1,fontSize:18,fontWeight:700,color:LBL}}>{selected.name}</div>
         </div>
@@ -256,7 +251,6 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
       </div>
     );
   }
-
   return(
     <div style={{padding:"0 16px 40px"}}>
       <div className="fade" style={{display:"flex",gap:10,marginBottom:16}}>
@@ -327,7 +321,7 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
 }
 
 // ── APPROVALS ─────────────────────────────────────────────────────────
-function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onApproveRedemption,onApproveVerification,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
+function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onApproveRedemption,onApproveVerification}){
   const [sec,setSec]=useState("missions");
   const pending=submissions.filter(s=>s.status==="Pending");
   const reviewed=submissions.filter(s=>s.status!=="Pending");
@@ -349,7 +343,6 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
           </button>
         ))}
       </div>
-
       {sec==="missions"&&(
         <>
           {pending.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:17}}>All clear! 🎉</div>}
@@ -370,13 +363,9 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
               <div style={{fontSize:13,color:LB3,marginBottom:14}}>{new Date(sub.submitted_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}</div>
               <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>onApproveSubmission(sub,false)} className="btn"
-                  style={{flex:1,padding:"14px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
-                  Reject
-                </button>
+                  style={{flex:1,padding:"14px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Reject</button>
                 <button onClick={()=>onApproveSubmission(sub,true)} className="btn-primary ripple-container" onPointerDown={addRipple}
-                  style={{flex:2,padding:"14px",background:"#34c759",color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
-                  Approve ✓
-                </button>
+                  style={{flex:2,padding:"14px",background:"#34c759",color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Approve ✓</button>
               </div>
             </div>
           ))}
@@ -395,7 +384,6 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
           )}
         </>
       )}
-
       {sec==="redemptions"&&(
         <>
           {pendReds.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:17}}>No pending redemptions 🎉</div>}
@@ -427,7 +415,6 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
           )}
         </>
       )}
-
       {sec==="verif"&&(
         <>
           {pendVerif.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:LB3,fontSize:17}}>No pending verifications 🎉</div>}
@@ -447,13 +434,9 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
               <div style={{fontSize:13,color:LB3,marginBottom:14}}>{new Date(req.submitted_at).toLocaleDateString("en-MY",{day:"numeric",month:"short"})}</div>
               <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>onApproveVerification(req,false)} className="btn"
-                  style={{flex:1,padding:"14px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
-                  Reject
-                </button>
+                  style={{flex:1,padding:"14px",background:"#ff3b3012",color:"#ff3b30",border:"1px solid #ff3b3030",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Reject</button>
                 <button onClick={()=>onApproveVerification(req,true)} className="btn-primary ripple-container" onPointerDown={addRipple}
-                  style={{flex:2,padding:"14px",background:"#34c759",color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
-                  Verify ✓
-                </button>
+                  style={{flex:2,padding:"14px",background:"#34c759",color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Verify ✓</button>
               </div>
             </div>
           ))}
@@ -477,29 +460,22 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
 }
 
 // ── CONTENT ───────────────────────────────────────────────────────────
-function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDeleteMission,onAddAnn,onDeleteAnn,onTogglePin,onAddPrize,onGift,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
+function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDeleteMission,onAddAnn,onDeleteAnn,onTogglePin,onAddPrize,onGift}){
   const [sec,setSec]=useState("missions");
   const [mForm,setMForm]=useState({title:"",description:"",xp:150,category:"",due_date:null,completion_type:"once_per_user",max_completions:1});
   const [aForm,setAForm]=useState({title:"",body:"",pinned:false});
   const [pForm,setPForm]=useState({name:"",cost:500,stock:10,icon:"",category:"Cash",desc:""});
   const canAddMission=mForm.title.trim()&&mForm.category&&mForm.due_date;
-
-  // Auto-update prize icon when name changes
-  const handlePrizeName=name=>{
-    const icon=autoIcon(name);
-    setPForm(p=>({...p,name,icon}));
-  };
-
+  const handlePrizeName=name=>{setPForm(p=>({...p,name,icon:autoIcon(name)}));};
   const COMPLETION_TYPES=[
     {value:"once_per_user",label:"Once Per User",desc:"Each user can complete once"},
     {value:"unlimited",    label:"Unlimited",    desc:"Users can complete multiple times"},
     {value:"once_total",   label:"Once Total",   desc:"Only one user can complete it"},
   ];
-
   return(
     <div style={{padding:"0 16px 16px"}}>
       <div className="fade" style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto"}}>
-        {[["missions","🎯 Missions"],["announcements","📢 Announcements"],["prizes","🎁 Prizes"],["gifts","💝 Gift"]].map(([id,label])=>(
+        {[["missions","🎯 Missions"],["announcements","📢 Announce"],["prizes","🎁 Prizes"],["gifts","💝 Gift"]].map(([id,label])=>(
           <button key={id} onClick={()=>setSec(id)} className="btn"
             style={{flexShrink:0,padding:"11px 14px",background:sec===id?ACC:"rgba(0,0,0,.06)",color:sec===id?"#fff":LB2,border:"none",borderRadius:14,fontSize:14,fontWeight:sec===id?700:400,cursor:"pointer",fontFamily:SF}}>
             {label}
@@ -507,7 +483,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
         ))}
       </div>
 
-      {/* ── MISSIONS ── */}
       {sec==="missions"&&(
         <>
           <div style={{fontSize:14,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,margin:"0 4px 10px"}}>➕ Post Campaign Mission</div>
@@ -538,7 +513,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
               <input value={mForm.xp} onChange={e=>setMForm(p=>({...p,xp:e.target.value}))} placeholder="150" type="number"
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:18,color:LBL,fontFamily:SF}}/>
             </div>
-            {/* Completion Type */}
             <div style={{padding:"14px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,marginBottom:10}}>Completion Limit</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -555,13 +529,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                   </button>
                 ))}
               </div>
-              {mForm.completion_type==="once_total"&&(
-                <div style={{marginTop:12}}>
-                  <div style={{fontSize:13,color:LB3,marginBottom:6}}>Max completions across all users</div>
-                  <input value={mForm.max_completions} onChange={e=>setMForm(p=>({...p,max_completions:+e.target.value}))} type="number" min="1"
-                    style={{width:"100%",background:"rgba(0,0,0,.04)",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF,borderRadius:12,padding:"12px 14px"}}/>
-                </div>
-              )}
             </div>
             <div style={{padding:"14px 16px"}}>
               <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,marginBottom:8}}>Due Date <span style={{color:"#ff3b30"}}>*</span></div>
@@ -598,12 +565,9 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                   <div style={{flex:1}}>
                     <div style={{fontSize:16,color:LBL,fontWeight:600}}>{m.title}</div>
                     <div style={{fontSize:13,color:LB3,marginTop:3}}>{m.category} · {m.xp} pts · {ct}{m.due_date?` · Due ${fmtDate(m.due_date)}`:""}</div>
-                    {m.completion_type==="once_total"&&<div style={{fontSize:12,color:ACC,marginTop:2,fontWeight:600}}>Completions: {m.completion_count||0}/{m.max_completions}</div>}
                   </div>
                   <button onClick={()=>onDeleteMission(m.id)} className="btn"
-                    style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:10,padding:"8px 12px",fontSize:14,cursor:"pointer",fontFamily:SF,flexShrink:0}}>
-                    Remove
-                  </button>
+                    style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:10,padding:"8px 12px",fontSize:14,cursor:"pointer",fontFamily:SF,flexShrink:0}}>Remove</button>
                 </div>
               );
             })}
@@ -611,7 +575,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
         </>
       )}
 
-      {/* ── ANNOUNCEMENTS ── */}
       {sec==="announcements"&&(
         <>
           <div style={{fontSize:14,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,margin:"0 4px 10px"}}>📢 Post Announcement</div>
@@ -661,7 +624,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
         </>
       )}
 
-      {/* ── PRIZES ── */}
       {sec==="prizes"&&(
         <>
           <div style={{fontSize:14,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,margin:"0 4px 10px"}}>🎁 Add Prize</div>
@@ -670,7 +632,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
               <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,marginBottom:8}}>Prize Name</div>
               <input value={pForm.name} onChange={e=>handlePrizeName(e.target.value)} placeholder="e.g. Bubble Tea Voucher"
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:18,color:LBL,fontFamily:SF}}/>
-              {pForm.icon&&<div style={{fontSize:13,color:ACC,marginTop:6,fontWeight:600}}>Auto icon: {pForm.icon}</div>}
+              {pForm.name&&<div style={{fontSize:13,color:ACC,marginTop:5,fontWeight:600}}>Auto icon: {pForm.icon||autoIcon(pForm.name)}</div>}
             </div>
             <div style={{padding:"14px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:700,marginBottom:8}}>Description</div>
@@ -728,7 +690,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
 }
 
 // ── COMMUNITY (Monitor Only) ──────────────────────────────────────────
-function CommunityTab({profile,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
+function CommunityTab(){
   const [messages,setMessages]=useState([]);
   const bottomRef=useRef(null);
   useEffect(()=>{
@@ -827,12 +789,18 @@ export default function AdminApp({profile,onProfileUpdate}){
   const pendingVerifCount=verifReqs.filter(v=>v.status==="Pending").length;
   const totalPending=pendingSubs+pendingReds+pendingVerifCount;
 
+  // ── Notify all staff — fixed, no .catch() ──
   const notifyAll=async(title,body,type="info")=>{
     const nonAdmins=allProfiles.filter(p=>!p.is_admin);
     if(nonAdmins.length===0)return;
-    await supabase.from("notifications").insert(nonAdmins.map(p=>({user_id:p.id,title,body,type}))).catch(()=>{});
+    try{
+      await supabase.from("notifications").insert(
+        nonAdmins.map(p=>({user_id:p.id,title,body,type}))
+      );
+    }catch(e){console.warn("notifyAll error:",e);}
   };
 
+  // ── Approve mission ──
   const approveSubmission=async(sub,approve)=>{
     const status=approve?"Approved":"Rejected";
     setSubmissions(p=>p.map(s=>s.id===sub.id?{...s,status}:s));
@@ -845,38 +813,47 @@ export default function AdminApp({profile,onProfileUpdate}){
       if(prof){
         setAllProfiles(p=>p.map(x=>x.id===sub.user_id?{...x,xp:newXp}:x));
         await supabase.from("profiles").update({xp:newXp}).eq("id",sub.user_id);
-        await supabase.from("points_history").insert({user_id:sub.user_id,amount:pts,reason:`Mission completed: ${sub.missions?.title}`,type:"credit"}).catch(()=>{});
+        try{ await supabase.from("points_history").insert({user_id:sub.user_id,amount:pts,reason:`Mission completed: ${sub.missions?.title}`,type:"credit"}); }catch(e){ console.warn(e); }
       }
-      // Increment completion count for once_total missions
-      await supabase.from("missions").update({completion_count:supabase.raw("completion_count + 1")}).eq("id",sub.mission_id).catch(()=>{});
+      // Increment completion count
+      try{
+        const{data:mc}=await supabase.from("missions").select("completion_count").eq("id",sub.mission_id).single();
+        if(mc)await supabase.from("missions").update({completion_count:(mc.completion_count||0)+1}).eq("id",sub.mission_id);
+      }catch(e){ console.warn(e); }
       const annTitle=`🎯 ${prof?.nickname||prof?.name} completed a mission!`;
       const annBody=`${prof?.nickname||prof?.name} successfully completed "${sub.missions?.title}" and earned ${pts} pts!`;
-      const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
-      if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      try{
+        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
+        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      }catch(e){ console.warn(e); }
       await notifyAll(annTitle,annBody,"mission");
-      await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`+${pts} pts added for completing "${sub.missions?.title}"`,type:"approval"});
+      try{ await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`+${pts} pts added for completing "${sub.missions?.title}"`,type:"approval"}); }catch(e){ console.warn(e); }
     } else {
-      await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Not Approved",body:`Your submission for "${sub.missions?.title}" was rejected. Please review and try again.`,type:"rejection"});
+      try{ await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Not Approved",body:`Your submission for "${sub.missions?.title}" was rejected. Please review and try again.`,type:"rejection"}); }catch(e){ console.warn(e); }
     }
     showToast(approve?"✅ Approved! Points awarded.":"❌ Rejected.");
   };
 
+  // ── Approve redemption ──
   const approveRedemption=async id=>{
     setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
     const red=redemptions.find(r=>r.id===id);
     await supabase.from("redemptions").update({status:"Approved"}).eq("id",id);
     if(red){
-      await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"});
+      try{ await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"}); }catch(e){ console.warn(e); }
       const prof=allProfiles.find(p=>p.id===red.user_id);
       const annTitle=`🎁 ${prof?.nickname||prof?.name} redeemed a prize!`;
       const annBody=`${prof?.nickname||prof?.name} just received "${red.prize_name}". Congratulations! 🎉`;
-      const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
-      if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      try{
+        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
+        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      }catch(e){ console.warn(e); }
       await notifyAll(annTitle,annBody,"redemption");
     }
     showToast("✅ Prize delivered!");
   };
 
+  // ── Approve verification ──
   const approveVerification=async(req,approve)=>{
     setVerifReqs(p=>p.map(v=>v.id===req.id?{...v,status:approve?"Approved":"Rejected"}:v));
     await supabase.from("verification_requests").update({status:approve?"Approved":"Rejected",reviewed_at:new Date().toISOString()}).eq("id",req.id);
@@ -891,32 +868,49 @@ export default function AdminApp({profile,onProfileUpdate}){
       setAllProfiles(p=>p.map(x=>x.id===req.user_id?{...x,...update}:x));
       await supabase.from("profiles").update(update).eq("id",req.user_id);
       const fieldLabel={"ic_number":"IC Number","epf_number":"EPF Number","bank_account":"Bank Account","position":"Position","joined_date":"Joining Date","birthday":"Birthday"}[req.field_name]||req.field_name;
-      await supabase.from("notifications").insert({user_id:req.user_id,title:"✅ Information Verified!",body:`Your ${fieldLabel} has been verified and updated.`,type:"verification"});
+      try{ await supabase.from("notifications").insert({user_id:req.user_id,title:"✅ Information Verified!",body:`Your ${fieldLabel} has been verified and updated.`,type:"verification"}); }catch(e){ console.warn(e); }
     } else {
       const fieldLabel={"ic_number":"IC Number","epf_number":"EPF Number","bank_account":"Bank Account","position":"Position","joined_date":"Joining Date","birthday":"Birthday"}[req.field_name]||req.field_name;
-      await supabase.from("notifications").insert({user_id:req.user_id,title:"❌ Verification Failed",body:`Your ${fieldLabel} could not be verified. Please check and resubmit.`,type:"rejection"});
+      try{ await supabase.from("notifications").insert({user_id:req.user_id,title:"❌ Verification Failed",body:`Your ${fieldLabel} could not be verified. Please check and resubmit.`,type:"rejection"}); }catch(e){ console.warn(e); }
     }
     showToast(approve?"✅ Verified!":"❌ Rejected.");
   };
 
-  // ── Gift Points — Fixed ──
+  // ── Gift Points — fully fixed, no .catch() ──
   const giftPoints=async(toId,points,reason)=>{
     const recipient=allProfiles.find(p=>p.id===toId);
-    if(!recipient){showToast("❌ Staff member not found");return;}
+    if(!recipient){showToast("❌ Staff not found");return;}
     try{
       const newXp=(recipient.xp||0)+points;
+      // 1. Update DB
       const{error:updateErr}=await supabase.from("profiles").update({xp:newXp}).eq("id",toId);
-      if(updateErr)throw updateErr;
+      if(updateErr)throw new Error(updateErr.message);
+      // 2. Update local state
       setAllProfiles(p=>p.map(x=>x.id===toId?{...x,xp:newXp}:x));
-      await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"}).catch(()=>{});
-      await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason}).catch(()=>{});
+      // 3. Points history
+      try{ await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"}); }catch(e){ console.warn("points_history:",e); }
+      // 4. Gift log
+      try{ await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason}); }catch(e){ console.warn("point_gifts:",e); }
+      // 5. Announcement
       const annTitle=`🎁 ${recipient.nickname||recipient.name} received a gift!`;
       const annBody=`${recipient.nickname||recipient.name} has been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`;
-      const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();
-      if(newAnn)setAnnouncements(p=>[newAnn,...p]);
-      await supabase.from("notifications").insert({user_id:toId,title:"🎁 You received a gift!",body:`You've been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`,type:"gift"});
+      try{
+        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();
+        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      }catch(e){ console.warn("announcement:",e); }
+      // 6. Notify recipient — triggers live popup
+      const{error:notifErr}=await supabase.from("notifications").insert({
+        user_id:toId,
+        title:"🎁 You received a gift!",
+        body:`You've been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`,
+        type:"gift",
+      });
+      if(notifErr)console.warn("notif recipient:",notifErr.message);
+      // 7. Notify others
       const others=allProfiles.filter(p=>!p.is_admin&&p.id!==toId);
-      if(others.length>0)await supabase.from("notifications").insert(others.map(p=>({user_id:p.id,title:annTitle,body:annBody,type:"gift"}))).catch(()=>{});
+      if(others.length>0){
+        try{ await supabase.from("notifications").insert(others.map(p=>({user_id:p.id,title:annTitle,body:annBody,type:"gift"}))); }catch(e){ console.warn("notif others:",e); }
+      }
       showToast(`🎁 Gifted ${points} pts to ${recipient.name}!`);
     }catch(err){
       console.error("Gift error:",err);
@@ -931,21 +925,42 @@ export default function AdminApp({profile,onProfileUpdate}){
       const ct=mForm.completion_type==="once_total"?"Only 1 winner!":mForm.completion_type==="unlimited"?"Unlimited completions":"Once per user";
       const annTitle=`🎯 New Mission: ${mForm.title}`;
       const annBody=`A new campaign mission is live!\n\n"${mForm.title}"\nEarn ${mForm.xp} pts | ${ct}\nDue: ${fmtDate(mForm.due_date)}`;
-      const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
-      if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      try{
+        const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
+        if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      }catch(e){ console.warn(e); }
       await notifyAll(annTitle,annBody,"mission");
     }
     showToast("Campaign mission posted ✅");
   };
 
-  const deleteMission=async id=>{setMissions(p=>p.filter(m=>m.id!==id));await supabase.from("missions").update({active:false}).eq("id",id);showToast("Mission removed");};
+  const deleteMission=async id=>{
+    setMissions(p=>p.filter(m=>m.id!==id));
+    await supabase.from("missions").update({active:false}).eq("id",id);
+    showToast("Mission removed");
+  };
+
   const addAnn=async(aForm)=>{
     const{data}=await supabase.from("announcements").insert({...aForm,author:"Admin"}).select().single();
-    if(data){setAnnouncements(p=>[data,...p]);await notifyAll(`📢 ${aForm.title}`,aForm.body||"","announcement");}
+    if(data){
+      setAnnouncements(p=>[data,...p]);
+      await notifyAll(`📢 ${aForm.title}`,aForm.body||"","announcement");
+    }
     showToast("Announcement posted ✅");
   };
-  const deleteAnn=async id=>{setAnnouncements(p=>p.filter(a=>a.id!==id));await supabase.from("announcements").delete().eq("id",id);showToast("Deleted");};
-  const togglePin=async ann=>{const pinned=!ann.pinned;setAnnouncements(p=>p.map(a=>a.id===ann.id?{...a,pinned}:a));await supabase.from("announcements").update({pinned}).eq("id",ann.id);};
+
+  const deleteAnn=async id=>{
+    setAnnouncements(p=>p.filter(a=>a.id!==id));
+    await supabase.from("announcements").delete().eq("id",id);
+    showToast("Deleted");
+  };
+
+  const togglePin=async ann=>{
+    const pinned=!ann.pinned;
+    setAnnouncements(p=>p.map(a=>a.id===ann.id?{...a,pinned}:a));
+    await supabase.from("announcements").update({pinned}).eq("id",ann.id);
+  };
+
   const addPrize=async(pForm)=>{
     const icon=pForm.icon||autoIcon(pForm.name);
     const{data}=await supabase.from("prizes").insert({...pForm,icon,cost:+pForm.cost,stock:+pForm.stock,active:true}).select().single();
@@ -963,7 +978,6 @@ export default function AdminApp({profile,onProfileUpdate}){
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
-      {/* Header — only logo + name + tab title */}
       <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -981,16 +995,14 @@ export default function AdminApp({profile,onProfileUpdate}){
         </div>
       </div>
 
-      {/* Content */}
       <div style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}>
-        {tab==="dash"&&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF} getTier={getTier} calcScore={calcScore}/>}
-        {tab==="staff"&&<StaffTab allProfiles={allProfiles} today={today} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF} getTier={getTier} calcScore={calcScore} formatContact={formatContact}/>}
-        {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
-        {tab==="content"&&<ContentTab missions={missions} announcements={announcements} prizes={prizes} allProfiles={staff} onAddMission={addMission} onDeleteMission={deleteMission} onAddAnn={addAnn} onDeleteAnn={deleteAnn} onTogglePin={togglePin} onAddPrize={addPrize} onGift={giftPoints} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
-        {tab==="community"&&<CommunityTab profile={profile} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
+        {tab==="dash"&&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today}/>}
+        {tab==="staff"&&<StaffTab allProfiles={allProfiles} today={today}/>}
+        {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification}/>}
+        {tab==="content"&&<ContentTab missions={missions} announcements={announcements} prizes={prizes} allProfiles={staff} onAddMission={addMission} onDeleteMission={deleteMission} onAddAnn={addAnn} onDeleteAnn={deleteAnn} onTogglePin={togglePin} onAddPrize={addPrize} onGift={giftPoints}/>}
+        {tab==="community"&&<CommunityTab/>}
       </div>
 
-      {/* Tab bar — bigger, more padding */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} className="tab-btn"

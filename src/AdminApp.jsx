@@ -1,8 +1,6 @@
-import{useState,useEffect,useRef,useCallback}from"react";
+import{useState,useEffect,useRef}from"react";
 import{supabase}from"./supabaseClient";
 import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}from"./constants";
-
-// ── All tab components defined OUTSIDE AdminApp to prevent remount ────
 
 // ── GIFT POINTS ───────────────────────────────────────────────────────
 function GiftPointsTab({allProfiles,onGift}){
@@ -10,19 +8,16 @@ function GiftPointsTab({allProfiles,onGift}){
   const [points,setPoints]=useState(100);
   const [reason,setReason]=useState("");
   const [sending,setSending]=useState(false);
-
   const send=async()=>{
     if(!toId||!points||!reason.trim())return;
     setSending(true);
     await onGift(toId,+points,reason);
-    setToId("");setPoints(100);setReason("");
-    setSending(false);
+    setToId("");setPoints(100);setReason("");setSending(false);
   };
-
   return(
     <div>
       <div style={{background:`${ORG}10`,borderRadius:12,padding:"12px 14px",marginBottom:14,fontSize:13,color:ORG,lineHeight:1.7,fontWeight:500}}>
-        🎁 Gift points to any staff member. An announcement will be auto-posted and the recipient will be notified.
+        🎁 Gift points to any staff member. An announcement will be auto-posted and the recipient will be notified instantly.
       </div>
       <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
         <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
@@ -53,13 +48,13 @@ function GiftPointsTab({allProfiles,onGift}){
               </button>
             ))}
           </div>
-          <input value={points} onChange={e=>setPoints(e.target.value)} placeholder="Or enter custom amount" type="number"
+          <input value={points} onChange={e=>setPoints(e.target.value)} placeholder="Custom amount" type="number"
             style={{width:"100%",background:"rgba(0,0,0,.04)",border:"none",outline:"none",fontSize:16,color:LBL,fontFamily:SF,borderRadius:9,padding:"10px 12px"}}/>
         </div>
         <div style={{padding:"11px 16px"}}>
           <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Reason for Gift</div>
           <textarea value={reason} onChange={e=>setReason(e.target.value)}
-            placeholder="e.g. Outstanding performance! Happy Birthday! Thank you for your hard work…"
+            placeholder="e.g. Outstanding performance! Happy Birthday! Thank you…"
             rows={3} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:16,color:LBL,resize:"none",lineHeight:1.5,fontFamily:SF}}/>
         </div>
       </div>
@@ -73,16 +68,13 @@ function GiftPointsTab({allProfiles,onGift}){
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────
-function DashTab({allProfiles,submissions,totalPending,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,calcScore}){
+function DashTab({allProfiles,submissions,totalPending,pendingVerif,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,calcScore}){
   const checkedIn=allProfiles.filter(p=>p.last_checkin===today).length;
-  const pendingVerif=0;
-
   const Avatar=({p,size=42})=>(
     <div style={{width:size,height:size,borderRadius:"50%",background:p?.avatar_url?`url(${p.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:size*0.3,color:"#fff",flexShrink:0,overflow:"hidden"}}>
       {!p?.avatar_url&&(p?.avatar||"?")}
     </div>
   );
-
   return(
     <div style={{padding:"0 16px 12px"}}>
       <div className="fade" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -123,10 +115,11 @@ function DashTab({allProfiles,submissions,totalPending,today,ACC,ORG,BG,BG2,SEP,
         })}
       </div>
       <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"16px 4px 8px"}}>📅 Today's Attendance</div>
-      <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
+      <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
         {allProfiles.map((s,i)=>(
           <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:i<allProfiles.length-1?`1px solid ${SEP}`:"none"}}>
             <div style={{width:8,height:8,borderRadius:"50%",background:s.last_checkin===today?"#34c759":"#e5e5ea",flexShrink:0}}/>
+            <Avatar p={s} size={32}/>
             <div style={{flex:1}}>
               <div style={{fontSize:15,color:LBL}}>{s.name}</div>
               <div style={{fontSize:12,color:LB3}}>{s.role}</div>
@@ -144,13 +137,11 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
   const [view,setView]=useState("list");
   const [selected,setSelected]=useState(null);
   const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
-
   const Avatar=({p,size=42})=>(
     <div style={{width:size,height:size,borderRadius:"50%",background:p?.avatar_url?`url(${p.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:size*0.3,color:"#fff",flexShrink:0,overflow:"hidden"}}>
       {!p?.avatar_url&&(p?.avatar||"?")}
     </div>
   );
-
   return(
     <div style={{padding:"0 16px 12px"}}>
       <div className="fade" style={{display:"flex",gap:8,marginBottom:14}}>
@@ -161,7 +152,6 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
           </button>
         ))}
       </div>
-
       {selected&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:100,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
           <div style={{background:BG,borderRadius:"20px 20px 0 0",padding:"20px 16px 40px",maxHeight:"90vh",overflowY:"auto"}}>
@@ -171,26 +161,16 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
             </div>
             <div style={{height:80,background:selected.banner_url?`url(${selected.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:12,marginBottom:-28}}/>
             <div style={{display:"flex",alignItems:"flex-end",gap:12,marginBottom:16,paddingTop:4}}>
-              <div style={{width:56,height:56,borderRadius:"50%",background:selected.avatar_url?`url(${selected.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,border:`3px solid ${BG}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16,color:ACC,overflow:"hidden",flexShrink:0}}>
+              <div style={{width:60,height:60,borderRadius:"50%",background:selected.avatar_url?`url(${selected.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,border:`3px solid ${BG}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:18,color:ACC,overflow:"hidden",flexShrink:0}}>
                 {!selected.avatar_url&&(selected.avatar||"?")}
               </div>
               <div style={{paddingBottom:4}}>
-                <div style={{fontSize:16,color:LBL,fontWeight:600}}>{selected.nickname&&`"${selected.nickname}"`}</div>
-                <div style={{fontSize:13,color:ACC,fontWeight:600}}>{(selected.xp||0).toLocaleString()} pts · 🔥 {selected.streak||0}</div>
+                <div style={{fontSize:16,color:LBL,fontWeight:600}}>{selected.name}</div>
+                <div style={{fontSize:13,color:ACC,fontWeight:600}}>{(selected.xp||0).toLocaleString()} pts · 🔥{selected.streak||0}</div>
               </div>
             </div>
             <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:10}}>
-              {[
-                ["💼 Position",  selected.role||selected.position],
-                ["📧 Email",     selected.email],
-                ["📱 Contact",   selected.contact_number?formatContact(selected.contact_number):null],
-                ["🎂 Birthday",  selected.birthday_verified?fmtDate(selected.birthday):null],
-                ["📅 Joined",    selected.joined_date_verified?fmtDate(selected.joined_date):null],
-                ["⚧ Gender",    selected.gender],
-                ["🏠 Hometown",  selected.hometown],
-                ["🎮 Hobby",     selected.hobby],
-                ["🍜 Fav Food",  selected.favorite_food],
-              ].filter(([,v])=>v).map(([label,value],i,a)=>(
+              {[["💼 Role",selected.role],["📧 Email",selected.email],["📱 Contact",selected.contact_number?formatContact(selected.contact_number):null],["🎂 Birthday",selected.birthday_verified?fmtDate(selected.birthday):null],["📅 Joined",selected.joined_date_verified?fmtDate(selected.joined_date):null],["⚧ Gender",selected.gender],["🏠 Hometown",selected.hometown],["🎮 Hobby",selected.hobby],["🍜 Fav Food",selected.favorite_food]].filter(([,v])=>v).map(([label,value],i,a)=>(
                 <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"11px 16px",borderBottom:i<a.length-1?`1px solid ${SEP}`:"none"}}>
                   <div style={{fontSize:14,color:LB3}}>{label}</div>
                   <div style={{fontSize:14,color:LBL,textAlign:"right",maxWidth:"60%"}}>{value}</div>
@@ -199,14 +179,9 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
             </div>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px"}}>
               <div style={{fontSize:12,color:ACC,fontWeight:700,marginBottom:10}}>🔒 PRIVATE (Admin Only)</div>
-              {[
-                ["IC Number",   selected.ic_number,   selected.ic_verified],
-                ["EPF Number",  selected.epf_number,  selected.epf_verified],
-                ["Bank Account",selected.bank_account,selected.bank_verified],
-                ["Bank Type",   selected.bank_type,   null],
-              ].map(([label,value,verified])=>(
+              {[["IC Number",selected.ic_number,selected.ic_verified],["EPF Number",selected.epf_number,selected.epf_verified],["Bank Account",selected.bank_account,selected.bank_verified],["Bank Type",selected.bank_type,null]].map(([label,value,verified])=>(
                 <div key={label} style={{marginBottom:10}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{display:"flex",justifyContent:"space-between"}}>
                     <div style={{fontSize:12,color:LB3}}>{label}</div>
                     {verified!==null&&<span style={{fontSize:10,color:verified?"#34c759":"#ff9500",fontWeight:600,background:(verified?"#34c759":"#ff9500")+"18",padding:"1px 6px",borderRadius:99}}>{verified?"✓ Verified":"⏳ Pending"}</span>}
                   </div>
@@ -217,7 +192,6 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
           </div>
         </div>
       )}
-
       {view==="list"&&(
         <>
           <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>All Staff ({allProfiles.length})</div>
@@ -246,7 +220,6 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
           </div>
         </>
       )}
-
       {view==="private"&&(
         <>
           <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:14,fontSize:13,color:ACC}}>🔒 Strictly confidential.</div>
@@ -254,20 +227,10 @@ function StaffTab({allProfiles,today,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF,getTier,c
             <div key={s.id} style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${SEP}`}}>
                 <Avatar p={s} size={36}/>
-                <div>
-                  <div style={{fontSize:16,color:LBL,fontWeight:500}}>{s.name}</div>
-                  <div style={{fontSize:13,color:LB3}}>{s.role}</div>
-                </div>
+                <div><div style={{fontSize:16,color:LBL,fontWeight:500}}>{s.name}</div><div style={{fontSize:13,color:LB3}}>{s.role}</div></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                {[
-                  ["IC",        s.ic_number,    s.ic_verified],
-                  ["EPF",       s.epf_number,   s.epf_verified],
-                  ["Bank",      s.bank_account, s.bank_verified],
-                  ["Bank Type", s.bank_type,    null],
-                  ["Contact",   s.contact_number?formatContact(s.contact_number):null,null],
-                  ["Birthday",  s.birthday_verified?fmtDate(s.birthday):null,null],
-                ].map(([label,val,verified])=>(
+                {[["IC",s.ic_number,s.ic_verified],["EPF",s.epf_number,s.epf_verified],["Bank",s.bank_account,s.bank_verified],["Bank Type",s.bank_type,null],["Contact",s.contact_number?formatContact(s.contact_number):null,null],["Birthday",s.birthday_verified?fmtDate(s.birthday):null,null]].map(([label,val,verified])=>(
                   <div key={label}>
                     <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:2}}>
                       <div style={{fontSize:11,color:LB3}}>{label}</div>
@@ -294,28 +257,20 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
   const doneReds=redemptions.filter(r=>r.status!=="Pending");
   const pendVerif=verifReqs.filter(v=>v.status==="Pending");
   const doneVerif=verifReqs.filter(v=>v.status!=="Pending");
-
   const StatusBadge=({status})=>{
     const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";
-    return<div style={{background:c+"18",color:c,fontSize:12,fontWeight:600,padding:"3px 9px",borderRadius:99,flexShrink:0}}>{status}</div>;
+    return<div style={{background:c+"18",color:c,fontSize:12,fontWeight:600,padding:"3px 9px",borderRadius:99,flexShrink:0,whiteSpace:"nowrap"}}>{status}</div>;
   };
-
   return(
     <div style={{padding:"0 16px 12px"}}>
       <div className="fade" style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto"}}>
-        {[
-          ["missions",    "Submissions",    pending.length],
-          ["redemptions", "Redemptions",    pendReds.length],
-          ["verif",       "Verifications",  pendVerif.length],
-        ].map(([id,label,count])=>(
+        {[["missions","Submissions",pending.length],["redemptions","Redemptions",pendReds.length],["verif","Verifications",pendVerif.length]].map(([id,label,count])=>(
           <button key={id} onClick={()=>setSec(id)}
             style={{flexShrink:0,padding:"9px 14px",background:sec===id?ACC:"rgba(0,0,0,.06)",color:sec===id?"#fff":LB2,border:"none",borderRadius:10,fontSize:13,fontWeight:sec===id?600:400,cursor:"pointer",fontFamily:SF,position:"relative"}}>
-            {label}
-            {count>0&&<span style={{marginLeft:5,background:sec===id?"rgba(255,255,255,.3)":ORG,color:"#fff",fontSize:10,padding:"1px 5px",borderRadius:99,fontWeight:700}}>{count}</span>}
+            {label}{count>0&&<span style={{marginLeft:5,background:sec===id?"rgba(255,255,255,.3)":ORG,color:"#fff",fontSize:10,padding:"1px 5px",borderRadius:99,fontWeight:700}}>{count}</span>}
           </button>
         ))}
       </div>
-
       {sec==="missions"&&(
         <>
           {pending.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:LB3,fontSize:15}}>All clear! 🎉</div>}
@@ -323,7 +278,7 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
             <div key={sub.id} className="fade" style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:10}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div style={{flex:1,marginRight:10}}>
-                  <div style={{fontSize:13,color:LB3,marginBottom:3}}>{sub.profiles?.name||"Unknown"}</div>
+                  <div style={{fontSize:13,color:LB3,marginBottom:3}}>{sub.profiles?.name}</div>
                   <div style={{fontSize:17,color:LBL,fontWeight:500}}>{sub.missions?.title}</div>
                 </div>
                 <div style={{background:`${ACC}14`,borderRadius:9,padding:"5px 10px",textAlign:"center",flexShrink:0}}>
@@ -355,7 +310,6 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
           )}
         </>
       )}
-
       {sec==="redemptions"&&(
         <>
           {pendReds.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:LB3,fontSize:15}}>No pending redemptions 🎉</div>}
@@ -369,9 +323,21 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
               <button onClick={()=>onApproveRedemption(r.id)} style={{width:"100%",padding:"11px",background:ACC,color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>Mark Delivered ✓</button>
             </div>
           ))}
+          {doneReds.length>0&&(
+            <>
+              <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"16px 4px 8px"}}>Delivered</div>
+              <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
+                {doneReds.slice(0,8).map((r,i,a)=>(
+                  <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 16px",borderBottom:i<a.length-1?`1px solid ${SEP}`:"none",gap:10}}>
+                    <div style={{flex:1}}><div style={{fontSize:15,color:LBL}}>{r.profiles?.name}</div><div style={{fontSize:12,color:LB3}}>{r.prize_name}</div></div>
+                    <StatusBadge status={r.status}/>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
-
       {sec==="verif"&&(
         <>
           {pendVerif.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:LB3,fontSize:15}}>No pending verifications 🎉</div>}
@@ -387,7 +353,7 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
                 <div style={{background:"#ff950018",color:"#ff9500",fontSize:12,fontWeight:600,padding:"3px 9px",borderRadius:99}}>Pending</div>
               </div>
               <div style={{background:"#f2f2f7",borderRadius:10,padding:"10px 12px",marginBottom:8}}>
-                <div style={{fontSize:15,color:LBL,fontWeight:500,letterSpacing:.5}}>{req.field_value}</div>
+                <div style={{fontSize:15,color:LBL,fontWeight:500}}>{req.field_value}</div>
                 {req.extra_value&&<div style={{fontSize:13,color:LB3,marginTop:2}}>{req.extra_value}</div>}
               </div>
               <div style={{fontSize:11,color:LB3,marginBottom:12}}>{new Date(req.submitted_at).toLocaleDateString("en-MY",{day:"numeric",month:"short"})}</div>
@@ -419,8 +385,7 @@ function ApprovalsTab({submissions,redemptions,verifReqs,onApproveSubmission,onA
 // ── CONTENT ───────────────────────────────────────────────────────────
 function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDeleteMission,onAddAnn,onDeleteAnn,onTogglePin,onAddPrize,onGift,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
   const [sec,setSec]=useState("missions");
-  // Stable local form state — NOT inside render
-  const [mForm,setMForm]=useState({title:"",description:"",xp:150,category:"Sales",difficulty:"Medium",period:"Daily"});
+  const [mForm,setMForm]=useState({title:"",description:"",xp:150,category:"Sales",difficulty:"Medium",period:"Daily",due_date:""});
   const [aForm,setAForm]=useState({title:"",body:"",pinned:false});
   const [pForm,setPForm]=useState({name:"",cost:500,stock:10,icon:"🎁",category:"Cash",desc:""});
 
@@ -435,53 +400,54 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
         ))}
       </div>
 
-      {/* ── MISSIONS ── */}
       {sec==="missions"&&(
         <>
-          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>➕ Add New Mission</div>
+          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>➕ Add Campaign Mission</div>
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
-            {[
-              {label:"Title",k:"title",ph:"Mission title"},
-              {label:"Description",k:"description",ph:"What needs to be done",multi:true},
-            ].map(({label,k,ph,multi},i)=>(
-              <div key={k} style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
-                <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>{label}</div>
-                {multi
-                  ?<textarea value={mForm[k]} onChange={e=>setMForm(p=>({...p,[k]:e.target.value}))} placeholder={ph} rows={3}
-                      style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",fontFamily:SF}}/>
-                  :<input value={mForm[k]} onChange={e=>setMForm(p=>({...p,[k]:e.target.value}))} placeholder={ph}
-                      style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
-                }
-              </div>
-            ))}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
-              {[
-                {label:"Points",k:"xp",ph:"150",type:"number"},
-                {label:"Category",k:"category",ph:"Sales"},
-              ].map(({label,k,ph,type="text"},i)=>(
-                <div key={k} style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`,borderRight:i===0?`1px solid ${SEP}`:"none"}}>
-                  <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>{label}</div>
-                  <input value={mForm[k]} onChange={e=>setMForm(p=>({...p,[k]:e.target.value}))} placeholder={ph} type={type}
-                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
-                </div>
-              ))}
+            <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
+              <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Title</div>
+              <input value={mForm.title} onChange={e=>setMForm(p=>({...p,title:e.target.value}))} placeholder="Mission title"
+                style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
+            </div>
+            <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
+              <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Description</div>
+              <textarea value={mForm.description} onChange={e=>setMForm(p=>({...p,description:e.target.value}))} placeholder="What needs to be done" rows={3}
+                style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",fontFamily:SF}}/>
+            </div>
+            {/* Due Date */}
+            <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
+              <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Due Date <span style={{color:"#ff3b30"}}>*</span></div>
+              <input value={mForm.due_date} onChange={e=>setMForm(p=>({...p,due_date:e.target.value}))} type="date"
+                style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
-              {[
-                {label:"Difficulty",k:"difficulty",ph:"Easy/Medium/Hard"},
-                {label:"Period",k:"period",ph:"Daily/Weekly"},
-              ].map(({label,k,ph},i)=>(
-                <div key={k} style={{padding:"11px 16px",borderRight:i===0?`1px solid ${SEP}`:"none"}}>
-                  <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>{label}</div>
-                  <input value={mForm[k]} onChange={e=>setMForm(p=>({...p,[k]:e.target.value}))} placeholder={ph}
-                    style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
-                </div>
-              ))}
+              <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`,borderRight:`1px solid ${SEP}`}}>
+                <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Points</div>
+                <input value={mForm.xp} onChange={e=>setMForm(p=>({...p,xp:e.target.value}))} placeholder="150" type="number"
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
+              </div>
+              <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
+                <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Category</div>
+                <input value={mForm.category} onChange={e=>setMForm(p=>({...p,category:e.target.value}))} placeholder="Sales"
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
+              <div style={{padding:"11px 16px",borderRight:`1px solid ${SEP}`}}>
+                <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Difficulty</div>
+                <input value={mForm.difficulty} onChange={e=>setMForm(p=>({...p,difficulty:e.target.value}))} placeholder="Easy/Medium/Hard"
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
+              </div>
+              <div style={{padding:"11px 16px"}}>
+                <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Period</div>
+                <input value={mForm.period} onChange={e=>setMForm(p=>({...p,period:e.target.value}))} placeholder="Daily/Weekly"
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
+              </div>
             </div>
           </div>
-          <button onClick={()=>{if(mForm.title.trim()){onAddMission(mForm);setMForm({title:"",description:"",xp:150,category:"Sales",difficulty:"Medium",period:"Daily"});}}}
+          <button onClick={()=>{if(mForm.title.trim()&&mForm.due_date){onAddMission(mForm);setMForm({title:"",description:"",xp:150,category:"Sales",difficulty:"Medium",period:"Daily",due_date:""});}}}
             style={{width:"100%",background:ACC,color:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",fontFamily:SF,marginBottom:16}}>
-            Add Mission
+            Post Campaign Mission
           </button>
           <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>Active Missions</div>
           <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
@@ -490,7 +456,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
               <div key={m.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<missions.length-1?`1px solid ${SEP}`:"none"}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:15,color:LBL,fontWeight:500}}>{m.title}</div>
-                  <div style={{fontSize:12,color:LB3}}>{m.category} · {m.difficulty} · {m.period} · {m.xp} pts</div>
+                  <div style={{fontSize:12,color:LB3}}>{m.category} · {m.difficulty} · {m.xp} pts{m.due_date?` · Due ${m.due_date}`:""}</div>
                 </div>
                 <button onClick={()=>onDeleteMission(m.id)} style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,cursor:"pointer",fontFamily:SF}}>Remove</button>
               </div>
@@ -499,7 +465,6 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
         </>
       )}
 
-      {/* ── ANNOUNCEMENTS ── */}
       {sec==="announcements"&&(
         <>
           <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>📢 Post Announcement</div>
@@ -533,7 +498,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
             <div key={a.id} style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,borderLeft:a.pinned?`3px solid ${ORG}`:"none"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                 <div style={{flex:1,marginRight:10}}>
-                  {a.pinned&&<div style={{fontSize:11,color:ORG,fontWeight:700,letterSpacing:".4px",textTransform:"uppercase",marginBottom:4}}>📌 Pinned</div>}
+                  {a.pinned&&<div style={{fontSize:11,color:ORG,fontWeight:700,marginBottom:4}}>📌 Pinned</div>}
                   <div style={{fontSize:16,color:LBL,fontWeight:500}}>{a.title}</div>
                 </div>
                 <div style={{display:"flex",gap:6}}>
@@ -541,17 +506,15 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                   <button onClick={()=>onDeleteAnn(a.id)} style={{background:"#ff3b3012",color:"#ff3b30",border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,cursor:"pointer",fontFamily:SF}}>Delete</button>
                 </div>
               </div>
-              {a.body&&<div style={{fontSize:14,color:LB3,lineHeight:1.5,marginBottom:4}}>{a.body}</div>}
-              <div style={{fontSize:11,color:LB3}}>{new Date(a.created_at).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric"})}</div>
+              {a.body&&<div style={{fontSize:14,color:LB3,lineHeight:1.5}}>{a.body}</div>}
             </div>
           ))}
         </>
       )}
 
-      {/* ── PRIZES ── */}
       {sec==="prizes"&&(
         <>
-          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>🎁 Add New Prize</div>
+          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"0 4px 8px"}}>🎁 Add Prize</div>
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Prize Name</div>
@@ -564,11 +527,7 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,fontFamily:SF}}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr"}}>
-              {[
-                {label:"Pts Cost",k:"cost",type:"number"},
-                {label:"Stock",k:"stock",type:"number"},
-                {label:"Icon",k:"icon"},
-              ].map(({label,k,type="text"},i,a)=>(
+              {[{label:"Pts",k:"cost",type:"number"},{label:"Stock",k:"stock",type:"number"},{label:"Icon",k:"icon"}].map(({label,k,type="text"},i,a)=>(
                 <div key={k} style={{padding:"11px 16px",borderRight:i<a.length-1?`1px solid ${SEP}`:"none"}}>
                   <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>{label}</div>
                   <input value={pForm[k]} onChange={e=>setPForm(p=>({...p,[k]:e.target.value}))} type={type}
@@ -587,19 +546,14 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
             {prizes.map((p,i)=>(
               <div key={p.id||i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<prizes.length-1?`1px solid ${SEP}`:"none"}}>
                 <div style={{fontSize:26}}>{p.icon}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:15,color:LBL,fontWeight:500}}>{p.name}</div>
-                  <div style={{fontSize:12,color:LB3}}>{p.stock??0} left · {(p.pts||p.cost)?.toLocaleString()} pts</div>
-                </div>
+                <div style={{flex:1}}><div style={{fontSize:15,color:LBL,fontWeight:500}}>{p.name}</div><div style={{fontSize:12,color:LB3}}>{p.stock??0} left · {(p.pts||p.cost)?.toLocaleString()} pts</div></div>
               </div>
             ))}
           </div>
         </>
       )}
 
-      {sec==="gifts"&&(
-        <GiftPointsTab allProfiles={allProfiles} onGift={onGift}/>
-      )}
+      {sec==="gifts"&&<GiftPointsTab allProfiles={allProfiles} onGift={onGift}/>}
     </div>
   );
 }
@@ -610,29 +564,23 @@ function CommunityTab({profile,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
   const [text,setText]=useState("");
   const [sending,setSending]=useState(false);
   const bottomRef=useRef(null);
-
   useEffect(()=>{
     loadMsgs();
     const iv=setInterval(loadMsgs,4000);
     return()=>clearInterval(iv);
   },[]);
-
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
-
   const loadMsgs=async()=>{
     const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
     if(data)setMessages(data);
   };
-
   const send=async()=>{
     if(!text.trim()||sending)return;
     setSending(true);
-    await supabase.from("messages").insert({user_id:profile.id,sender_name:profile.nickname||profile.name,sender_avatar:profile.avatar||"AD",content:text.trim(),is_dm:false});
+    await supabase.from("messages").insert({user_id:profile.id,sender_name:profile.nickname||profile.name,sender_avatar:profile.avatar||"AD",sender_avatar_url:profile.avatar_url||"",content:text.trim(),is_dm:false});
     setText("");await loadMsgs();setSending(false);
   };
-
   const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
-
   return(
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 170px)"}}>
       <div style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:10}}>
@@ -646,7 +594,11 @@ function CommunityTab({profile,ACC,ORG,BG,BG2,SEP,LBL,LB2,LB3,SF}){
           );
           return(
             <div key={msg.id} style={{display:"flex",flexDirection:me?"row-reverse":"row",alignItems:"flex-end",gap:8}}>
-              {!me&&<div style={{width:30,height:30,borderRadius:"50%",background:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0}}>{msg.sender_avatar||"?"}</div>}
+              {!me&&(
+                <div style={{width:32,height:32,borderRadius:"50%",background:msg.sender_avatar_url?`url(${msg.sender_avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden"}}>
+                  {!msg.sender_avatar_url&&(msg.sender_avatar||"?")}
+                </div>
+              )}
               <div style={{maxWidth:"72%"}}>
                 {!me&&<div style={{fontSize:11,color:LB3,marginBottom:3,paddingLeft:4}}>{msg.sender_name}</div>}
                 <div style={{background:me?ACC:BG2,borderRadius:me?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"10px 14px",boxShadow:"0 1px 4px rgba(0,0,0,.07)"}}>
@@ -683,7 +635,17 @@ export default function AdminApp({profile,onProfileUpdate}){
   const [verifReqs,setVerifReqs]=useState([]);
   const [toast,setToast]=useState(null);
 
-  useEffect(()=>{loadAll();},[]);
+  useEffect(()=>{
+    loadAll();
+    // Realtime subscriptions
+    const ch=supabase.channel("admin_realtime")
+      .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},()=>loadAll())
+      .on("postgres_changes",{event:"*",schema:"public",table:"mission_submissions"},()=>loadAll())
+      .on("postgres_changes",{event:"*",schema:"public",table:"redemptions"},()=>loadAll())
+      .on("postgres_changes",{event:"*",schema:"public",table:"verification_requests"},()=>loadAll())
+      .subscribe();
+    return()=>supabase.removeChannel(ch);
+  },[]);
 
   const loadAll=async()=>{
     const[pr,mi,su,pz,an,re,vr]=await Promise.all([
@@ -709,8 +671,15 @@ export default function AdminApp({profile,onProfileUpdate}){
   const today=new Date().toISOString().split("T")[0];
   const pendingSubs=submissions.filter(s=>s.status==="Pending").length;
   const pendingReds=redemptions.filter(r=>r.status==="Pending").length;
-  const pendingVerif=verifReqs.filter(v=>v.status==="Pending").length;
-  const totalPending=pendingSubs+pendingReds+pendingVerif;
+  const pendingVerifCount=verifReqs.filter(v=>v.status==="Pending").length;
+  const totalPending=pendingSubs+pendingReds+pendingVerifCount;
+
+  // ── Notify all users ──
+  const notifyAll=async(title,body,type="info")=>{
+    const{data:profiles}=await supabase.from("profiles").select("id").eq("is_admin",false);
+    if(!profiles)return;
+    await supabase.from("notifications").insert(profiles.map(p=>({user_id:p.id,title,body,type})));
+  };
 
   // ── Actions ──
   const approveSubmission=async(sub,approve)=>{
@@ -720,11 +689,25 @@ export default function AdminApp({profile,onProfileUpdate}){
     if(approve){
       await supabase.from("mission_claims").update({completed:true}).eq("id",sub.claim_id);
       const prof=allProfiles.find(p=>p.id===sub.user_id);
-      const newXp=(prof?.xp||0)+(sub.missions?.xp||100);
-      if(prof){setAllProfiles(p=>p.map(x=>x.id===sub.user_id?{...x,xp:newXp}:x));await supabase.from("profiles").update({xp:newXp}).eq("id",sub.user_id);}
-      await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`Your submission for "${sub.missions?.title}" was approved! +${sub.missions?.xp||100} pts added.`,type:"approval"});
+      const pts=sub.missions?.xp||100;
+      const newXp=(prof?.xp||0)+pts;
+      if(prof){
+        setAllProfiles(p=>p.map(x=>x.id===sub.user_id?{...x,xp:newXp}:x));
+        await supabase.from("profiles").update({xp:newXp}).eq("id",sub.user_id);
+        // Points history
+        await supabase.from("points_history").insert({user_id:sub.user_id,amount:pts,reason:`Mission completed: ${sub.missions?.title}`,type:"credit"}).catch(()=>{});
+      }
+      // Auto-announcement to ALL users
+      const annTitle=`🎯 ${prof?.nickname||prof?.name} completed a mission!`;
+      const annBody=`${prof?.nickname||prof?.name} successfully completed "${sub.missions?.title}" and earned ${pts} pts!`;
+      const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
+      if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      // Notify all
+      await notifyAll(`🎯 Mission Completed!`,annBody,"mission");
+      // Notify user personally
+      await supabase.from("notifications").insert({user_id:sub.user_id,title:"✅ Mission Approved!",body:`Your submission for "${sub.missions?.title}" was approved! +${pts} pts added.`,type:"approval"});
     } else {
-      await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Rejected",body:`Your submission for "${sub.missions?.title}" was not approved.`,type:"rejection"});
+      await supabase.from("notifications").insert({user_id:sub.user_id,title:"❌ Mission Rejected",body:`Your submission for "${sub.missions?.title}" was not approved. Please review and try again.`,type:"rejection"});
     }
     showToast(approve?"✅ Approved! Points awarded.":"❌ Rejected.");
   };
@@ -733,8 +716,18 @@ export default function AdminApp({profile,onProfileUpdate}){
     setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
     const red=redemptions.find(r=>r.id===id);
     await supabase.from("redemptions").update({status:"Approved"}).eq("id",id);
-    if(red)await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered!`,type:"redemption"});
-    showToast("✅ Redemption approved!");
+    if(red){
+      // Notify recipient
+      await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"});
+      // Announce to all
+      const prof=allProfiles.find(p=>p.id===red.user_id);
+      const annTitle=`🎁 ${prof?.nickname||prof?.name} redeemed a prize!`;
+      const annBody=`${prof?.nickname||prof?.name} just received their "${red.prize_name}". Congratulations! 🎉`;
+      const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
+      if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      await notifyAll(annTitle,annBody,"redemption");
+    }
+    showToast("✅ Prize delivered!");
   };
 
   const approveVerification=async(req,approve)=>{
@@ -750,7 +743,9 @@ export default function AdminApp({profile,onProfileUpdate}){
       else if(req.field_name==="birthday")update.birthday_verified=true;
       setAllProfiles(p=>p.map(x=>x.id===req.user_id?{...x,...update}:x));
       await supabase.from("profiles").update(update).eq("id",req.user_id);
-      await supabase.from("notifications").insert({user_id:req.user_id,title:"✅ Information Verified!",body:`Your ${req.field_name.replace(/_/g," ")} has been verified.`,type:"verification"});
+      await supabase.from("notifications").insert({user_id:req.user_id,title:"✅ Information Verified!",body:`Your ${req.field_name.replace(/_/g," ")} has been verified successfully.`,type:"verification"});
+    } else {
+      await supabase.from("notifications").insert({user_id:req.user_id,title:"❌ Verification Rejected",body:`Your ${req.field_name.replace(/_/g," ")} could not be verified. Please contact admin.`,type:"rejection"});
     }
     showToast(approve?"✅ Verified!":"❌ Rejected.");
   };
@@ -759,25 +754,31 @@ export default function AdminApp({profile,onProfileUpdate}){
     const recipient=allProfiles.find(p=>p.id===toId);
     if(!recipient)return;
     const newXp=(recipient.xp||0)+points;
-    // Update points
     setAllProfiles(p=>p.map(x=>x.id===toId?{...x,xp:newXp}:x));
     await supabase.from("profiles").update({xp:newXp}).eq("id",toId);
-    // Record gift
+    await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"}).catch(()=>{});
     await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason}).catch(()=>{});
-    // Post announcement
     const annTitle=`🎁 ${recipient.nickname||recipient.name} received a gift!`;
     const annBody=`${recipient.nickname||recipient.name} has been gifted ${points.toLocaleString()} pts by admin.\n\nReason: ${reason}`;
     const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();
     if(newAnn)setAnnouncements(p=>[newAnn,...p]);
-    // Send notification
     await supabase.from("notifications").insert({user_id:toId,title:"🎁 You received a gift!",body:`You've been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`,type:"gift"});
+    await notifyAll(annTitle,annBody,"gift");
     showToast(`🎁 Gifted ${points} pts to ${recipient.name}!`);
   };
 
   const addMission=async(mForm)=>{
     const{data}=await supabase.from("missions").insert({...mForm,xp:+mForm.xp,active:true}).select().single();
-    if(data)setMissions(p=>[...p,data]);
-    showToast("Mission added ✅");
+    if(data){
+      setMissions(p=>[...p,data]);
+      // Announce new mission to all
+      const annTitle=`🎯 New Mission: ${mForm.title}`;
+      const annBody=`A new campaign mission has been posted! Complete "${mForm.title}" to earn ${mForm.xp} pts.\nDue: ${mForm.due_date||"No deadline"}`;
+      const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();
+      if(newAnn)setAnnouncements(p=>[newAnn,...p]);
+      await notifyAll(annTitle,annBody,"mission");
+    }
+    showToast("Mission posted ✅");
   };
 
   const deleteMission=async id=>{
@@ -788,7 +789,11 @@ export default function AdminApp({profile,onProfileUpdate}){
 
   const addAnn=async(aForm)=>{
     const{data}=await supabase.from("announcements").insert({...aForm,author:"Admin"}).select().single();
-    if(data)setAnnouncements(p=>[data,...p]);
+    if(data){
+      setAnnouncements(p=>[data,...p]);
+      // Notify all users
+      await notifyAll(`📢 ${aForm.title}`,aForm.body||"","announcement");
+    }
     showToast("Announcement posted ✅");
   };
 
@@ -813,14 +818,13 @@ export default function AdminApp({profile,onProfileUpdate}){
   const TABS=[
     {id:"dash",      label:"Dashboard", emoji:"📊"},
     {id:"staff",     label:"Staff",     emoji:"👥"},
-    {id:"approvals", label:"Approvals", emoji:"📋", badge:totalPending},
+    {id:"approvals", label:"Approvals", emoji:"📋",badge:totalPending},
     {id:"content",   label:"Content",   emoji:"✏️"},
     {id:"community", label:"Community", emoji:"💬"},
   ];
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
-      {/* Header */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px 10px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:9}}>
@@ -833,24 +837,17 @@ export default function AdminApp({profile,onProfileUpdate}){
           </div>
         </div>
         <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px",marginTop:6}}>
-          {tab==="dash"      &&"Dashboard 📊"}
-          {tab==="staff"     &&"Staff 👥"}
-          {tab==="approvals" &&"Approvals 📋"}
-          {tab==="content"   &&"Content ✏️"}
-          {tab==="community" &&"Community 💬"}
+          {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}
+          {tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
         </div>
       </div>
-
-      {/* Content */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 0 90px"}}>
-        {tab==="dash"&&<DashTab allProfiles={allProfiles} submissions={submissions} totalPending={totalPending} today={today} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF} getTier={getTier} calcScore={calcScore}/>}
+        {tab==="dash"&&<DashTab allProfiles={allProfiles} submissions={submissions} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF} getTier={getTier} calcScore={calcScore}/>}
         {tab==="staff"&&<StaffTab allProfiles={allProfiles} today={today} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF} getTier={getTier} calcScore={calcScore} formatContact={formatContact}/>}
         {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
         {tab==="content"&&<ContentTab missions={missions} announcements={announcements} prizes={prizes} allProfiles={allProfiles} onAddMission={addMission} onDeleteMission={deleteMission} onAddAnn={addAnn} onDeleteAnn={deleteAnn} onTogglePin={togglePin} onAddPrize={addPrize} onGift={giftPoints} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
         {tab==="community"&&<CommunityTab profile={profile} ACC={ACC} ORG={ORG} BG={BG} BG2={BG2} SEP={SEP} LBL={LBL} LB2={LB2} LB3={LB3} SF={SF}/>}
       </div>
-
-      {/* Tab Bar */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.94)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
@@ -861,13 +858,7 @@ export default function AdminApp({profile,onProfileUpdate}){
           </button>
         ))}
       </div>
-
-      {/* Toast */}
-      {toast&&(
-        <div className="toast-in" style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.78)",backdropFilter:"blur(16px)",borderRadius:99,padding:"10px 20px",fontSize:14,color:"#fff",fontWeight:500,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"85vw",textAlign:"center"}}>
-          {toast}
-        </div>
-      )}
+      {toast&&<div className="toast-in" style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.78)",backdropFilter:"blur(16px)",borderRadius:99,padding:"10px 20px",fontSize:14,color:"#fff",fontWeight:500,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"85vw",textAlign:"center"}}>{toast}</div>}
     </div>
   );
 }

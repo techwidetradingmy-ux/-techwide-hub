@@ -17,19 +17,41 @@ const GLOBAL_CSS=`
   @keyframes toastIn{from{opacity:0;transform:translateY(10px)scale(.95)}to{opacity:1;transform:translateY(0)scale(1)}}
   @keyframes notifPop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes pageSlideInRight{from{transform:translateX(100%);opacity:.6}to{transform:translateX(0);opacity:1}}
+  @keyframes pageSlideOutRight{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:.4}}
+  @keyframes pageSlideInLeft{from{transform:translateX(-8%);opacity:.7}to{transform:translateX(0);opacity:1}}
+  @keyframes ripple{from{transform:scale(0);opacity:.35}to{transform:scale(4);opacity:0}}
   .fade{animation:fadeUp .28s cubic-bezier(.4,0,.2,1) both}
   .bar{animation:barFill .7s cubic-bezier(.4,0,.2,1) both}
   .toast-in{animation:toastIn .3s cubic-bezier(.34,1.2,.64,1) both}
-  .btn{transition:all .15s cubic-bezier(.4,0,.2,1);cursor:pointer;}
-  .btn:active{transform:scale(.93);opacity:.85;}
-  .btn-primary{transition:all .2s;cursor:pointer;}
-  .btn-primary:active{transform:scale(.96);filter:brightness(.9);}
-  .tab-btn{transition:all .15s;}
-  .tab-btn:active{transform:scale(.88);}
-  .card-press{transition:all .12s;}
-  .card-press:active{transform:scale(.97);opacity:.9;}
+  .page-enter-forward{animation:pageSlideInRight .28s cubic-bezier(.4,0,.2,1) both}
+  .page-enter-back{animation:pageSlideInLeft .25s cubic-bezier(.4,0,.2,1) both}
+  .page-exit-forward{animation:pageSlideOutRight .25s cubic-bezier(.4,0,.2,1) both;pointer-events:none}
+  .btn{
+    transition:transform .12s cubic-bezier(.34,1.56,.64,1),opacity .12s,box-shadow .12s;
+    cursor:pointer;user-select:none;
+  }
+  .btn:active{transform:scale(.88);opacity:.75;}
+  .btn-primary{
+    transition:transform .12s cubic-bezier(.34,1.2,.64,1),filter .12s,box-shadow .15s;
+    cursor:pointer;user-select:none;
+    box-shadow:0 2px 8px rgba(28,50,88,.18);
+  }
+  .btn-primary:active{transform:scale(.94);filter:brightness(.88);box-shadow:0 1px 3px rgba(28,50,88,.12);}
+  .tab-btn{
+    transition:transform .1s cubic-bezier(.34,1.56,.64,1),opacity .1s;
+    user-select:none;
+  }
+  .tab-btn:active{transform:scale(.8);opacity:.7;}
+  .card-press{
+    transition:transform .1s cubic-bezier(.4,0,.2,1),box-shadow .1s,opacity .1s;
+    user-select:none;
+  }
+  .card-press:active{transform:scale(.96);opacity:.85;box-shadow:0 1px 4px rgba(0,0,0,.06);}
   .notif-dot{animation:notifPop .3s cubic-bezier(.34,1.56,.64,1) both;}
   .pulsing{animation:pulse .9s ease infinite;}
+  .ripple-container{position:relative;overflow:hidden;}
+  .ripple-dot{position:absolute;border-radius:50%;background:rgba(255,255,255,.4);width:50px;height:50px;margin-top:-25px;margin-left:-25px;animation:ripple .5s ease-out forwards;pointer-events:none;}
   input,textarea,button,select{font-family:${SF};}
   input[type="date"]{color-scheme:light;}
   .react-datepicker-wrapper{width:100%}
@@ -48,10 +70,6 @@ const GLOBAL_CSS=`
 const DOMAIN="@techwide.com";
 const GENDERS=["Male","Female","Prefer not to say"];
 
-const ISOToDisplay=iso=>{
-  if(!iso)return"";const p=iso.split("-");
-  if(p.length===3)return`${p[2]}/${p[1]}/${p[0]}`;return iso;
-};
 const dateToISO=val=>{
   if(!val)return"";
   if(/^\d{4}-\d{2}-\d{2}$/.test(val))return val;
@@ -60,15 +78,14 @@ const dateToISO=val=>{
   return"";
 };
 const parseDisplay=v=>{
-  if(!v)return null;const p=v.split("/");
+  if(!v)return null;
+  const p=v.split("/");
   if(p.length===3&&p[2].length===4){const d=new Date(+p[2],+p[1]-1,+p[0]);return isNaN(d.getTime())?null:d;}
   return null;
 };
 const dateToDisplay=date=>{
   if(!date)return"";
-  const dd=String(date.getDate()).padStart(2,"0");
-  const mm=String(date.getMonth()+1).padStart(2,"0");
-  return`${dd}/${mm}/${date.getFullYear()}`;
+  return`${String(date.getDate()).padStart(2,"0")}/${String(date.getMonth()+1).padStart(2,"0")}/${date.getFullYear()}`;
 };
 
 const ensureProfile=async(user)=>{
@@ -181,10 +198,10 @@ function SignUpScreen({onBack,onSignedIn}){
             {prefix&&<div style={{fontSize:13,marginTop:6,color:LB3}}>Full email: <span style={{color:ACC,fontWeight:600}}>{fullEmail()}</span></div>}
             {prefix&&validPrefix(prefix)&&(
               <div style={{fontSize:12,marginTop:6,fontWeight:500,display:"flex",alignItems:"center",gap:6,minHeight:18}}>
-                {checking&&<><div className="pulsing" style={{width:7,height:7,borderRadius:"50%",background:"#ff9500",flexShrink:0}}/><span style={{color:"#ff9500"}}>Checking availability…</span></>}
+                {checking&&<><div className="pulsing" style={{width:7,height:7,borderRadius:"50%",background:"#ff9500",flexShrink:0}}/><span style={{color:"#ff9500"}}>Checking…</span></>}
                 {!checking&&emailStatus==="available"&&<span style={{color:"#34c759"}}>✓ Email is available</span>}
-                {!checking&&emailStatus==="taken"&&<span style={{color:"#ff3b30"}}>✕ Already registered — please sign in instead</span>}
-                {!checking&&emailStatus==="error"&&<span style={{color:"#ff9500"}}>⚠️ Could not verify — please try again</span>}
+                {!checking&&emailStatus==="taken"&&<span style={{color:"#ff3b30"}}>✕ Already registered</span>}
+                {!checking&&emailStatus==="error"&&<span style={{color:"#ff9500"}}>⚠️ Could not verify</span>}
               </div>
             )}
           </div>
@@ -203,7 +220,6 @@ function SignUpScreen({onBack,onSignedIn}){
                 ))}
               </div>
             )}
-            {formErr.pass&&<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500}}>{formErr.pass}</div>}
           </div>
           <div style={{padding:"11px 16px"}}>
             <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:5}}>
@@ -215,7 +231,7 @@ function SignUpScreen({onBack,onSignedIn}){
               onKeyDown={e=>e.key==="Enter"&&canSubmit&&handleSignUp()}
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
             {confirm&&matchOk&&passOk&&<div style={{fontSize:12,color:"#34c759",marginTop:5,fontWeight:500}}>✓ Passwords match</div>}
-            {confirm&&!matchOk&&<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500}}>✕ Passwords do not match</div>}
+            {confirm&&!matchOk&&<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500}}>✕ Do not match</div>}
           </div>
         </div>
         {formErr.general&&<div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px"}}>{formErr.general}</div>}
@@ -223,7 +239,7 @@ function SignUpScreen({onBack,onSignedIn}){
           📋 After creating your account, you'll be guided through profile setup.
         </div>
         <button onClick={handleSignUp} disabled={!canSubmit} className="btn-primary"
-          style={{width:"100%",background:canSubmit?ACC:"#e5e5ea",color:canSubmit?"#fff":LB3,border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:canSubmit?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12,transition:"all .2s"}}>
+          style={{width:"100%",background:canSubmit?ACC:"#e5e5ea",color:canSubmit?"#fff":LB3,border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:canSubmit?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
           {loading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
           {btnLabel()}
         </button>
@@ -241,8 +257,9 @@ function OnboardingFlow({user,onComplete,onBack}){
     name:user.name||"",nickname:"",position:"",position_other:"",
     birthday:"",joined_date:"",gender:"",hometown:"",
     contact_number:"",bio:"",hobby:"",favorite_food:"",
-    ic_number:"",epf_number:"",bank_account:"",
-    bank_type:"Maybank",bank_type_other:"",avatar_url:"",
+    ic_number:"",epf_number:"",
+    bank_account:"",bank_type:"Maybank",bank_type_other:"",
+    avatar_url:"",
   });
   const [loading,setLoading]=useState(false);
   const [rawImg,setRawImg]=useState(null);
@@ -256,7 +273,7 @@ function OnboardingFlow({user,onComplete,onBack}){
     if(step===1){
       if(!form.name.trim()) e.name="Full name is required";
       if(!form.position) e.position="Please select your position";
-      else if(form.position==="Others"&&!form.position_other.trim()) e.position_other="Please specify your position";
+      else if(form.position==="Others"&&!form.position_other.trim()) e.position_other="Please specify";
       if(!form.birthday) e.birthday="Birthday is required";
       if(!form.joined_date) e.joined_date="Joining date is required";
     }
@@ -270,7 +287,7 @@ function OnboardingFlow({user,onComplete,onBack}){
       else if(digits.length!==12) e.ic_number="IC must be exactly 12 digits";
       if(!form.epf_number.trim()) e.epf_number="EPF number is required";
       if(form.bank_account&&!/^\d+$/.test(form.bank_account)) e.bank_account="Numbers only";
-      if(form.bank_type==="Others"&&!form.bank_type_other.trim()) e.bank_type_other="Please specify your bank";
+      if(form.bank_type==="Others"&&!form.bank_type_other.trim()) e.bank_type_other="Please specify";
     }
     if(step===5){if(!form.avatar_url) e.avatar_url="Profile photo is required";}
     setErrors(e);
@@ -313,7 +330,7 @@ function OnboardingFlow({user,onComplete,onBack}){
     setLoading(false);
   };
 
-  const ErrMsg=({k})=>errors[k]?<div style={{fontSize:12,color:"#ff3b30",marginTop:4,fontWeight:500,lineHeight:1.4}}>{errors[k]}</div>:null;
+  const ErrMsg=({k})=>errors[k]?<div style={{fontSize:12,color:"#ff3b30",marginTop:4,fontWeight:500}}>{errors[k]}</div>:null;
 
   const FW=(label,children,last=false,required=false)=>(
     <div style={{padding:"11px 16px",background:BG2,borderBottom:last?"none":`1px solid ${SEP}`}}>
@@ -331,7 +348,9 @@ function OnboardingFlow({user,onComplete,onBack}){
   );
 
   const DateInp=(k)=>(
-    <DatePicker selected={parseDisplay(form[k])} onChange={date=>{set(k,dateToDisplay(date));clearErr(k);}}
+    <DatePicker
+      selected={parseDisplay(form[k])}
+      onChange={date=>{set(k,dateToDisplay(date));clearErr(k);}}
       dateFormat="dd/MM/yyyy" placeholderText="DD/MM/YYYY"
       showMonthDropdown showYearDropdown dropdownMode="select"
       maxDate={new Date()} yearDropdownItemNumber={80} scrollableYearDropdown
@@ -367,13 +386,17 @@ function OnboardingFlow({user,onComplete,onBack}){
           <div style={{width:`${(step/TOTAL)*100}%`,height:"100%",background:ACC,borderRadius:99,transition:"width .3s"}}/>
         </div>
         <div style={{fontSize:25,fontWeight:700,color:LBL,letterSpacing:"-.6px",lineHeight:1.2,marginBottom:6}}>
-          {step===1&&"Let's set up your profile 👋"}{step===2&&"Contact details 📱"}
-          {step===3&&"Tell us about yourself ✨"}{step===4&&"Private information 🔒"}
+          {step===1&&"Let's set up your profile 👋"}
+          {step===2&&"Contact details 📱"}
+          {step===3&&"Tell us about yourself ✨"}
+          {step===4&&"Private information 🔒"}
           {step===5&&"Profile photo 📸"}
         </div>
         <div style={{fontSize:14,color:LB3,marginBottom:20,lineHeight:1.5}}>
-          {step===1&&"Basic info visible to your team"}{step===2&&"How your team can reach you"}
-          {step===3&&"Your personality and interests"}{step===4&&"Admin only — kept secure & confidential"}
+          {step===1&&"Basic info visible to your team"}
+          {step===2&&"How your team can reach you"}
+          {step===3&&"Your personality and interests"}
+          {step===4&&"Admin only — kept secure & confidential"}
           {step===5&&"A clear photo helps your team recognise you"}
         </div>
       </div>
@@ -387,8 +410,7 @@ function OnboardingFlow({user,onComplete,onBack}){
                 {DropDown("position",POSITIONS,"Select your position…",()=>{set("position_other","");clearErr("position_other");})}
                 {form.position==="Others"&&(
                   <div style={{marginTop:10}}>
-                    <input value={form.position_other} onChange={e=>{set("position_other",e.target.value);clearErr("position_other");}}
-                      placeholder="Please specify your position"
+                    <input value={form.position_other} onChange={e=>{set("position_other",e.target.value);clearErr("position_other");}} placeholder="Please specify"
                       style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none"}}/>
                     <ErrMsg k="position_other"/>
                   </div>
@@ -414,7 +436,7 @@ function OnboardingFlow({user,onComplete,onBack}){
         {step===2&&(
           <>
             <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:13,color:ACC,lineHeight:1.7}}>
-              📱 Numbers only — no spaces or dashes<br/>Example: <strong>0123456789</strong> or <strong>01112345678</strong>
+              📱 Numbers only — no spaces or dashes<br/>Example: <strong>0123456789</strong>
             </div>
             <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
               {FW("Contact Number",
@@ -431,7 +453,7 @@ function OnboardingFlow({user,onComplete,onBack}){
           <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8}}>
             <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>About Me</div>
-              <textarea value={form.bio} onChange={e=>set("bio",e.target.value)} placeholder="Describe about yourself in short..." rows={3}
+              <textarea value={form.bio} onChange={e=>set("bio",e.target.value)} placeholder="Describe yourself in short…" rows={3}
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL,resize:"none",lineHeight:1.45,fontFamily:SF}}/>
             </div>
             {FW("Gender",DropDown("gender",GENDERS,"Select gender…"))}
@@ -474,8 +496,7 @@ function OnboardingFlow({user,onComplete,onBack}){
               </div>
               {form.bank_type==="Others"&&(
                 <div style={{marginTop:10}}>
-                  <input value={form.bank_type_other} onChange={e=>{set("bank_type_other",e.target.value);clearErr("bank_type_other");}}
-                    placeholder="Please specify your bank name"
+                  <input value={form.bank_type_other} onChange={e=>{set("bank_type_other",e.target.value);clearErr("bank_type_other");}} placeholder="Specify bank name"
                     style={{width:"100%",background:"#f2f2f7",border:`1px solid ${SEP}`,borderRadius:9,padding:"10px 12px",fontSize:16,color:LBL,outline:"none"}}/>
                   <ErrMsg k="bank_type_other"/>
                 </div>
@@ -500,10 +521,11 @@ function OnboardingFlow({user,onComplete,onBack}){
           {step>1&&<button onClick={()=>setStep(s=>s-1)} className="btn" style={{flex:1,padding:"15px",background:BG2,border:`1px solid ${SEP}`,borderRadius:13,fontSize:17,color:LBL}}>Back</button>}
           {step<TOTAL
             ?<button onClick={next} className="btn-primary" style={{flex:2,padding:"15px",background:ACC,border:"none",borderRadius:13,fontSize:17,color:"#fff",fontWeight:600}}>Continue →</button>
-            :<button onClick={handleSubmit} disabled={loading} className="btn-primary" style={{flex:2,padding:"15px",background:ORG,border:"none",borderRadius:13,fontSize:17,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-              {loading&&<div style={{width:18,height:18,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
-              {loading?"Setting up…":"Let's Go! 🚀"}
-            </button>}
+            :<button onClick={handleSubmit} disabled={loading} className="btn-primary"
+                style={{flex:2,padding:"15px",background:ORG,border:"none",borderRadius:13,fontSize:17,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                {loading&&<div style={{width:18,height:18,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
+                {loading?"Setting up…":"Let's Go! 🚀"}
+              </button>}
         </div>
       </div>
     </div>
@@ -516,7 +538,6 @@ export default function App(){
   const [profile,setProfile]=useState(null);
   const [loading,setLoading]=useState(true);
   const [screen,setScreen]=useState("login");
-  // Pre-fill email from localStorage
   const [loginEmail,setLoginEmail]=useState(()=>localStorage.getItem("tw_saved_email")||"");
   const [loginPass,setLoginPass]=useState("");
   const [loginErr,setLoginErr]=useState("");
@@ -531,7 +552,6 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    // Restore existing session on app open — NO auto logout
     supabase.auth.getSession().then(({data:{session}})=>{
       setSession(session);
       if(session)loadUserProfile(session);
@@ -548,8 +568,7 @@ export default function App(){
     setLoading(true);
     try{
       const p=await ensureProfile(sess.user);
-      if(p)setProfile(p);
-      else await supabase.auth.signOut();
+      if(p)setProfile(p);else await supabase.auth.signOut();
     }catch(err){console.error("Load profile error:",err);await supabase.auth.signOut();}
     setLoading(false);
   };
@@ -559,21 +578,18 @@ export default function App(){
     if(!loginPass){setLoginErr("Please enter your password");return;}
     setLoginErr("");setLoginLoading(true);
     try{
-      const{data,error}=await supabase.auth.signInWithPassword({
-        email:loginEmail.trim().toLowerCase(),password:loginPass,
-      });
+      const{data,error}=await supabase.auth.signInWithPassword({email:loginEmail.trim().toLowerCase(),password:loginPass});
       if(error){
         const msg=error.message.toLowerCase();
         if(msg.includes("invalid login")||msg.includes("invalid credentials"))setLoginErr("Incorrect email or password.");
-        else if(msg.includes("email not confirmed"))setLoginErr("Email not confirmed. Please contact your admin.");
+        else if(msg.includes("email not confirmed"))setLoginErr("Email not confirmed. Contact admin.");
         else setLoginErr(error.message);
         setLoginLoading(false);return;
       }
       if(!data?.user){setLoginErr("Login failed. Please try again.");setLoginLoading(false);return;}
-      // Save email to localStorage for next time
       localStorage.setItem("tw_saved_email",loginEmail.trim().toLowerCase());
       const p=await ensureProfile(data.user);
-      if(!p){setLoginErr("Could not load your profile. Please contact admin.");setLoginLoading(false);return;}
+      if(!p){setLoginErr("Could not load profile. Contact admin.");setLoginLoading(false);return;}
       setSession(data.session);setProfile(p);setLoginLoading(false);
     }catch(err){setLoginErr("Connection error. Please try again.");setLoginLoading(false);}
   };
@@ -615,7 +631,7 @@ export default function App(){
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
           </div>
         </div>
-        {/* Remember me note */}
+        {/* Remember me badge */}
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12,padding:"0 2px"}}>
           <div style={{width:16,height:16,borderRadius:4,background:ACC,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <div style={{color:"#fff",fontSize:11,fontWeight:700}}>✓</div>
@@ -629,9 +645,7 @@ export default function App(){
           {loginLoading?"Signing In…":"Sign In"}
         </button>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-          <div style={{flex:1,height:1,background:SEP}}/>
-          <div style={{fontSize:12,color:LB3}}>or</div>
-          <div style={{flex:1,height:1,background:SEP}}/>
+          <div style={{flex:1,height:1,background:SEP}}/><div style={{fontSize:12,color:LB3}}>or</div><div style={{flex:1,height:1,background:SEP}}/>
         </div>
         <button onClick={()=>setScreen("signup")} className="btn-primary"
           style={{width:"100%",background:"transparent",color:ACC,border:`1.5px solid ${ACC}`,borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>

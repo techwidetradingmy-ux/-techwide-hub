@@ -19,6 +19,19 @@ const calcDaysWorking=joinedDate=>{if(!joinedDate)return null;return Math.floor(
 const WX_ICON=code=>{if(code===0)return"☀️";if(code<=3)return"⛅";if(code<=48)return"🌫️";if(code<=67)return"🌧️";if(code<=77)return"❄️";if(code<=82)return"🌦️";return"⛈️";};
 const WX_DESC=code=>{if(code===0)return"Clear Sky";if(code<=3)return"Partly Cloudy";if(code<=48)return"Foggy";if(code<=67)return"Rainy";if(code<=77)return"Snowy";if(code<=82)return"Showers";return"Thunderstorm";};
 
+// ── Ripple effect helper ──────────────────────────────────────────────
+function addRipple(e){
+  const el=e.currentTarget;
+  if(!el)return;
+  const rect=el.getBoundingClientRect();
+  const dot=document.createElement("div");
+  dot.className="ripple-dot";
+  dot.style.left=(e.clientX-rect.left)+"px";
+  dot.style.top=(e.clientY-rect.top)+"px";
+  el.appendChild(dot);
+  setTimeout(()=>dot.remove(),500);
+}
+
 // ── FULL PROFILE PAGE ─────────────────────────────────────────────────
 function FullProfilePage({user,currentUserId,onBack,onDM}){
   const [showAvatarFull,setShowAvatarFull]=useState(false);
@@ -39,8 +52,9 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
     ["🎮 Hobby",user.hobby||null],
     ["🍜 Fav Food",user.favorite_food||null],
   ].filter(([,v])=>v);
+
   return(
-    <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto"}}>
+    <div style={{minHeight:"100vh",background:BG,fontFamily:SF}}>
       {showAvatarFull&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAvatarFull(false)}>
           <div style={{width:280,height:280,borderRadius:"50%",background:user.avatar_url?`url(${user.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80,fontWeight:700,color:ACC,overflow:"hidden"}}>
@@ -60,7 +74,7 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
         <div style={{flex:1,fontSize:17,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nickname||user.name}</div>
         {currentUserId!==user.id&&<button onClick={()=>onDM(user)} className="btn" style={{background:ACC,color:"#fff",border:"none",borderRadius:99,padding:"7px 16px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SF,flexShrink:0}}>💬 Message</button>}
       </div>
-      <div style={{overflowY:"auto",paddingBottom:40}}>
+      <div style={{paddingBottom:40}}>
         <div onClick={()=>user.banner_url&&setShowBannerFull(true)} style={{height:150,background:user.banner_url?`url(${user.banner_url}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,cursor:user.banner_url?"zoom-in":"default"}}/>
         <div style={{padding:"0 16px",marginTop:-50,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
           <div onClick={()=>setShowAvatarFull(true)} style={{width:90,height:90,borderRadius:"50%",border:`3px solid ${BG}`,background:user.avatar_url?`url(${user.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:28,color:ACC,overflow:"hidden",flexShrink:0,cursor:"zoom-in"}}>
@@ -96,7 +110,7 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
             </div>
           )}
           {currentUserId!==user.id&&(
-            <button onClick={()=>onDM(user)} className="btn-primary"
+            <button onClick={()=>onDM(user)} className="btn-primary ripple-container" onPointerDown={addRipple}
               style={{width:"100%",marginTop:20,padding:"15px",background:ACC,color:"#fff",border:"none",borderRadius:13,fontSize:17,fontWeight:600,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
               💬 Send Message
             </button>
@@ -112,6 +126,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const [profile,setProfile]             =useState(init);
   const profileRef                       =useRef(init);
   const [tab,setTab]                     =useState("home");
+  const [prevTab,setPrevTab]             =useState("home");
   const [missions,setMissions]           =useState([]);
   const [myClaims,setMyClaims]           =useState([]);
   const [allProfiles,setAllProfiles]     =useState([]);
@@ -125,13 +140,18 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const [showNotif,setShowNotif]         =useState(false);
   const [viewingProfile,setViewingProfile]=useState(null);
   const [weather,setWeather]             =useState(null);
+  const [tabKey,setTabKey]               =useState(0);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
 
+  const switchTab=newTab=>{
+    setPrevTab(tab);
+    setTab(newTab);
+    setTabKey(k=>k+1);
+  };
+
   useEffect(()=>{
-    loadAll();
-    loadNotifications();
-    fetchWeather();
+    loadAll();loadNotifications();fetchWeather();
     const ch=supabase.channel("user_rt_"+profile.id)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"profiles",filter:`id=eq.${profile.id}`},async()=>{
         const{data}=await supabase.from("profiles").select("*").eq("id",profile.id).single();
@@ -174,7 +194,8 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     return()=>{clearInterval(iv);supabase.removeChannel(ch);};
   },[]);
 
-  useEffect(()=>{if(dmTarget)setTab("chat");},[dmTarget]);
+  useEffect(()=>{if(dmTarget)switchTab("chat");},[dmTarget]);
+  useEffect(()=>{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission();},[]);
 
   const fetchWeather=()=>{
     if(!navigator.geolocation)return;
@@ -198,10 +219,8 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       supabase.from("redemptions").select("*").eq("user_id",uid),
       supabase.from("prizes").select("*").eq("active",true),
     ]);
-    if(m.data)setMissions(m.data);
-    if(c.data)setMyClaims(c.data);
-    if(ap.data)setAllProfiles(ap.data);
-    if(a.data)setAnnouncements(a.data);
+    if(m.data)setMissions(m.data);if(c.data)setMyClaims(c.data);
+    if(ap.data)setAllProfiles(ap.data);if(a.data)setAnnouncements(a.data);
     if(r.data)setMyRedemptions(r.data);
     if(p.data)setPrizes(p.data.length>0?p.data:PRIZES.map(x=>({...x,id:x.id,cost:x.pts,category:x.cat})));
   };
@@ -216,10 +235,6 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     setNotifications(p=>p.map(n=>({...n,read:true})));
   };
 
-  useEffect(()=>{
-    if("Notification" in window&&Notification.permission==="default")Notification.requestPermission();
-  },[]);
-
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),2800);};
 
   const doCheckIn=async()=>{
@@ -227,13 +242,11 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     if(profileRef.current.last_checkin===today){showToast("Already checked in today 😊");return;}
     const bonus=profileRef.current.streak>=7?100:profileRef.current.streak>=3?75:50;
     const streak=profileRef.current.streak+1;
-    // Optimistic update first
     const updated={...profileRef.current,xp:profileRef.current.xp+bonus,streak,last_checkin:today};
     syncProfile(updated);
     setAllProfiles(p=>p.map(x=>x.id===profile.id?updated:x).sort((a,b)=>b.xp-a.xp));
     showToast(`+${bonus} pts  •  ${streak}-day streak 🔥`);
-    // Then save to DB
-    await supabase.from("profiles").update({xp:profileRef.current.xp,streak,last_checkin:today}).eq("id",profile.id);
+    await supabase.from("profiles").update({xp:updated.xp,streak,last_checkin:today}).eq("id",profile.id);
     await supabase.from("points_history").insert({user_id:profile.id,amount:bonus,reason:`Daily check-in — ${streak} day streak`,type:"credit"}).catch(()=>{});
   };
 
@@ -243,11 +256,9 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     if(!pts||pts<=0){showToast("Invalid prize");return;}
     if(cur.xp<pts){showToast(`Need ${(pts-cur.xp).toLocaleString()} more pts`);return;}
     if((prize.stock||99)<1){showToast("Out of stock");return;}
-    // Optimistic update
     const newXp=cur.xp-pts;
     syncProfile({...cur,xp:newXp});
     showToast(`${prize.name} redeemed! 🎉`);
-    // Save to DB
     try{
       await supabase.from("redemptions").insert({user_id:profile.id,prize_id:prize.id?.toString(),prize_name:prize.name,status:"Pending"});
       await supabase.from("profiles").update({xp:newXp}).eq("id",profile.id);
@@ -255,17 +266,12 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       if(prize.stock!=null)await supabase.from("prizes").update({stock:Math.max(0,prize.stock-1)}).eq("id",prize.id);
       const{data}=await supabase.from("redemptions").select("*").eq("user_id",profile.id);
       if(data)setMyRedemptions(data);
-    }catch(err){
-      // Rollback on failure
-      syncProfile(cur);
-      showToast("Redemption failed — please try again");
-    }
+    }catch{syncProfile(cur);showToast("Redemption failed — please try again");}
   };
 
   const today=new Date().toISOString().split("T")[0];
   const checkedIn=profile.last_checkin===today;
-  const lv=getLevel(profile.xp);
-  const pct=getLvlPct(profile.xp);
+  const lv=getLevel(profile.xp);const pct=getLvlPct(profile.xp);
   const completedCount=myClaims.filter(c=>c.completed).length;
   const score=calcScore(profile.joined_date,completedCount);
   const tier=getTier(score);
@@ -273,7 +279,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
 
   const Section=({children,style={}})=><div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:8,...style}}>{children}</div>;
   const Row=({label,detail,badge,last,onPress})=>(
-    <div onClick={onPress} className={onPress?"btn":""} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",background:BG2,borderBottom:last?"none":`1px solid ${SEP}`,cursor:onPress?"pointer":"default"}}>
+    <div onClick={onPress} className={onPress?"btn card-press":""} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",background:BG2,borderBottom:last?"none":`1px solid ${SEP}`,cursor:onPress?"pointer":"default"}}>
       <div style={{flex:1}}>
         <div style={{fontSize:17,color:LBL}}>{label}</div>
         {detail&&<div style={{fontSize:13,color:LB3,marginTop:1}}>{detail}</div>}
@@ -283,7 +289,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   );
   const Chip=({color,children})=><span style={{background:color+"18",color,fontSize:12,fontWeight:600,padding:"3px 9px",borderRadius:99}}>{children}</span>;
   const PrimaryBtn=({children,onClick,disabled,color})=>(
-    <button onClick={onClick} disabled={disabled} className="btn-primary"
+    <button onClick={onClick} disabled={disabled} className="btn-primary ripple-container" onPointerDown={addRipple}
       style={{width:"100%",background:disabled?"#e5e5ea":color||ACC,color:disabled?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:disabled?"default":"pointer",fontFamily:SF}}>
       {children}
     </button>
@@ -309,16 +315,20 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     {id:"profile", label:"Profile",   emoji:"👤"},
   ];
 
+  // ── Full profile — slides in from right ──
   if(viewingProfile){
     return(
-      <FullProfilePage
-        user={viewingProfile} currentUserId={profile.id}
-        onBack={()=>setViewingProfile(null)}
-        onDM={u=>{setDmTarget(u);setViewingProfile(null);setTab("chat");}}
-      />
+      <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:50,maxWidth:430,margin:"0 auto",background:BG,overflowY:"auto"}}>
+        <FullProfilePage
+          user={viewingProfile} currentUserId={profile.id}
+          onBack={()=>setViewingProfile(null)}
+          onDM={u=>{setDmTarget(u);setViewingProfile(null);switchTab("chat");}}
+        />
+      </div>
     );
   }
 
+  // ── Notifications panel ──
   function NotifPanel(){
     return(
       <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
@@ -348,6 +358,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     );
   }
 
+  // ── Home tab ──
   function HomeTab(){
     const [now,setNow]=useState(new Date());
     const [showAllAnn,setShowAllAnn]=useState(false);
@@ -360,6 +371,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     const dateStr=`${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
     return(
       <div style={{padding:"0 16px 12px"}}>
+        {/* Date/Time/Weather */}
         <div className="fade" style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:14,padding:"14px 18px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginBottom:3}}>{dateStr}</div>
@@ -369,6 +381,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             {weather?(<><div style={{fontSize:34,lineHeight:1}}>{WX_ICON(weather.weathercode)}</div><div style={{fontSize:20,fontWeight:700,color:"#fff",marginTop:4}}>{Math.round(weather.temperature)}°C</div><div style={{fontSize:10,color:"rgba(255,255,255,.5)",marginTop:2}}>{WX_DESC(weather.weathercode)}</div></>):<div style={{fontSize:28,opacity:.3}}>🌡️</div>}
           </div>
         </div>
+        {/* Hero */}
         <div className="fade" style={{background:`linear-gradient(145deg,${ACC},#0e2140)`,borderRadius:18,padding:20,marginBottom:8,position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:`${ORG}15`,pointerEvents:"none"}}/>
           <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
@@ -398,6 +411,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </div>
           </div>
         </div>
+        {/* Tier */}
         <div className="fade" style={{background:BG2,borderRadius:13,padding:"14px 16px",marginBottom:8,borderLeft:`3px solid ${tier.color}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <div style={{fontSize:12,color:LB3,fontWeight:700,letterSpacing:".4px",textTransform:"uppercase"}}>Contribution Tier</div>
@@ -417,6 +431,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             })}
           </div>
         </div>
+        {/* Check-in */}
         <div className="fade" style={{background:BG2,borderRadius:13,padding:16,marginBottom:8}}>
           {checkedIn?(
             <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -431,6 +446,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </>
           )}
         </div>
+        {/* Stats */}
         <div className="fade" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
           {[{l:"Points",v:profile.xp.toLocaleString(),e:"⚡"},{l:"Streak",v:`${profile.streak}d`,e:"🔥"},{l:"Missions",v:completedCount,e:"✅"}].map((s,i)=>(
             <div key={i} style={{background:BG2,borderRadius:13,padding:"13px 10px",textAlign:"center"}}>
@@ -440,6 +456,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </div>
           ))}
         </div>
+        {/* Announcements */}
         {announcements.length>0&&(
           <div className="fade">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"12px 4px 8px"}}>
@@ -458,6 +475,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             </div>
           </div>
         )}
+        {/* Pending rewards */}
         {myRedemptions.filter(r=>r.status==="Pending").length>0&&(
           <div className="fade" style={{marginTop:8}}>
             <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,margin:"12px 4px 8px"}}>Pending Rewards</div>
@@ -495,8 +513,9 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       {/* Header */}
       <div style={{background:"rgba(242,242,247,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"12px 16px 10px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          {/* Logo + name → go home on tap */}
-          <div onClick={()=>setTab("home")} style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer"}} className="btn">
+          {/* Logo → taps back to home with ripple */}
+          <div onClick={()=>switchTab("home")} className="btn ripple-container" onPointerDown={addRipple}
+            style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer",borderRadius:8,padding:"4px 8px 4px 0"}}>
             <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:30,height:30,borderRadius:7,objectFit:"cover"}}/>
             <div style={{fontSize:17,fontWeight:600,color:LBL,letterSpacing:"-.3px"}}>Techwide Hub</div>
           </div>
@@ -504,9 +523,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
             <div style={{fontSize:14,fontWeight:600,color:ACC}}>{profile.xp.toLocaleString()} pts</div>
             <button onClick={()=>setShowNotif(true)} className="btn" style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:4}}>
               <span style={{fontSize:20}}>🔔</span>
-              {unreadCount>0&&(
-                <div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadCount}</div>
-              )}
+              {unreadCount>0&&<div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:16,height:16,background:"#ff3b30",borderRadius:99,fontSize:10,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadCount}</div>}
             </button>
             <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:13,color:"#ff3b30",fontWeight:500,background:"rgba(255,59,48,.1)",padding:"4px 9px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:SF}}>Out</button>
           </div>
@@ -521,8 +538,8 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
         </div>
       </div>
 
-      {/* Content */}
-      <div style={{flex:1,overflowY:"auto",padding:"12px 0 90px"}}>
+      {/* Content — key triggers page slide animation on tab change */}
+      <div key={tabKey} className="page-enter-forward" style={{flex:1,overflowY:"auto",padding:"12px 0 90px"}}>
         {tab==="home"    &&<HomeTab/>}
         {tab==="missions"&&<MissionsTab{...shared}/>}
         {tab==="leaders" &&<LeaderboardTab{...shared}/>}
@@ -534,10 +551,10 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
       {/* Tab bar */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.94)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20}}>
         {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} className="tab-btn"
+          <button key={t.id} onClick={()=>switchTab(t.id)} className="tab-btn"
             style={{flex:1,padding:"7px 2px 11px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer"}}>
-            <div style={{fontSize:tab===t.id?21:17,lineHeight:1,filter:tab===t.id?"none":"grayscale(1) opacity(.35)",transition:"font-size .15s"}}>{t.emoji}</div>
-            <div style={{fontSize:9,fontWeight:tab===t.id?600:400,color:tab===t.id?ACC:"#8e8e93",fontFamily:SF}}>{t.label}</div>
+            <div style={{fontSize:tab===t.id?21:17,lineHeight:1,filter:tab===t.id?"none":"grayscale(1) opacity(.35)",transition:"font-size .2s cubic-bezier(.34,1.56,.64,1)"}}>{t.emoji}</div>
+            <div style={{fontSize:9,fontWeight:tab===t.id?600:400,color:tab===t.id?ACC:"#8e8e93",fontFamily:SF,transition:"color .15s"}}>{t.label}</div>
           </button>
         ))}
       </div>

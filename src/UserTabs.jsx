@@ -1028,7 +1028,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
 }
 
 // ── PROFILE TAB ───────────────────────────────────────────────────────
-export function ProfileTab({profile,syncProfile,score,tier,completedCount,showToast,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}){
+export function ProfileTab({profile,syncProfile,score,tier,completedCount,showToast,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,onOpenSettings}){
   const [section,setSection]=useState("public");
   const [editing,setEditing]=useState(false);
   const [saving,setSaving]=useState(false);
@@ -1221,6 +1221,21 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
           </div>
         ))}
       </div>
+
+      {/* Settings button */}
+      {onOpenSettings&&(
+        <div style={{padding:"0 16px",marginBottom:16}}>
+          <button onClick={onOpenSettings} className="btn card-press"
+            style={{width:"100%",background:BG2,border:"none",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,cursor:"pointer",fontFamily:SF}}>
+            <div style={{width:38,height:38,borderRadius:10,background:"rgba(142,142,147,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>⚙️</div>
+            <div style={{flex:1,textAlign:"left"}}>
+              <div style={{fontSize:16,fontWeight:600,color:LBL}}>Settings</div>
+              <div style={{fontSize:13,color:LB3,marginTop:1}}>Accounts, switch user & more</div>
+            </div>
+            <div style={{fontSize:20,color:LB3,fontWeight:300}}>›</div>
+          </button>
+        </div>
+      )}
 
       {/* Section tabs */}
       <div style={{display:"flex",gap:10,padding:"0 16px",marginBottom:16}}>

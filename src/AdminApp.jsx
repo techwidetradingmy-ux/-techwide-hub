@@ -3,6 +3,7 @@ import DatePicker from"react-datepicker";
 import"react-datepicker/dist/react-datepicker.css";
 import{supabase}from"./supabaseClient";
 import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}from"./constants";
+import SettingsPage from"./components/SettingsPage";
 
 const MISSION_CATS=["Sales","Teamwork","Admin","Creativity","KOL","Content","Live Hosting","Others"];
 const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
@@ -678,7 +679,7 @@ function CommunityTab({allProfiles}){
   );
 }
 
-export default function AdminApp({profile,onProfileUpdate}){
+export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddAccount}){
   const [tab,setTab]                    =useState("dash");
   const [allProfiles,setAllProfiles]    =useState([]);
   const [missions,setMissions]          =useState([]);
@@ -688,6 +689,7 @@ export default function AdminApp({profile,onProfileUpdate}){
   const [redemptions,setRedemptions]    =useState([]);
   const [verifReqs,setVerifReqs]        =useState([]);
   const [toast,setToast]                =useState(null);
+  const [showSettings,setShowSettings]  =useState(false);
 
   useEffect(()=>{
     loadAll();
@@ -886,13 +888,20 @@ export default function AdminApp({profile,onProfileUpdate}){
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
+      {/* ── Settings overlay ── */}
+      {showSettings&&<SettingsPage profile={profile} onClose={()=>setShowSettings(false)} onSwitchAccount={acct=>{setShowSettings(false);onSwitchAccount&&onSwitchAccount(acct);}} onAddAccount={()=>{setShowSettings(false);onAddAccount&&onAddAccount();}}/>}
       <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:34,height:34,borderRadius:8,objectFit:"cover"}}/>
             <div style={{fontSize:18,fontWeight:700,color:LBL}}>Admin Panel</div>
           </div>
-          <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
+          <button onClick={()=>setShowSettings(true)} className="btn"
+            style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",padding:0}}>
+            <div style={{width:36,height:36,borderRadius:"50%",background:profile.avatar_url?`url(${profile.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},#0e2140)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0,border:`2px solid ${ACC}22`}}>
+              {!profile.avatar_url&&(profile.avatar||"?")}
+            </div>
+          </button>
         </div>
         <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>
           {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}{tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}

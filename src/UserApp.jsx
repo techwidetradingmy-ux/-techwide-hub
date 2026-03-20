@@ -2,6 +2,7 @@ import{useState,useEffect,useRef}from"react";
 import{supabase}from"./supabaseClient";
 import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}from"./constants";
 import{MissionsTab,LeaderboardTab,PrizesTab,CommunityTab,ProfileTab}from"./UserTabs";
+import SettingsPage from"./components/SettingsPage";
 
 const XP_T=[0,500,1200,2000,3000,4500,6500,9000,12000];
 const getLevel=xp=>{let l=1;for(let i=1;i<XP_T.length;i++)if(xp>=XP_T[i])l=i+1;return Math.min(l,XP_T.length);};
@@ -169,7 +170,7 @@ function RedeemSuccessModal({prize,onClose}){
   );
 }
 
-export default function UserApp({profile:init,session,onProfileUpdate}){
+export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAccount,onAddAccount}){
   const [profile,setProfile]              =useState(init);
   const profileRef                        =useRef(init);
   const [tab,setTab]                      =useState("home");
@@ -189,6 +190,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
   const [weather,setWeather]              =useState(null);
   // ── NEW: centered success modal for redemptions ──
   const [redeemSuccess,setRedeemSuccess]  =useState(null);
+  const [showSettings,setShowSettings]    =useState(false);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
   const switchTab=newTab=>{setTab(newTab);setTabKey(k=>k+1);};
@@ -358,6 +360,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,
     getLevel,getLvlPct,calcScore,getTier,
     dmTarget,setDmTarget,setViewingProfile,
+    onOpenSettings:()=>setShowSettings(true),
   };
 
   const TABS=[
@@ -524,6 +527,9 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
 
   return(
     <div style={{height:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
+
+      {/* ── Settings overlay ── */}
+      {showSettings&&<SettingsPage profile={profile} onClose={()=>setShowSettings(false)} onSwitchAccount={acct=>{setShowSettings(false);onSwitchAccount&&onSwitchAccount(acct);}} onAddAccount={()=>{setShowSettings(false);onAddAccount&&onAddAccount();}}/>}
 
       {/* ── CENTERED Redemption Success Modal ── */}
       {redeemSuccess&&<RedeemSuccessModal prize={redeemSuccess} onClose={()=>setRedeemSuccess(null)}/>}

@@ -611,6 +611,8 @@ export default function App(){
   );
 
   if(!session||!profile)return(
+    <>
+    <AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={target=>{setShowSwitcher(false);setLoginEmail(target.email);setLoginPass("");}} onAddNew={()=>{setShowSwitcher(false);setScreen("signup");}}/>
     <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
       <div className="fade" style={{textAlign:"center",marginBottom:36}}>
         <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:100,height:100,borderRadius:22,objectFit:"cover",margin:"0 auto 16px",display:"block",boxShadow:"0 8px 28px rgba(28,50,88,.2)"}}/>
@@ -656,6 +658,7 @@ export default function App(){
         <div style={{textAlign:"center",fontSize:12,color:LB3,marginTop:14,lineHeight:1.6}}>By signing in you agree to our<br/>company policies and code of conduct</div>
       </div>
     </div>
+    </>
   );
 
   if(!profile.onboarded)return(
@@ -669,6 +672,8 @@ export default function App(){
     />
   );
 
-  const handleAccountSwitch=(target)=>{setShowSwitcher(false);setLoginEmail(target.email);setLoginPass("");setProfile(null);setSession(null);};if(profile.is_admin)return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={()=>{setShowSwitcher(false);setScreen("signup");}}/><AdminApp profile={profile} session={session} onProfileUpdate={setProfile}/></>;
-  return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={()=>{setShowSwitcher(false);setScreen("signup");}}/><UserApp profile={profile} session={session} onProfileUpdate={setProfile}/></>;
+  const handleAccountSwitch=(target)=>{setLoginEmail(target.email);setLoginPass("");setProfile(null);setSession(null);};
+  const handleAddAccount=()=>{setScreen("signup");};
+  if(profile.is_admin)return<AdminApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount}/>;
+  return<UserApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount}/>;
 }

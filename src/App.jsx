@@ -543,7 +543,7 @@ export default function App(){
   const [loginEmail,setLoginEmail]=useState(()=>localStorage.getItem("tw_saved_email")||"");
   const [loginPass,setLoginPass]=useState("");
   const [loginErr,setLoginErr]=useState("");
-  const [loginLoading,setLoginLoading]=useState(false);
+  const [loginLoading,setLoginLoading]=useState(false);const [showSwitcher,setShowSwitcher]=useState(false);
 
   useEffect(()=>{
     const el=document.createElement("style");
@@ -592,7 +592,7 @@ export default function App(){
       localStorage.setItem("tw_saved_email",loginEmail.trim().toLowerCase());
       const p=await ensureProfile(data.user);
       if(!p){setLoginErr("Could not load profile. Contact admin.");setLoginLoading(false);return;}
-      setSession(data.session);setProfile(p);setLoginLoading(false);
+      upsertAccount({id:p.id,email:p.email,name:p.name,avatar:p.avatar,is_admin:p.is_admin});setSession(data.session);setProfile(p);setLoginLoading(false);
     }catch(err){setLoginErr("Connection error. Please try again.");setLoginLoading(false);}
   };
 
@@ -646,7 +646,7 @@ export default function App(){
           {loginLoading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
           {loginLoading?"Signing In…":"Sign In"}
         </button>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+        {getSavedAccounts().length>1&&<button onClick={()=>setShowSwitcher(true)} className="btn" style={{width:"100%",background:BG2,border:"1px solid "+SEP,borderRadius:13,padding:"13px",fontSize:15,fontWeight:600,color:LBL,cursor:"pointer",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>Switch Account</button>}<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
           <div style={{flex:1,height:1,background:SEP}}/><div style={{fontSize:12,color:LB3}}>or</div><div style={{flex:1,height:1,background:SEP}}/>
         </div>
         <button onClick={()=>setScreen("signup")} className="btn-primary"
@@ -669,6 +669,6 @@ export default function App(){
     />
   );
 
-  if(profile.is_admin)return<AdminApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
-  return<UserApp profile={profile} session={session} onProfileUpdate={setProfile}/>;
+  const handleAccountSwitch=(target)=>{setShowSwitcher(false);setLoginEmail(target.email);setLoginPass("");setProfile(null);setSession(null);};if(profile.is_admin)return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={()=>{setShowSwitcher(false);setScreen("signup");}}/><AdminApp profile={profile} session={session} onProfileUpdate={setProfile}/></>;
+  return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={()=>{setShowSwitcher(false);setScreen("signup");}}/><UserApp profile={profile} session={session} onProfileUpdate={setProfile}/></>;
 }

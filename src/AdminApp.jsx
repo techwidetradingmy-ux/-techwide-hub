@@ -5,6 +5,22 @@ import{supabase}from"./supabaseClient";
 import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}from"./constants";
 import{getSavedAccounts,getActiveAccountId,switchToAccount}from"./lib/accountManager";
 
+const playAdminSound=()=>{
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator();const g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);
+    o.type="sine";
+    o.frequency.setValueAtTime(880,ctx.currentTime);
+    o.frequency.setValueAtTime(1100,ctx.currentTime+0.1);
+    o.frequency.setValueAtTime(1320,ctx.currentTime+0.2);
+    g.gain.setValueAtTime(0,ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.3,ctx.currentTime+0.04);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.5);
+    o.start(ctx.currentTime);o.stop(ctx.currentTime+0.5);
+  }catch(e){console.warn("admin sound:",e);}
+};
+
 const MISSION_CATS=["Sales","Teamwork","Admin","Creativity","KOL","Content","Live Hosting","Others"];
 const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
 function addRipple(e){const el=e.currentTarget;if(!el)return;const rect=el.getBoundingClientRect();const dot=document.createElement("div");dot.className="ripple-dot";dot.style.left=(e.clientX-rect.left)+"px";dot.style.top=(e.clientY-rect.top)+"px";el.appendChild(dot);setTimeout(()=>dot.remove(),500);}
@@ -37,6 +53,21 @@ const autoIcon=name=>{
   if(n.includes("dinner")||n.includes("lunch")||n.includes("team"))return"🍽️";
   return"🎁";
 };
+
+function GiftSuccessModal({recipient,points,onClose}){
+  useEffect(()=>{const t=setTimeout(onClose,4000);return()=>clearTimeout(t);},[]);
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
+      <div className="toast-in" style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:24,padding:"36px 28px",textAlign:"center",maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+        <div style={{fontSize:64,marginBottom:16}}>🎁</div>
+        <div style={{fontSize:24,fontWeight:700,color:"#fff",marginBottom:8}}>Gift Sent!</div>
+        <div style={{fontSize:18,color:"rgba(255,255,255,.8)",marginBottom:6}}>{points.toLocaleString()} pts → {recipient}</div>
+        <div style={{fontSize:14,color:"rgba(255,255,255,.5)",marginBottom:24}}>Notification sent with sound!</div>
+        <button onClick={onClose} style={{width:"100%",padding:"14px",background:ORG,color:"#fff",border:"none",borderRadius:14,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:SF}}>Done</button>
+      </div>
+    </div>
+  );
+}
 
 function GiftPointsTab({allProfiles,onGift}){
   const [toId,setToId]=useState("");
@@ -638,43 +669,168 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
   );
 }
 
-function CommunityTab({allProfiles}){
+function CommunityTab({allProfiles,profile}){
+  const [mode,setMode]=useState("group");
   const [messages,setMessages]=useState([]);
+  const [dmWith,setDmWith]=useState(null);
+  const [dmMessages,setDmMessages]=useState([]);
+  const [text,setText]=useState("");
+  const [sending,setSending]=useState(false);
+  const [showPeople,setShowPeople]=useState(false);
   const bottomRef=useRef(null);
-  useEffect(()=>{loadMsgs();const iv=setInterval(loadMsgs,4000);return()=>clearInterval(iv);},[]);
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+  const inputRef=useRef(null);
+
+  useEffect(()=>{
+    if(mode==="group"){loadMsgs();const iv=setInterval(loadMsgs,4000);return()=>clearInterval(iv);}
+  },[mode]);
+  useEffect(()=>{
+    if(mode==="dm"&&dmWith){loadDmMsgs();const iv=setInterval(loadDmMsgs,2000);return()=>clearInterval(iv);}
+  },[mode,dmWith]);
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages,dmMessages]);
+
   const loadMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*, sender:user_id(avatar_url,avatar)").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
     if(data)setMessages(data);
   };
+  const loadDmMsgs=async()=>{
+    if(!dmWith||!profile)return;
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
+      .order("created_at",{ascending:true}).limit(100);
+    if(data)setDmMessages(data);
+  };
+
+  const sendGroup=async()=>{
+    if(!text.trim()||sending||!profile)return;
+    setSending(true);
+    await supabase.from("messages").insert({
+      user_id:profile.id,sender_name:profile.nickname||profile.name,
+      sender_avatar:profile.avatar||"",sender_avatar_url:profile.avatar_url||"",
+      content:text.trim(),is_dm:false,message_type:"text",
+    });
+    setText("");await loadMsgs();setSending(false);
+  };
+  const sendDm=async()=>{
+    if(!text.trim()||sending||!profile||!dmWith)return;
+    setSending(true);
+    await supabase.from("messages").insert({
+      user_id:profile.id,recipient_id:dmWith.id,
+      sender_name:profile.nickname||profile.name,
+      sender_avatar:profile.avatar||"",sender_avatar_url:profile.avatar_url||"",
+      content:text.trim(),is_dm:true,message_type:"text",
+      delivered_at:new Date().toISOString(),
+    });
+    try{await supabase.from("notifications").insert({user_id:dmWith.id,title:`💬 ${profile.nickname||profile.name}`,body:text.trim(),type:"dm"});}catch(e){console.warn(e);}
+    setText("");await loadDmMsgs();setSending(false);
+  };
+
   const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
+
+  const staff=allProfiles.filter(p=>!p.is_admin);
+
+  if(mode==="dm"&&dmWith){
+    return(
+      <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 170px)"}}>
+        <div style={{padding:"10px 16px",background:BG,display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${SEP}`,flexShrink:0}}>
+          <button onClick={()=>{setMode("group");setDmWith(null);setDmMessages([]);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:ACC,fontFamily:SF,fontWeight:700,padding:0}}>← Back</button>
+          <div style={{width:38,height:38,borderRadius:"50%",background:dmWith.avatar_url?`url(${dmWith.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0}}>{!dmWith.avatar_url&&(dmWith.avatar||"?")}</div>
+          <div style={{flex:1}}><div style={{fontSize:16,fontWeight:700,color:LBL}}>{dmWith.nickname||dmWith.name}</div><div style={{fontSize:12,color:LB3}}>{dmWith.role}</div></div>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:6,background:`${ACC}06`,minHeight:0}}>
+          {dmMessages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3}}>Say hi to {dmWith.nickname||dmWith.name?.split(" ")[0]}!</div>}
+          {dmMessages.map(msg=>{
+            const me=msg.user_id===profile?.id;
+            return(
+              <div key={msg.id} style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4}}>
+                {!me&&<div style={{width:30,height:30,borderRadius:"50%",background:msg.sender_avatar_url?`url(${msg.sender_avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",marginRight:8,alignSelf:"flex-end"}}>{!msg.sender_avatar_url&&(msg.sender_avatar||"?")}</div>}
+                <div style={{maxWidth:"75%"}}>
+                  {!me&&<div style={{fontSize:12,color:ACC,fontWeight:700,marginBottom:3,paddingLeft:2}}>{msg.sender_name}</div>}
+                  <div style={{background:me?`linear-gradient(135deg,${ACC},#0e2140)`:BG2,borderRadius:me?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"10px 14px",boxShadow:me?`0 2px 8px ${ACC}30`:"0 1px 4px rgba(0,0,0,.08)"}}>
+                    <div style={{fontSize:15,color:me?"#fff":LBL,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+                    <div style={{fontSize:11,color:me?"rgba(255,255,255,.4)":"#aaa",marginTop:3,textAlign:"right"}}>{fmt(msg.created_at)}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={bottomRef}/>
+        </div>
+        <div style={{background:BG2,padding:"10px 12px",display:"flex",alignItems:"center",gap:8,flexShrink:0,borderTop:`1px solid ${SEP}`}}>
+          <input ref={inputRef} value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendDm()} placeholder="Type a message…" style={{flex:1,background:`${ACC}08`,border:`1px solid ${ACC}20`,outline:"none",borderRadius:24,padding:"11px 16px",fontSize:16,color:LBL,fontFamily:SF}}/>
+          <button onClick={sendDm} disabled={!text.trim()||sending} style={{width:44,height:44,borderRadius:"50%",background:text.trim()?ACC:"#e5e5ea",border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",flexShrink:0,color:"#fff"}}>{sending?"…":"▶"}</button>
+        </div>
+      </div>
+    );
+  }
+
   return(
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 170px)"}}>
-      <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 16px",margin:"0 16px 10px",fontSize:15,color:ACC,fontWeight:600,flexShrink:0}}>
-        👁️ Monitor Mode — view only
-      </div>
-      <div style={{flex:1,overflowY:"auto",padding:"0 16px 16px",display:"flex",flexDirection:"column",gap:10}}>
-        {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:16}}>No messages yet 👋</div>}
-        {messages.map(msg=>{
-          if(msg.is_system)return(<div key={msg.id} style={{textAlign:"center"}}><div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%"}}>{msg.content}</div></div>);
-          const avatarUrl=msg.sender?.avatar_url||msg.sender_avatar_url||"";
-          return(
-            <div key={msg.id} style={{display:"flex",alignItems:"flex-end",gap:10}}>
-              <div style={{width:38,height:38,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",border:`2px solid ${BG2}`}}>
-                {!avatarUrl&&(msg.sender?.avatar||"?")}
+      {showPeople&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+          <div style={{background:BG,borderRadius:"22px 22px 0 0",padding:"22px 16px 50px",maxHeight:"68vh",overflowY:"auto"}}>
+            <div style={{fontSize:20,fontWeight:700,color:LBL,marginBottom:16}}>DM a Staff Member</div>
+            {staff.map(u=>(
+              <div key={u.id} onClick={()=>{setDmWith(u);setMode("dm");setShowPeople(false);}} className="card-press"
+                style={{display:"flex",alignItems:"center",gap:14,padding:"12px 0",borderBottom:`1px solid ${SEP}`,cursor:"pointer"}}>
+                <div style={{width:50,height:50,borderRadius:"50%",background:u.avatar_url?`url(${u.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0}}>{!u.avatar_url&&(u.avatar||"?")}</div>
+                <div style={{flex:1}}><div style={{fontSize:17,color:LBL,fontWeight:600}}>{u.nickname||u.name}</div><div style={{fontSize:14,color:LB3}}>{u.role}</div></div>
+                <div style={{fontSize:22,color:LB3}}>›</div>
               </div>
-              <div style={{maxWidth:"75%"}}>
-                <div style={{fontSize:13,color:LB3,marginBottom:4,paddingLeft:4}}>{msg.sender_name}</div>
-                <div style={{background:BG2,borderRadius:"18px 18px 18px 4px",padding:"12px 16px",boxShadow:"0 1px 4px rgba(0,0,0,.07)"}}>
-                  <div style={{fontSize:16,color:LBL,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+            ))}
+            <button onClick={()=>setShowPeople(false)} style={{width:"100%",marginTop:18,padding:"16px",background:"rgba(0,0,0,.06)",border:"none",borderRadius:14,fontSize:17,color:"#ff3b30",cursor:"pointer",fontFamily:SF,fontWeight:600}}>Cancel</button>
+          </div>
+        </div>
+      )}
+      <div style={{padding:"10px 16px 0",background:BG,flexShrink:0,display:"flex",gap:10,alignItems:"center"}}>
+        <div style={{flex:1,display:"flex",gap:6,background:"rgba(0,0,0,.06)",borderRadius:14,padding:4}}>
+          {[["group","👥 Group Chat"],["dms","💬 Direct Messages"]].map(([id,label])=>(
+            <button key={id} onClick={()=>setMode(id)} style={{flex:1,padding:"10px",background:mode===id?BG2:"transparent",border:"none",borderRadius:11,fontSize:14,fontWeight:mode===id?700:400,color:mode===id?ACC:LB3,cursor:"pointer",fontFamily:SF,transition:"all .15s",boxShadow:mode===id?"0 1px 6px rgba(0,0,0,.1)":"none"}}>{label}</button>
+          ))}
+        </div>
+        {mode==="dms"&&<button onClick={()=>setShowPeople(true)} style={{background:ACC,color:"#fff",border:"none",borderRadius:99,padding:"8px 14px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:SF,flexShrink:0}}>✏️ New DM</button>}
+      </div>
+      {mode==="group"&&(
+        <>
+          <div style={{flex:1,overflowY:"auto",padding:"12px 16px 16px",display:"flex",flexDirection:"column",gap:10,background:`${ACC}06`,minHeight:0}}>
+            {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:16}}>No messages yet 👋</div>}
+            {messages.map(msg=>{
+              if(msg.is_system)return(<div key={msg.id} style={{textAlign:"center"}}><div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%"}}>{msg.content}</div></div>);
+              const me=msg.user_id===profile?.id;
+              const avatarUrl=msg.sender_avatar_url||"";
+              return(
+                <div key={msg.id} style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4}}>
+                  {!me&&<div style={{width:36,height:36,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",marginRight:8,alignSelf:"flex-end",border:`2px solid ${BG2}`}}>{!avatarUrl&&(msg.sender_avatar||"?")}</div>}
+                  <div style={{maxWidth:"75%"}}>
+                    {!me&&<div style={{fontSize:12,color:ACC,fontWeight:700,marginBottom:3,paddingLeft:2}}>{msg.sender_name}</div>}
+                    <div style={{background:me?`linear-gradient(135deg,${ACC},#0e2140)`:BG2,borderRadius:me?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"10px 14px",boxShadow:me?`0 2px 8px ${ACC}30`:"0 1px 4px rgba(0,0,0,.07)"}}>
+                      <div style={{fontSize:15,color:me?"#fff":LBL,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+                      <div style={{fontSize:11,color:me?"rgba(255,255,255,.4)":"#aaa",marginTop:3,textAlign:"right"}}>{fmt(msg.created_at)}</div>
+                    </div>
+                  </div>
                 </div>
-                <div style={{fontSize:12,color:LB3,marginTop:4,paddingLeft:4}}>{fmt(msg.created_at)}</div>
-              </div>
+              );
+            })}
+            <div ref={bottomRef}/>
+          </div>
+          <div style={{background:BG2,padding:"10px 12px",display:"flex",alignItems:"center",gap:8,flexShrink:0,borderTop:`1px solid ${SEP}`}}>
+            <input ref={inputRef} value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendGroup()} placeholder="Type a message to the team…" style={{flex:1,background:`${ACC}08`,border:`1px solid ${ACC}20`,outline:"none",borderRadius:24,padding:"11px 16px",fontSize:16,color:LBL,fontFamily:SF}}/>
+            <button onClick={sendGroup} disabled={!text.trim()||sending} style={{width:44,height:44,borderRadius:"50%",background:text.trim()?ACC:"#e5e5ea",border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",flexShrink:0,color:"#fff"}}>{sending?"…":"▶"}</button>
+          </div>
+        </>
+      )}
+      {mode==="dms"&&(
+        <div style={{flex:1,overflowY:"auto",minHeight:0}}>
+          {staff.length===0&&<div style={{textAlign:"center",padding:40,color:LB3}}>No staff yet</div>}
+          {staff.map(u=>(
+            <div key={u.id} onClick={()=>{setDmWith(u);setMode("dm");}} className="card-press"
+              style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderBottom:`1px solid ${SEP}`,cursor:"pointer",background:BG}}>
+              <div style={{width:52,height:52,borderRadius:"50%",background:u.avatar_url?`url(${u.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:"#fff",flexShrink:0,overflow:"hidden"}}>{!u.avatar_url&&(u.avatar||"?")}</div>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:17,color:LBL,fontWeight:600}}>{u.nickname||u.name}</div><div style={{fontSize:14,color:LB3}}>{u.role}</div></div>
+              <div style={{color:LB3,fontSize:22,flexShrink:0}}>›</div>
             </div>
-          );
-        })}
-        <div ref={bottomRef}/>
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -691,9 +847,8 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   const [toast,setToast]                =useState(null);
   const [showSettings,setShowSettings]  =useState(false);
   const [switching,setSwitching]        =useState(null);
-  const [adminPopup,setAdminPopup]      =useState(null);
-  const [refreshing,setRefreshing]      =useState(false);
-  const pullStartY=useRef(0);const pullDist=useRef(0);
+  const [loading,setLoading]            =useState(false);
+  const [giftSuccess,setGiftSuccess]    =useState(null);
 
   useEffect(()=>{
     loadAll();
@@ -709,13 +864,14 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   },[]);
 
   const loadAll=async()=>{
+    setLoading(true);
     const[pr,mi,su,pz,an,re,vr]=await Promise.all([
-      supabase.from("profiles").select("*").order("xp",{ascending:false}),
+      supabase.from("profiles").select("id,name,nickname,avatar,avatar_url,role,position,xp,streak,last_checkin,is_admin,birthday,birthday_verified,joined_date,joined_date_verified,ic_number,ic_verified,epf_number,epf_verified,bank_account,bank_type,bank_verified,contact_number,gender,hometown,hobby,favorite_food,bio").order("xp",{ascending:false}),
       supabase.from("missions").select("*").eq("active",true),
-      supabase.from("mission_submissions").select("*, profiles(name,avatar,avatar_url), missions(title,xp)").order("submitted_at",{ascending:false}),
+      supabase.from("mission_submissions").select("*, profiles(name,avatar,avatar_url), missions(title,xp)").order("submitted_at",{ascending:false}).limit(50),
       supabase.from("prizes").select("*").eq("active",true),
       supabase.from("announcements").select("*").order("pinned",{ascending:false}).order("created_at",{ascending:false}),
-      supabase.from("redemptions").select("*, profiles(name)").order("redeemed_at",{ascending:false}),
+      supabase.from("redemptions").select("*, profiles(name)").order("redeemed_at",{ascending:false}).limit(100),
       supabase.from("verification_requests").select("*, profiles(name,role)").order("submitted_at",{ascending:false}),
     ]);
     if(pr.data)setAllProfiles(pr.data);
@@ -725,11 +881,10 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
     if(an.data)setAnnouncements(an.data);
     if(re.data)setRedemptions(re.data);
     if(vr.data)setVerifReqs(vr.data);
+    setLoading(false);
   };
 
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),3000);};
-  const playAdminSound=()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type="sine";o.frequency.setValueAtTime(660,ctx.currentTime);o.frequency.setValueAtTime(880,ctx.currentTime+0.12);o.frequency.setValueAtTime(1100,ctx.currentTime+0.24);g.gain.setValueAtTime(0,ctx.currentTime);g.gain.linearRampToValueAtTime(0.3,ctx.currentTime+0.04);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.6);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.6);}catch(e){console.warn("sound:",e);}};
-  const showAdminPopup=msg=>{setAdminPopup(msg);playAdminSound();setTimeout(()=>setAdminPopup(null),4000);};
   const today=new Date().toISOString().split("T")[0];
   const staff=allProfiles.filter(p=>!p.is_admin);
   const totalPending=submissions.filter(s=>s.status==="Pending").length+redemptions.filter(r=>r.status==="Pending").length+verifReqs.filter(v=>v.status==="Pending").length;
@@ -772,18 +927,18 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   };
 
   const approveRedemption=async id=>{
-    setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
     const red=redemptions.find(r=>r.id===id);
-    await supabase.from("redemptions").update({status:"Approved"}).eq("id",id);
-    if(red){
-      try{await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"});}catch(e){console.warn(e);}
-      const prof=allProfiles.find(p=>p.id===red.user_id);
-      const annTitle=`🎁 ${prof?.nickname||prof?.name} redeemed a prize!`;
-      const annBody=`${prof?.nickname||prof?.name} just received "${red.prize_name}". Congratulations! 🎉`;
-      try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
-      await notifyAll(annTitle,annBody,"redemption");
-    }
-    showAdminPopup("✅ Prize Delivered!");
+    if(!red){showToast("❌ Redemption not found");return;}
+    const{error}=await supabase.from("redemptions").update({status:"Approved",delivered_at:new Date().toISOString()}).eq("id",id);
+    if(error){showToast("❌ DB error: "+error.message);return;}
+    setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
+    try{await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"});}catch(e){console.warn(e);}
+    const prof=allProfiles.find(p=>p.id===red.user_id);
+    const annTitle=`🎁 ${prof?.nickname||prof?.name} redeemed a prize!`;
+    const annBody=`${prof?.nickname||prof?.name} just received "${red.prize_name}". Congratulations! 🎉`;
+    try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
+    await notifyAll(annTitle,annBody,"redemption");
+    showToast("✅ Prize delivered!");
   };
 
   const approveVerification=async(req,approve)=>{
@@ -828,8 +983,8 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
       if(notifErr)console.warn(notifErr.message);
       const others=allProfiles.filter(p=>!p.is_admin&&p.id!==toId);
       if(others.length>0){try{await supabase.from("notifications").insert(others.map(p=>({user_id:p.id,title:annTitle,body:annBody,type:"gift"})));}catch(e){console.warn(e);}}
-      await loadAll();
-      showToast(`🎁 Gifted ${points} pts to ${recipient.name}! Total: ${newXp.toLocaleString()} pts`);
+      playAdminSound();
+      setGiftSuccess({recipient:recipient.nickname||recipient.name,points});
     }catch(err){
       console.error("Gift error:",err);
       showToast("❌ Failed — "+err.message);
@@ -903,6 +1058,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
+      {giftSuccess&&<GiftSuccessModal recipient={giftSuccess.recipient} points={giftSuccess.points} onClose={()=>setGiftSuccess(null)}/>}
       {/* Settings overlay */}
       {showSettings&&(
         <div style={{position:"fixed",inset:0,background:BG,zIndex:100,maxWidth:430,margin:"0 auto",overflowY:"auto",fontFamily:SF}}>
@@ -913,13 +1069,26 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           <div style={{padding:"0 16px",marginBottom:20}}>
             <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Accounts</div>
             <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
-              {onShowSwitcher&&(
-                <button onClick={()=>{setShowSettings(false);onShowSwitcher();}} className="btn"
-                  style={{width:"100%",padding:"16px",fontSize:16,fontWeight:600,color:ACC,background:"none",border:"none",cursor:"pointer",fontFamily:SF,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:44,height:44,borderRadius:"50%",background:`${ACC}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>⇄</div>
-                  Switch Account
-                </button>
-              )}
+              {getSavedAccounts().sort((a,b)=>(b.lastUsed||0)-(a.lastUsed||0)).map((acct,i,arr)=>{
+                const isActive=acct.id===getActiveAccountId();
+                return(
+                  <div key={acct.id}
+                    onClick={!isActive?()=>handleAcctSwitch(acct):undefined}
+                    style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:isActive?`${ACC}0D`:"transparent",borderBottom:i<arr.length-1?`1px solid ${SEP}`:"none",cursor:isActive?"default":"pointer"}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",background:acct.avatar_url?`url(${acct.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:"#fff",overflow:"hidden",flexShrink:0}}>
+                      {!acct.avatar_url&&((acct.nickname||acct.name||acct.email||"?")[0].toUpperCase())}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:16,fontWeight:600,color:LBL,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        {acct.nickname||acct.name||acct.email?.split("@")[0]}
+                        {isActive&&<span style={{fontSize:10,color:"#fff",background:ACC,borderRadius:99,padding:"1px 7px"}}>ACTIVE</span>}
+                      </div>
+                      <div style={{fontSize:13,color:LB3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.email}</div>
+                    </div>
+                    {switching===acct.id&&<div style={{width:20,height:20,border:`2px solid ${ACC}44`,borderTop:`2px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
+                  </div>
+                );
+              })}
             </div>
             {onAddAccount&&(
               <button onClick={onAddAccount} className="btn"
@@ -955,17 +1124,12 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}{tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
         </div>
       </div>
-      <div
-        style={{flex:1,overflowY:"auto",padding:"14px 0 110px",position:"relative"}}
-        onTouchStart={e=>{pullStartY.current=e.touches[0].clientY;pullDist.current=0;}}
-        onTouchMove={e=>{const el=e.currentTarget;if(el.scrollTop>0)return;const d=e.touches[0].clientY-pullStartY.current;if(d>0){pullDist.current=Math.min(d,90);setRefreshing(true);}}}
-        onTouchEnd={async()=>{if(pullDist.current>60){await loadAll();}pullDist.current=0;setRefreshing(false);}}>
-        {refreshing&&<div style={{display:"flex",justifyContent:"center",padding:"12px 0",position:"absolute",top:0,left:0,right:0,zIndex:10}}><div style={{width:22,height:22,border:"2px solid #0057ff",borderTop:"2px solid transparent",borderRadius:"50%",animation:"spin .7s linear infinite"}}/></div>}
+      <div style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}>
         {tab==="dash"     &&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today}/>}
         {tab==="staff"    &&<StaffTab allProfiles={allProfiles} today={today}/>}
         {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification}/>}
         {tab==="content"  &&<ContentTab missions={missions} announcements={announcements} prizes={prizes} allProfiles={staff} onAddMission={addMission} onDeleteMission={deleteMission} onAddAnn={addAnn} onDeleteAnn={deleteAnn} onTogglePin={togglePin} onAddPrize={addPrize} onGift={giftPoints}/>}
-        {tab==="community"&&<CommunityTab allProfiles={allProfiles}/>}
+        {tab==="community"&&<CommunityTab allProfiles={allProfiles} profile={profile}/>}
       </div>
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>(
@@ -977,19 +1141,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           </button>
         ))}
       </div>
-      {toast&&<div className="toast-in" style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"rgba(0,0,0,.85)",backdropFilter:"blur(16px)",borderRadius:18,padding:"16px 28px",fontSize:16,color:"#fff",fontWeight:600,zIndex:200,pointerEvents:"none",maxWidth:"88vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.4)"}}>{toast}</div>}
-      {adminPopup&&(
-        <div className="toast-in" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:250,display:"flex",alignItems:"center",justifyContent:"center"}}
-          onClick={()=>setAdminPopup(null)}>
-          <div style={{background:"#1c3258",borderRadius:24,padding:"32px 28px",textAlign:"center",maxWidth:300,width:"calc(100% - 48px)",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}
-            onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:52,marginBottom:12}}>🎁</div>
-            <div style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>{adminPopup}</div>
-            <div style={{fontSize:15,color:"rgba(255,255,255,.6)",marginBottom:20}}>Notification sent to staff member</div>
-            <button onClick={()=>setAdminPopup(null)} style={{background:"#0057ff",color:"#fff",border:"none",borderRadius:14,padding:"12px 32px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"SF Pro Display,-apple-system,sans-serif"}}>Done</button>
-          </div>
-        </div>
-      )}
+      {toast&&<div className="toast-in" style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>{toast}</div>}
     </div>
   );
 }

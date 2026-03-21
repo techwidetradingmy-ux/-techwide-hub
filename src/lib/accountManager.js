@@ -1,54 +1,91 @@
-const ACCOUNTS_KEY = "techwide_accounts";
-const ACTIVE_KEY = "techwide_active_account";
+// Account Manager - Manages multiple Techwide Hub accounts
 
-export function upsertAccount(session, profile) {
-  if (!session?.user?.id) return;
-  const accounts = getAllAccounts();
-  const id = session.user.id;
-  accounts[id] = {
-    id,
-    email: session.user.email || profile?.email || "",
-    name: profile?.display_name || profile?.full_name || session.user.email || "",
-    avatar_url: profile?.avatar_url || "",
-    access_token: session.access_token || "",
-    refresh_token: session.refresh_token || "",
-    updated_at: Date.now()
-  };
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-  localStorage.setItem(ACTIVE_KEY, id);
-}
+const STORAGE_KEY = "tw_accounts";
+const ACTIVE_KEY = "tw_active_account";
 
-function getAllAccounts() {
+function loadAccounts() {
   try {
-    return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "{}");
-  } catch {
-    return {};
-  }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }
 
-export function getSavedAccounts() {
-  const accounts = getAllAccounts();
-  return Object.values(accounts).sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
-}
-
-export function getAccountSession(accountId) {
-  const accounts = getAllAccounts();
-  const acct = accounts[accountId];
-  if (!acct || !acct.access_token || !acct.refresh_token) return null;
-  return { access_token: acct.access_token, refresh_token: acct.refresh_token };
-}
-
-export function removeAccount(accountId) {
-  const accounts = getAllAccounts();
-  delete accounts[accountId];
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-  const active = localStorage.getItem(ACTIVE_KEY);
-  if (active === accountId) {
-    const remaining = Object.keys(accounts);
-    localStorage.setItem(ACTIVE_KEY, remaining.length > 0 ? remaining[0] : "");
-  }
+function saveAccounts(accounts) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
 }
 
 export function getActiveAccountId() {
-  return localStorage.getItem(ACTIVE_KEY) || "";
+  return localStorage.getItem(ACTIVE_KEY) || null;
 }
+
+function setActiveId(id) {
+  if (id) localStorage.setItem(ACTIVE_KEY, id);
+  else localStorage.removeItem(ACTIVE_KEY);
+}
+
+/**
+ * Save/update an account with its session tokens and profile data.
+ * @param {object} session  – Supabase session (access_token, refresh_token)
+ * @param {object} profile  – Profile row (id, email, name, avatar, avatar_url, is_admin)
+ */
+export function upsertAccount(session, profile) {
+  const accounts = loadAccounts();
+  const id = profile.id;
+  const idx = accounts.findIndex((a) => a.id === id);
+  const initials = (profile.name || profile.email || "").slice(0, 2).toUpperCase() || "??";
+  const entry = {
+    id,
+    email: profile.email || "",
+    name: profile.name || profile.email?.split("@")[0] || "",
+    avatar_url: profile.avatar_url || null,
+    avatar: profile.avatar || initials,
+    is_admin: !!profile.is_admin,
+    access_token: session?.access_token || null,
+    refresh_token: session?.refresh_token || null,
+    lastUsed: Date.now(),
+  };
+  if (idx >= 0) accounts[idx] = { ...accounts[idx], ...entry };
+  else accounts.push(entry);
+  saveAccounts(accounts);
+  setActiveId(id);
+  return accounts;
+}
+
+/**
+ * Return all saved accounts with profile info (tokens stripped out).
+ */
+export function getSavedAccounts() {
+  return loadAccounts().map(({ access_token, refresh_token, ...rest }) => rest);
+}
+
+/**
+ * Return stored session tokens for a given account ID (for seamless switch).
+ */
+export function getAccountSession(accountId) {
+  const accounts = loadAccounts();
+  const acct = accounts.find((a) => a.id === accountId);
+  if (!acct) return null;
+  return { access_token: acct.access_token, refresh_token: acct.refresh_token };
+}
+
+export function removeAccount(id) {
+  const accounts = loadAccounts().filter((a) => a.id !== id);
+  saveAccounts(accounts);
+  if (getActiveAccountId() === id) setActiveId(accounts[0]?.id || null);
+  return accounts;
+}
+
+export function getAccountsSorted() {
+  return loadAccounts()
+    .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
+    .map(({ access_token, refresh_token, ...rest }) => rest);
+}
+
+export default {
+  getSavedAccounts,
+  getActiveAccountId,
+  upsertAccount,
+  removeAccount,
+  getAccountSession,
+  getAccountsSorted,
+};

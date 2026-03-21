@@ -2,7 +2,7 @@ import{useState,useEffect,useRef}from"react";
 import{supabase}from"./supabaseClient";
 import CircleCrop from"./CircleCrop";
 import{PRIZES,getTier,calcScore,formatContact,formatIC,getICDigits,BANK_TYPES,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}from"./constants";
-import{getSavedAccounts,getActiveAccountId,switchToAccount}from"./lib/accountManager";
+import{getSavedAccounts,getActiveAccountId}from"./lib/accountManager";
 
 const CAT_C={Sales:"#5856d6",Teamwork:"#007aff",Admin:"#af52de",Creativity:"#ff2d55",KOL:"#ff6b35",Content:"#30b0c7","Live Hosting":"#e91e8c",Others:"#8e8e93"};
 const fmtDate=iso=>{if(!iso)return null;const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
@@ -52,11 +52,10 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   const bottomRef=useRef(null);
   const inputRef=useRef(null);
   const touchStartX=useRef(0);
-  const fetchingRef=useRef(false);
 
   useEffect(()=>{
     loadMsgs();markSeen();
-    const iv=setInterval(()=>{loadMsgs();markSeen();},30000);
+    const iv=setInterval(()=>{loadMsgs();markSeen();},2000);
     return()=>clearInterval(iv);
   },[]);
 
@@ -65,13 +64,10 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   },[messages]);
 
   const loadMsgs=async()=>{
-    if(fetchingRef.current)return;
-    fetchingRef.current=true;
     const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
       .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:true}).limit(100);
+      .order("created_at",{ascending:true}).limit(200);
     if(data)setMessages(data);
-    fetchingRef.current=false;
   };
 
   const markSeen=async()=>{
@@ -120,19 +116,22 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   };
 
   const startRecording=async()=>{
+    if(!navigator.mediaDevices?.getUserMedia){alert("Voice recording not supported on this browser");return;}
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-      const mr=new MediaRecorder(stream);const chunks=[];
-      mr.ondataavailable=e=>chunks.push(e.data);
+      const mimeType=MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?"audio/webm;codecs=opus":"audio/webm";
+      const mr=new MediaRecorder(stream,{mimeType});const chunks=[];
+      mr.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
       mr.onstop=async()=>{
-        const blob=new Blob(chunks,{type:"audio/webm"});
+        const blob=new Blob(chunks,{type:mr.mimeType||mimeType});
+        const ext=mr.mimeType?.includes("mp4")?"voice.m4a":"voice.webm";
         const reader=new FileReader();
-        reader.onload=async ev=>{await send("🎤 Voice message","audio",ev.target.result,"voice.webm");};
+        reader.onload=async ev=>{await send("🎤 Voice message","audio",ev.target.result,ext);};
         reader.readAsDataURL(blob);
         stream.getTracks().forEach(t=>t.stop());
       };
       mr.start();setMediaRecorder(mr);setRecording(true);
-    }catch{alert("Microphone access denied");}
+    }catch(e){console.error("Recording error:",e);alert("Could not access microphone. Please allow microphone permission and try again.");}
   };
   const stopRecording=()=>{if(mediaRecorder)mediaRecorder.stop();setRecording(false);setMediaRecorder(null);};
 
@@ -487,14 +486,14 @@ function MissionDetailPage({mission,claim,profile,onBack,onAccept,onDecline,onRe
 }
 
 // ── MISSIONS TAB — 4 columns ──────────────────────────────────────────
-export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,Chip,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}){
+export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,showMissionAccepted,Chip,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}){
   const [column,setColumn]=useState("new");
   const [selected,setSelected]=useState(null);
 
   const claimOf=id=>myClaims.find(c=>c.mission_id===id);
   const newMissions    =missions.filter(m=>{const c=claimOf(m.id);return!c;});
-  const ongoingMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&!c.completed&&c.status!=="declined";});
-  const completedMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&c.completed===true;});
+  const ongoingMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&!c.completed&&c.status!=="declined"&&c.status!=="completed";});
+  const completedMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&(c.completed===true||c.status==="completed");});
   const skippedMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&c.status==="declined";});
 
   const COLUMNS=[
@@ -513,7 +512,7 @@ export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,Chi
     }
     const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);
     if(data)setMyClaims(data);
-    showToast("Mission accepted! Go get it 💪");
+    if(showMissionAccepted)showMissionAccepted();else showToast("Mission accepted! 💪");
     setSelected(null);
   };
 
@@ -690,9 +689,10 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
   const filtered=filter==="All"?display:display.filter(p=>(p.cat||p.category)===filter);
 
   const Sb=({status})=>{
-    const c=status==="Pending"?"#ff9500":status==="Approved"?"#34c759":"#ff3b30";
+    const delivered=status==="Approved"||status==="Delivered";
+    const c=status==="Pending"?"#ff9500":delivered?"#34c759":"#ff3b30";
     return<span style={{fontSize:13,color:c,fontWeight:700,background:c+"18",padding:"4px 10px",borderRadius:99}}>
-      {status==="Approved"?"✓ Delivered":status==="Pending"?"⏳ Pending":"✕ Rejected"}
+      {delivered?"✓ Delivered":status==="Pending"?"⏳ Pending":"✕ Rejected"}
     </span>;
   };
 
@@ -767,8 +767,8 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
                   </div>
                   <Sb status={r.status}/>
                 </div>
-                <div style={{background:r.status==="Approved"?"#34c75910":"#ff950010",borderRadius:10,padding:"10px 14px",fontSize:14,color:r.status==="Approved"?"#34c759":"#ff9500",marginTop:8}}>
-                  {r.status==="Approved"?"✓ Delivered! Enjoy your prize.":"⏳ Processing — you'll be notified when delivered."}
+                <div style={{background:(r.status==="Approved"||r.status==="Delivered")?"#34c75910":"#ff950010",borderRadius:10,padding:"10px 14px",fontSize:14,color:(r.status==="Approved"||r.status==="Delivered")?"#34c759":"#ff9500",marginTop:8}}>
+                  {(r.status==="Approved"||r.status==="Delivered")?"✓ Delivered! Enjoy your prize.":"⏳ Processing — you'll be notified when delivered."}
                 </div>
               </div>
             ))}
@@ -780,7 +780,7 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
 }
 
 // ── COMMUNITY TAB — WhatsApp-style DM list + Group Chat ───────────────
-export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,dmTarget,setDmTarget,setViewingProfile}){
+export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,dmTarget,setDmTarget,setViewingProfile,setDmOpen}){
   const [mode,setMode]=useState("chats");
   const [dmWith,setDmWith]=useState(null);
   const [conversations,setConversations]=useState([]);
@@ -789,10 +789,12 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const [sending,setSending]=useState(false);
   const [showPeople,setShowPeople]=useState(false);
   const [showEmoji,setShowEmoji]=useState(false);
+  const [grpRecording,setGrpRecording]=useState(false);
+  const [grpMediaRecorder,setGrpMediaRecorder]=useState(null);
   const bottomRef=useRef(null);
-  const groupFetchingRef=useRef(false);
 
   useEffect(()=>{if(dmTarget){setDmWith(dmTarget);setMode("dm");}},[dmTarget]);
+  useEffect(()=>{if(setDmOpen)setDmOpen(mode==="dm");},[mode]);
 
   const loadConversations=async()=>{
     const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
@@ -812,22 +814,19 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   };
 
   const loadGroupMsgs=async()=>{
-    if(groupFetchingRef.current)return;
-    groupFetchingRef.current=true;
-    const{data}=await supabase.from("messages").select("*, sender:user_id(avatar_url,avatar)").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(200);
     if(data)setMessages(data);
-    groupFetchingRef.current=false;
   };
 
   useEffect(()=>{
     loadConversations();
     if(mode==="group"){
       loadGroupMsgs();
-      const iv=setInterval(loadGroupMsgs,30000);
+      const iv=setInterval(loadGroupMsgs,3000);
       return()=>clearInterval(iv);
     }
     if(mode==="chats"){
-      const iv=setInterval(loadConversations,30000);
+      const iv=setInterval(loadConversations,5000);
       return()=>clearInterval(iv);
     }
   },[mode]);
@@ -859,6 +858,37 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
     });
     setText("");setShowEmoji(false);await loadGroupMsgs();setSending(false);
   };
+
+  const startGrpRecording=async()=>{
+    if(!navigator.mediaDevices?.getUserMedia){alert("Voice recording not supported on this browser");return;}
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const mimeType=MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?"audio/webm;codecs=opus":"audio/webm";
+      const mr=new MediaRecorder(stream,{mimeType});const chunks=[];
+      mr.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
+      mr.onstop=async()=>{
+        const blob=new Blob(chunks,{type:mr.mimeType||mimeType});
+        const ext=mr.mimeType?.includes("mp4")?"voice.m4a":"voice.webm";
+        const reader=new FileReader();
+        reader.onload=async ev=>{
+          setSending(true);
+          await supabase.from("messages").insert({
+            user_id:profile.id,
+            sender_name:profile.nickname||profile.name,
+            sender_avatar:profile.avatar||"",
+            sender_avatar_url:profile.avatar_url||"",
+            content:"🎤 Voice message",is_dm:false,message_type:"audio",
+            media_url:ev.target.result,file_name:ext,
+          });
+          await loadGroupMsgs();setSending(false);
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      mr.start();setGrpMediaRecorder(mr);setGrpRecording(true);
+    }catch(e){console.error("Recording error:",e);alert("Could not access microphone. Please allow microphone permission and try again.");}
+  };
+  const stopGrpRecording=()=>{if(grpMediaRecorder)grpMediaRecorder.stop();setGrpRecording(false);setGrpMediaRecorder(null);};
 
   const fmtTime=ts=>{
     const d=new Date(ts);const now=new Date();
@@ -976,8 +1006,8 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
             {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:17}}>No messages yet. Say hi! 👋</div>}
             {messages.map(msg=>{
               const me=msg.user_id===profile.id;
-              const avatarUrl=msg.sender?.avatar_url||msg.sender_avatar_url||allProfiles?.find(p=>p.id===msg.user_id)?.avatar_url||"";
-              const avatarLetter=msg.sender?.avatar||msg.sender_avatar||msg.sender_name?.charAt(0)||"?";
+              const avatarUrl=msg.sender_avatar_url||allProfiles?.find(p=>p.id===msg.user_id)?.avatar_url||"";
+              const avatarLetter=msg.sender_avatar||msg.sender_name?.charAt(0)||"?";
               if(msg.is_system)return(
                 <div key={msg.id} style={{textAlign:"center",padding:"4px 8px"}}>
                   <div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%"}}>{msg.content}</div>
@@ -1024,11 +1054,20 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
               onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
               placeholder="Message the team…"
               style={{flex:1,background:`${ACC}08`,border:`1px solid ${ACC}20`,outline:"none",borderRadius:24,padding:"12px 18px",fontSize:16,color:LBL,fontFamily:SF,minWidth:0}}/>
-            <button onClick={send} disabled={!text.trim()||sending}
-              className={text.trim()?"btn-primary":""}
-              style={{width:46,height:46,borderRadius:"50%",background:text.trim()?ACC:"#e5e5ea",border:"none",cursor:text.trim()?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,color:"#fff",transition:"background .15s"}}>
-              {sending?"…":"▶"}
-            </button>
+            {text.trim()?(
+              <button onClick={send} disabled={sending}
+                className="btn-primary ripple-container" onPointerDown={addRipple}
+                style={{width:46,height:46,borderRadius:"50%",background:ACC,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,color:"#fff",boxShadow:`0 3px 12px ${ACC}50`,transition:"background .15s"}}>
+                {sending?"…":"▶"}
+              </button>
+            ):(
+              <button
+                onMouseDown={startGrpRecording} onMouseUp={stopGrpRecording}
+                onTouchStart={startGrpRecording} onTouchEnd={stopGrpRecording}
+                style={{width:46,height:46,borderRadius:"50%",background:grpRecording?"#ff3b30":ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",transition:"background .2s",boxShadow:`0 3px 12px ${ACC}50`}}>
+                🎤
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1068,7 +1107,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
     if(switching)return;
     if(acct.id===getActiveAccountId())return;
     setSwitching(acct.id);
-    try{const target=await switchToAccount(acct.id);if(onSwitchAccount)onSwitchAccount(target);}
+    try{if(onSwitchAccount)await onSwitchAccount(acct.id);}
     catch(err){console.error("Switch failed:",err);}
     setSwitching(null);
   };
@@ -1169,31 +1208,55 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
   const hasMore=publicRows.length>SHOW_INIT;
 
   if(showSettings){
+    const savedAccts=getSavedAccounts().sort((a,b)=>(b.lastUsed||0)-(a.lastUsed||0));
+    const activeId=getActiveAccountId();
     return(
       <div className="page-enter-forward" style={{padding:"16px 0 24px"}}>
         <div style={{padding:"0 16px 20px",display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>setShowSettings(false)} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:ACC,padding:0,lineHeight:1}}>←</button>
           <div style={{fontSize:20,fontWeight:700,color:LBL}}>Settings</div>
         </div>
-        <div style={{padding:"0 16px",marginBottom:20}}>
-          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Accounts</div>
-          <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
-            {onShowSwitcher&&(
-              <button onClick={()=>{setShowSettings(false);onShowSwitcher();}} className="btn"
-                style={{width:"100%",padding:"16px",fontSize:16,fontWeight:600,color:ACC,background:"none",border:"none",cursor:"pointer",fontFamily:SF,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:44,height:44,borderRadius:"50%",background:`${ACC}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>⇄</div>
-                Switch Account
+
+        {/* Saved accounts */}
+        {savedAccts.length>0&&(
+          <div style={{padding:"0 16px",marginBottom:20}}>
+            <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Saved Accounts</div>
+            <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
+              {savedAccts.map((acct,i)=>{
+                const isActive=acct.id===activeId;
+                const initials=(acct.nickname||acct.name||acct.email||"?").slice(0,2).toUpperCase();
+                const isSwitching=switching===acct.id;
+                return(
+                  <div key={acct.id}
+                    onClick={!isActive&&!isSwitching?()=>handleAcctSwitch(acct):undefined}
+                    className={!isActive?"card-press":""}
+                    style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:isActive?`${ACC}0D`:"transparent",borderBottom:i<savedAccts.length-1?`1px solid ${SEP}`:"none",cursor:isActive?"default":"pointer"}}>
+                    {acct.avatar_url
+                      ?<img src={acct.avatar_url} alt={initials} style={{width:46,height:46,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:isActive?`2px solid ${ACC}`:"2px solid transparent"}}/>
+                      :<div style={{width:46,height:46,borderRadius:"50%",background:ACC,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,flexShrink:0,border:isActive?`2px solid ${ACC}`:"2px solid transparent"}}>{initials}</div>
+                    }
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:16,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}>
+                        {acct.nickname||acct.name||acct.email?.split("@")[0]}
+                        {isActive&&<span style={{fontSize:10,color:"#fff",fontWeight:700,background:ACC,borderRadius:99,padding:"1px 7px"}}>ACTIVE</span>}
+                      </div>
+                      <div style={{fontSize:13,color:LB3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.email}</div>
+                    </div>
+                    {isSwitching&&<div style={{width:20,height:20,border:"2px solid "+ACC+"44",borderTop:"2px solid "+ACC,borderRadius:"50%",animation:"spin .7s linear infinite",flexShrink:0}}/>}
+                  </div>
+                );
+              })}
+            </div>
+            {onAddAccount&&(
+              <button onClick={onAddAccount} className="btn"
+                style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:ACC,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",gap:12,marginTop:8,textAlign:"left"}}>
+                <div style={{width:44,height:44,borderRadius:"50%",border:`2px dashed ${SEP}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:LB3,flexShrink:0}}>+</div>
+                Add Another Account
               </button>
             )}
           </div>
-          {onAddAccount&&(
-            <button onClick={onAddAccount} className="btn"
-              style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:ACC,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",gap:12,marginTop:8,textAlign:"left"}}>
-              <div style={{width:44,height:44,borderRadius:"50%",border:`2px dashed ${SEP}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:LB3,flexShrink:0}}>+</div>
-              Add Another Account
-            </button>
-          )}
-        </div>
+        )}
+
         <div style={{padding:"0 16px"}}>
           <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Account</div>
           <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
@@ -1226,6 +1289,13 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
       {/* Banner */}
       <div onClick={()=>!editing&&setShowBannerFull(true)}
         style={{height:140,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
+        {/* Settings gear — top right corner */}
+        {!editing&&(
+          <button onClick={e=>{e.stopPropagation();setShowSettings(true);}} className="btn"
+            style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,.18)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"none",borderRadius:"50%",width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0}}>
+            ⚙️
+          </button>
+        )}
         {editing&&(
           <>
             <button onClick={e=>{e.stopPropagation();document.getElementById("bnP").click();}}
@@ -1520,14 +1590,6 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
           </div>
         </div>
       )}
-      {/* Settings button */}
-      <div style={{padding:"20px 16px 4px"}}>
-        <button onClick={()=>setShowSettings(true)} className="btn"
-          style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:LBL,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span>⚙️ Settings</span>
-          <span style={{color:LB3}}>›</span>
-        </button>
-      </div>
     </div>
   );
 }

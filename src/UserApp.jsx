@@ -233,11 +233,11 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
         playNotifSound();
         if("Notification" in window&&Notification.permission==="granted"){try{new Notification(n.title,{body:n.body,icon:"/TECHWIDE_LOGO.png"});}catch(e){console.warn(e);}}
       })
-      // ── FIX: redemptions UPDATE realtime — catches status change to Approved ──
-      .on("postgres_changes",{event:"*",schema:"public",table:"redemptions",filter:`user_id=eq.${profile.id}`},()=>{
+      // realtime: no row-filter — fires reliably without REPLICA IDENTITY FULL
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"redemptions"},()=>{
         supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});
       })
-      .on("postgres_changes",{event:"*",schema:"public",table:"mission_claims",filter:`user_id=eq.${profile.id}`},()=>{
+      .on("postgres_changes",{event:"*",schema:"public",table:"mission_claims"},()=>{
         supabase.from("mission_claims").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyClaims(data);});
       })
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"missions"},payload=>{if(payload.new?.active)setMissions(p=>[...p,payload.new]);})
@@ -391,15 +391,6 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
     {id:"profile", label:"Profile",   emoji:"👤"},
   ];
 
-  if(viewingProfile){
-    return(
-      <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:50,maxWidth:430,margin:"0 auto",background:BG,overflowY:"auto"}}>
-        <FullProfilePage user={viewingProfile} currentUserId={profile.id}
-          onBack={()=>setViewingProfile(null)}
-          onDM={u=>{setDmTarget(u);setViewingProfile(null);switchTab("chat");}}/>
-      </div>
-    );
-  }
 
   function NotifPanel(){
     return(
@@ -544,49 +535,17 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
   const HEADER_H=58;const TABBAR_H=82;
 
-  // ── Pull-to-refresh ──
-  const [pullY,setPullY]=useState(0);
-  const [isRefreshing,setIsRefreshing]=useState(false);
-  const ptrTouchY=useRef(0);
-  const ptrScrollRef=useRef(null);
-  const ptrActive=useRef(false);
-  const PTR_THRESHOLD=54;
-  // ptrH: the height of the indicator bar driving the animation
-  const ptrH=isRefreshing?54:pullY;
-
-  const handlePtrTouchStart=e=>{
-    if(ptrScrollRef.current&&ptrScrollRef.current.scrollTop===0){
-      ptrTouchY.current=e.touches[0].clientY;
-      ptrActive.current=true;
-    }
-  };
-  const handlePtrTouchMove=e=>{
-    if(!ptrActive.current)return;
-    const dy=e.touches[0].clientY-ptrTouchY.current;
-    if(dy>0&&ptrScrollRef.current&&ptrScrollRef.current.scrollTop===0){
-      e.preventDefault();
-      setPullY(Math.min(dy*0.55,PTR_THRESHOLD));
-    }else{
-      ptrActive.current=false;
-      setPullY(0);
-    }
-  };
-  const handlePtrTouchEnd=async()=>{
-    if(!ptrActive.current)return;
-    ptrActive.current=false;
-    if(pullY>=PTR_THRESHOLD){
-      setPullY(0);
-      setIsRefreshing(true);
-      try{await loadAll();}finally{
-        setIsRefreshing(false);
-      }
-    }else{
-      setPullY(0);
-    }
-  };
-
   return(
     <div style={{height:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
+
+      {/* ── Profile overlay (leaderboard / community tap) ── */}
+      {viewingProfile&&(
+        <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:200,background:BG,overflowY:"auto"}}>
+          <FullProfilePage user={viewingProfile} currentUserId={profile.id}
+            onBack={()=>setViewingProfile(null)}
+            onDM={u=>{setDmTarget(u);setViewingProfile(null);switchTab("chat");}}/>
+        </div>
+      )}
 
       {/* ── CENTERED Modals ── */}
       {redeemSuccess&&<RedeemSuccessModal prize={redeemSuccess} onClose={()=>setRedeemSuccess(null)}/>}
@@ -608,11 +567,6 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
           </div>
         </div>
       )}
-
-      {/* ── PTR indicator — above header, slides in/out smoothly ── */}
-      <div style={{height:ptrH,overflow:"hidden",flexShrink:0,background:BG,display:"flex",alignItems:"center",justifyContent:"center",transition:pullY>0?"none":"height .28s cubic-bezier(.4,0,.2,1)"}}>
-        {ptrH>0&&<div style={{width:26,height:26,border:`3px solid ${ACC}30`,borderTop:`3px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
-      </div>
 
       {tab==="home"&&(
         <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",flexShrink:0,zIndex:20}}>
@@ -649,12 +603,7 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {tab!=="chat"&&(
-          <div key={tabKey} className="page-enter-forward"
-            ref={ptrScrollRef}
-            style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}
-            onTouchStart={handlePtrTouchStart}
-            onTouchMove={handlePtrTouchMove}
-            onTouchEnd={handlePtrTouchEnd}>
+          <div key={tabKey} className="page-enter-forward" style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}>
             <div style={{padding:"14px 0 0"}}>
               {tab==="home"    &&<HomeTab/>}
               {tab==="missions"&&<MissionsTab{...shared} showMissionAccepted={shared.showMissionAccepted}/>}

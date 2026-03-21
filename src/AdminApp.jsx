@@ -3,7 +3,7 @@ import DatePicker from"react-datepicker";
 import"react-datepicker/dist/react-datepicker.css";
 import{supabase}from"./supabaseClient";
 import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}from"./constants";
-import{getSavedAccounts,getActiveAccountId,getAccountSession}from"./lib/accountManager";
+import{getSavedAccounts,getActiveAccountId,switchToAccount}from"./lib/accountManager";
 
 const MISSION_CATS=["Sales","Teamwork","Admin","Creativity","KOL","Content","Live Hosting","Others"];
 const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
@@ -883,7 +883,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
     if(switching)return;
     if(acct.id===getActiveAccountId())return;
     setSwitching(acct.id);
-    try{const target=await getAccountSession(acct.id);if(onSwitchAccount)onSwitchAccount(target);}
+    try{const target=await switchToAccount(acct.id);if(onSwitchAccount)onSwitchAccount(target);}
     catch(err){console.error("Switch failed:",err);}
     setSwitching(null);
   };
@@ -908,27 +908,13 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           <div style={{padding:"0 16px",marginBottom:20}}>
             <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Accounts</div>
             <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
-              {getSavedAccounts().map((acct,i,arr)=>{
-                const isActive=acct.id===getActiveAccountId();
-                const isSwitching=switching===acct.id;
-                return(
-                  <div key={acct.id} onClick={()=>!isActive&&handleAcctSwitch(acct)}
-                    style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:i<arr.length-1?`1px solid ${SEP}`:"none",cursor:isActive?"default":"pointer",background:isActive?`${ACC}08`:"transparent"}}>
-                    <div style={{width:44,height:44,borderRadius:"50%",background:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>
-                      {acct.avatar||acct.name?.slice(0,2).toUpperCase()}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:16,fontWeight:600,color:LBL,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}}>{acct.name||"Unknown"}</span>
-                        {isActive&&<span style={{fontSize:11,color:ACC,fontWeight:700,background:`${ACC}18`,padding:"2px 7px",borderRadius:99,flexShrink:0}}>ACTIVE</span>}
-                      </div>
-                      <div style={{fontSize:13,color:LB3,marginTop:1}}>{acct.email}{acct.is_admin?" · Admin":""}</div>
-                    </div>
-                    {isSwitching&&<div style={{width:20,height:20,border:`2px solid ${ACC}44`,borderTop:`2px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite",flexShrink:0}}/>}
-                    {!isActive&&!isSwitching&&<div style={{fontSize:18,color:LB3,flexShrink:0}}>›</div>}
-                  </div>
-                );
-              })}
+              {onShowSwitcher&&(
+                <button onClick={()=>{setShowSettings(false);onShowSwitcher();}} className="btn"
+                  style={{width:"100%",padding:"16px",fontSize:16,fontWeight:600,color:ACC,background:"none",border:"none",cursor:"pointer",fontFamily:SF,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:44,height:44,borderRadius:"50%",background:`${ACC}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>⇄</div>
+                  Switch Account
+                </button>
+              )}
             </div>
             {onAddAccount&&(
               <button onClick={onAddAccount} className="btn"
@@ -956,7 +942,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
             <div style={{fontSize:18,fontWeight:700,color:LBL}}>Admin Panel</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button onClick={()=>onShowSwitcher&&onShowSwitcher()} className="btn" style={{fontSize:14,fontWeight:600,background:"rgba(0,0,0,.06)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF,color:LBL}}>⚙️</button>
+            <button onClick={()=>setShowSettings(true)} className="btn" style={{fontSize:14,fontWeight:600,background:"rgba(0,0,0,.06)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF,color:LBL}}>⚙️</button>
             <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
           </div>
         </div>

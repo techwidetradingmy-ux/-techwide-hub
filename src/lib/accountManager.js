@@ -35,7 +35,7 @@ export function upsertAccount(session, profile) {
   const initials = (profile.name || profile.email || "").slice(0, 2).toUpperCase() || "??";
   const entry = {
     id,
-    email: profile.email || "",
+    email: session?.user?.email || profile.email || "",
     name: profile.name || profile.email?.split("@")[0] || "",
     avatar_url: profile.avatar_url || null,
     avatar: profile.avatar || initials,
@@ -68,21 +68,6 @@ export function getAccountSession(accountId) {
   return { access_token: acct.access_token, refresh_token: acct.refresh_token };
 }
 
-/**
- * Returns the stored account object for the given ID (no sign-out).
- * Kept for backward compatibility with callers in UserTabs.jsx.
- */
-export async function switchToAccount(targetId) {
-  const accounts = loadAccounts();
-  const target = accounts.find((a) => a.id === targetId);
-  if (!target) throw new Error("Account not found");
-  setActiveId(targetId);
-  target.lastUsed = Date.now();
-  saveAccounts(accounts);
-  const { access_token, refresh_token, ...rest } = target;
-  return rest;
-}
-
 export function removeAccount(id) {
   const accounts = loadAccounts().filter((a) => a.id !== id);
   saveAccounts(accounts);
@@ -101,7 +86,6 @@ export default {
   getActiveAccountId,
   upsertAccount,
   removeAccount,
-  switchToAccount,
   getAccountSession,
   getAccountsSorted,
 };

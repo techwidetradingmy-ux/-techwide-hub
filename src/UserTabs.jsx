@@ -2,6 +2,7 @@ import{useState,useEffect,useRef}from"react";
 import{supabase}from"./supabaseClient";
 import CircleCrop from"./CircleCrop";
 import{PRIZES,getTier,calcScore,formatContact,formatIC,getICDigits,BANK_TYPES,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}from"./constants";
+import{getSavedAccounts,getActiveAccountId,switchToAccount}from"./lib/accountManager";
 
 const CAT_C={Sales:"#5856d6",Teamwork:"#007aff",Admin:"#af52de",Creativity:"#ff2d55",KOL:"#ff6b35",Content:"#30b0c7","Live Hosting":"#e91e8c",Others:"#8e8e93"};
 const fmtDate=iso=>{if(!iso)return null;const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
@@ -1028,7 +1029,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
 }
 
 // ── PROFILE TAB ───────────────────────────────────────────────────────
-export function ProfileTab({profile,syncProfile,score,tier,completedCount,showToast,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}){
+export function ProfileTab({profile,syncProfile,score,tier,completedCount,showToast,onSwitchAccount,onAddAccount,onShowSwitcher,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}){
   const [section,setSection]=useState("public");
   const [editing,setEditing]=useState(false);
   const [saving,setSaving]=useState(false);
@@ -1041,6 +1042,8 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
   const [privateEditing,setPrivateEditing]=useState(null);
   const [privateForm,setPrivateForm]=useState({ic_number:"",epf_number:"",bank_account:"",bank_type:profile.bank_type||"Maybank"});
   const [submittingPrivate,setSubmittingPrivate]=useState(false);
+  const [showSettings,setShowSettings]=useState(false);
+  const [switching,setSwitching]=useState(null);
   const GENDERS=["Male","Female","Prefer not to say"];
 
   const [form,setForm]=useState({
@@ -1052,6 +1055,15 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
     avatar_url:profile.avatar_url||"",banner_url:profile.banner_url||"",
   });
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const handleAcctSwitch=async(acct)=>{
+    if(switching)return;
+    if(acct.id===getActiveAccountId())return;
+    setSwitching(acct.id);
+    try{const target=await switchToAccount(acct.id);if(onSwitchAccount)onSwitchAccount(target);}
+    catch(err){console.error("Switch failed:",err);}
+    setSwitching(null);
+  };
 
   useEffect(()=>{loadVerif();},[]);
 
@@ -1147,6 +1159,45 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
   const SHOW_INIT=5;
   const visibleRows=infoExpanded?publicRows:publicRows.slice(0,SHOW_INIT);
   const hasMore=publicRows.length>SHOW_INIT;
+
+  if(showSettings){
+    return(
+      <div className="page-enter-forward" style={{padding:"16px 0 24px"}}>
+        <div style={{padding:"0 16px 20px",display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={()=>setShowSettings(false)} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:ACC,padding:0,lineHeight:1}}>←</button>
+          <div style={{fontSize:20,fontWeight:700,color:LBL}}>Settings</div>
+        </div>
+        <div style={{padding:"0 16px",marginBottom:20}}>
+          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Accounts</div>
+          <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
+            {onShowSwitcher&&(
+              <button onClick={()=>{setShowSettings(false);onShowSwitcher();}} className="btn"
+                style={{width:"100%",padding:"16px",fontSize:16,fontWeight:600,color:ACC,background:"none",border:"none",cursor:"pointer",fontFamily:SF,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:44,height:44,borderRadius:"50%",background:`${ACC}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>⇄</div>
+                Switch Account
+              </button>
+            )}
+          </div>
+          {onAddAccount&&(
+            <button onClick={onAddAccount} className="btn"
+              style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:ACC,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",gap:12,marginTop:8,textAlign:"left"}}>
+              <div style={{width:44,height:44,borderRadius:"50%",border:`2px dashed ${SEP}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:LB3,flexShrink:0}}>+</div>
+              Add Another Account
+            </button>
+          )}
+        </div>
+        <div style={{padding:"0 16px"}}>
+          <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Account</div>
+          <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
+            <button onClick={()=>supabase.auth.signOut()} className="btn"
+              style={{width:"100%",padding:"16px",fontSize:16,fontWeight:600,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",fontFamily:SF,textAlign:"left"}}>
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return(
     <div style={{paddingBottom:16}}>
@@ -1461,6 +1512,14 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
           </div>
         </div>
       )}
+      {/* Settings button */}
+      <div style={{padding:"20px 16px 4px"}}>
+        <button onClick={()=>setShowSettings(true)} className="btn"
+          style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:LBL,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span>⚙️ Settings</span>
+          <span style={{color:LB3}}>›</span>
+        </button>
+      </div>
     </div>
   );
 }

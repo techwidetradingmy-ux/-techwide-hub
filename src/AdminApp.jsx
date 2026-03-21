@@ -929,7 +929,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   const approveRedemption=async id=>{
     const red=redemptions.find(r=>r.id===id);
     if(!red){showToast("❌ Redemption not found");return;}
-    const{error}=await supabase.from("redemptions").update({status:"Approved",delivered_at:new Date().toISOString()}).eq("id",id);
+    const{error}=await supabase.from("redemptions").update({status:"Approved"}).eq("id",id);
     if(error){showToast("❌ DB error: "+error.message);return;}
     setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
     try{await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"});}catch(e){console.warn(e);}

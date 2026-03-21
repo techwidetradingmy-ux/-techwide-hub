@@ -153,11 +153,8 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   return(
     <div
       style={{
-        position:"fixed",
-        top:0,left:"50%",transform:"translateX(-50%)",
-        width:"100%",maxWidth:430,
-        height:"100dvh",
-        background:BG,zIndex:150,
+        flex:1,
+        background:BG,
         display:"flex",flexDirection:"column",
         fontFamily:SF,overflow:"hidden",
       }}
@@ -785,6 +782,8 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const [sending,setSending]=useState(false);
   const [showPeople,setShowPeople]=useState(false);
   const [showEmoji,setShowEmoji]=useState(false);
+  const [recording,setRecording]=useState(false);
+  const [mediaRecorder,setMediaRecorder]=useState(null);
   const bottomRef=useRef(null);
 
   useEffect(()=>{if(dmTarget){setDmWith(dmTarget);setMode("dm");}},[dmTarget]);
@@ -851,6 +850,33 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
     });
     setText("");setShowEmoji(false);await loadGroupMsgs();setSending(false);
   };
+
+  const startRecordingGroup=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const mr=new MediaRecorder(stream);const chunks=[];
+      mr.ondataavailable=e=>chunks.push(e.data);
+      mr.onstop=async()=>{
+        const blob=new Blob(chunks,{type:"audio/webm"});
+        const reader=new FileReader();
+        reader.onload=async ev=>{
+          setSending(true);
+          await supabase.from("messages").insert({
+            user_id:profile.id,
+            sender_name:profile.nickname||profile.name,
+            sender_avatar:profile.avatar||"",
+            sender_avatar_url:profile.avatar_url||"",
+            content:"🎤 Voice message",is_dm:false,message_type:"audio",media_url:ev.target.result,
+          });
+          await loadGroupMsgs();setSending(false);
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      mr.start();setMediaRecorder(mr);setRecording(true);
+    }catch{alert("Microphone access denied");}
+  };
+  const stopRecordingGroup=()=>{if(mediaRecorder)mediaRecorder.stop();setRecording(false);setMediaRecorder(null);};
 
   const fmtTime=ts=>{
     const d=new Date(ts);const now=new Date();
@@ -992,7 +1018,10 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
                       padding:"12px 16px",
                       boxShadow:me?`0 2px 8px ${ACC}30`:"0 1px 4px rgba(0,0,0,.07)",
                     }}>
-                      <div style={{fontSize:16,color:me?"#fff":LBL,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+                      {msg.message_type==="audio"&&msg.media_url
+                      ?<div style={{display:"flex",alignItems:"center",gap:10,minWidth:180}}><span style={{fontSize:22}}>🎤</span><audio src={msg.media_url} controls style={{height:34,flex:1,minWidth:0}}/></div>
+                      :<div style={{fontSize:16,color:me?"#fff":LBL,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+                    }
                     </div>
                     <div style={{fontSize:11,color:LB3,marginTop:4,textAlign:me?"right":"left",paddingLeft:me?0:4}}>
                       {new Date(msg.created_at).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true})}
@@ -1016,11 +1045,20 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
               onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
               placeholder="Message the team…"
               style={{flex:1,background:`${ACC}08`,border:`1px solid ${ACC}20`,outline:"none",borderRadius:24,padding:"12px 18px",fontSize:16,color:LBL,fontFamily:SF,minWidth:0}}/>
-            <button onClick={send} disabled={!text.trim()||sending}
-              className={text.trim()?"btn-primary":""}
-              style={{width:46,height:46,borderRadius:"50%",background:text.trim()?ACC:"#e5e5ea",border:"none",cursor:text.trim()?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,color:"#fff",transition:"background .15s"}}>
-              {sending?"…":"▶"}
-            </button>
+            {text.trim()?(
+              <button onClick={send} disabled={sending}
+                className="btn-primary"
+                style={{width:46,height:46,borderRadius:"50%",background:ACC,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,color:"#fff",transition:"background .15s"}}>
+                {sending?"…":"▶"}
+              </button>
+            ):(
+              <button
+                onMouseDown={startRecordingGroup} onMouseUp={stopRecordingGroup}
+                onTouchStart={startRecordingGroup} onTouchEnd={stopRecordingGroup}
+                style={{width:46,height:46,borderRadius:"50%",background:recording?"#ff3b30":ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",transition:"background .2s",boxShadow:`0 3px 12px ${ACC}50`}}>
+                🎤
+              </button>
+            )}
           </div>
         </>
       )}

@@ -691,6 +691,9 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   const [toast,setToast]                =useState(null);
   const [showSettings,setShowSettings]  =useState(false);
   const [switching,setSwitching]        =useState(null);
+  const [adminPopup,setAdminPopup]      =useState(null);
+  const [refreshing,setRefreshing]      =useState(false);
+  const pullStartY=useRef(0);const pullDist=useRef(0);
 
   useEffect(()=>{
     loadAll();
@@ -725,6 +728,8 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   };
 
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),3000);};
+  const playAdminSound=()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type="sine";o.frequency.setValueAtTime(660,ctx.currentTime);o.frequency.setValueAtTime(880,ctx.currentTime+0.12);o.frequency.setValueAtTime(1100,ctx.currentTime+0.24);g.gain.setValueAtTime(0,ctx.currentTime);g.gain.linearRampToValueAtTime(0.3,ctx.currentTime+0.04);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.6);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.6);}catch(e){console.warn("sound:",e);}};
+  const showAdminPopup=msg=>{setAdminPopup(msg);playAdminSound();setTimeout(()=>setAdminPopup(null),4000);};
   const today=new Date().toISOString().split("T")[0];
   const staff=allProfiles.filter(p=>!p.is_admin);
   const totalPending=submissions.filter(s=>s.status==="Pending").length+redemptions.filter(r=>r.status==="Pending").length+verifReqs.filter(v=>v.status==="Pending").length;
@@ -778,7 +783,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
       try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
       await notifyAll(annTitle,annBody,"redemption");
     }
-    showToast("✅ Prize delivered!");
+    showAdminPopup("✅ Prize Delivered!");
   };
 
   const approveVerification=async(req,approve)=>{
@@ -950,7 +955,12 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}{tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
         </div>
       </div>
-      <div style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}>
+      <div
+        style={{flex:1,overflowY:"auto",padding:"14px 0 110px",position:"relative"}}
+        onTouchStart={e=>{pullStartY.current=e.touches[0].clientY;pullDist.current=0;}}
+        onTouchMove={e=>{const el=e.currentTarget;if(el.scrollTop>0)return;const d=e.touches[0].clientY-pullStartY.current;if(d>0){pullDist.current=Math.min(d,90);setRefreshing(true);}}}
+        onTouchEnd={async()=>{if(pullDist.current>60){await loadAll();}pullDist.current=0;setRefreshing(false);}}>
+        {refreshing&&<div style={{display:"flex",justifyContent:"center",padding:"12px 0",position:"absolute",top:0,left:0,right:0,zIndex:10}}><div style={{width:22,height:22,border:"2px solid #0057ff",borderTop:"2px solid transparent",borderRadius:"50%",animation:"spin .7s linear infinite"}}/></div>}
         {tab==="dash"     &&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today}/>}
         {tab==="staff"    &&<StaffTab allProfiles={allProfiles} today={today}/>}
         {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification}/>}
@@ -967,7 +977,19 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           </button>
         ))}
       </div>
-      {toast&&<div className="toast-in" style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>{toast}</div>}
+      {toast&&<div className="toast-in" style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"rgba(0,0,0,.85)",backdropFilter:"blur(16px)",borderRadius:18,padding:"16px 28px",fontSize:16,color:"#fff",fontWeight:600,zIndex:200,pointerEvents:"none",maxWidth:"88vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.4)"}}>{toast}</div>}
+      {adminPopup&&(
+        <div className="toast-in" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:250,display:"flex",alignItems:"center",justifyContent:"center"}}
+          onClick={()=>setAdminPopup(null)}>
+          <div style={{background:"#1c3258",borderRadius:24,padding:"32px 28px",textAlign:"center",maxWidth:300,width:"calc(100% - 48px)",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:52,marginBottom:12}}>🎁</div>
+            <div style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>{adminPopup}</div>
+            <div style={{fontSize:15,color:"rgba(255,255,255,.6)",marginBottom:20}}>Notification sent to staff member</div>
+            <button onClick={()=>setAdminPopup(null)} style={{background:"#0057ff",color:"#fff",border:"none",borderRadius:14,padding:"12px 32px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"SF Pro Display,-apple-system,sans-serif"}}>Done</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

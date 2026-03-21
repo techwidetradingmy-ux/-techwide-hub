@@ -689,44 +689,9 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   const [redemptions,setRedemptions]    =useState([]);
   const [verifReqs,setVerifReqs]        =useState([]);
   const [toast,setToast]                =useState(null);
+  const [deliveredModal,setDeliveredModal]=useState(false);
   const [showSettings,setShowSettings]  =useState(false);
   const [switching,setSwitching]        =useState(null);
-  // ── Pull-to-refresh ──
-  const [pullY,setPullY]=useState(0);
-  const [isRefreshing,setIsRefreshing]=useState(false);
-  const ptrTouchY=useRef(0);
-  const ptrScrollRef=useRef(null);
-  const ptrActive=useRef(false);
-  const PTR_THRESHOLD=54;
-  const ptrH=isRefreshing?54:pullY;
-  const handlePtrTouchStart=e=>{
-    if(ptrScrollRef.current&&ptrScrollRef.current.scrollTop===0){
-      ptrTouchY.current=e.touches[0].clientY;
-      ptrActive.current=true;
-    }
-  };
-  const handlePtrTouchMove=e=>{
-    if(!ptrActive.current)return;
-    const dy=e.touches[0].clientY-ptrTouchY.current;
-    if(dy>0&&ptrScrollRef.current&&ptrScrollRef.current.scrollTop===0){
-      e.preventDefault();
-      setPullY(Math.min(dy*0.55,PTR_THRESHOLD));
-    }else{
-      ptrActive.current=false;
-      setPullY(0);
-    }
-  };
-  const handlePtrTouchEnd=async()=>{
-    if(!ptrActive.current)return;
-    ptrActive.current=false;
-    if(pullY>=PTR_THRESHOLD){
-      setPullY(0);
-      setIsRefreshing(true);
-      try{await loadAll();}finally{setIsRefreshing(false);}
-    }else{
-      setPullY(0);
-    }
-  };
 
   useEffect(()=>{
     loadAll();
@@ -814,7 +779,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
       try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
       await notifyAll(annTitle,annBody,"redemption");
     }
-    showToast("✅ Prize delivered!");
+    setDeliveredModal(true);setTimeout(()=>setDeliveredModal(false),2800);
   };
 
   const approveVerification=async(req,approve)=>{
@@ -986,14 +951,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}{tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
         </div>
       </div>
-      {/* ── PTR indicator — above header, slides in/out smoothly ── */}
-      <div style={{height:ptrH,overflow:"hidden",flexShrink:0,background:BG,display:"flex",alignItems:"center",justifyContent:"center",transition:pullY>0?"none":"height .28s cubic-bezier(.4,0,.2,1)"}}>
-        {ptrH>0&&<div style={{width:26,height:26,border:`3px solid ${ACC}30`,borderTop:`3px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
-      </div>
-      <div ref={ptrScrollRef} style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}
-        onTouchStart={handlePtrTouchStart}
-        onTouchMove={handlePtrTouchMove}
-        onTouchEnd={handlePtrTouchEnd}>
+      <div style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}>
         {tab==="dash"     &&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today}/>}
         {tab==="staff"    &&<StaffTab allProfiles={allProfiles} today={today}/>}
         {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification}/>}
@@ -1010,6 +968,15 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           </button>
         ))}
       </div>
+      {deliveredModal&&(
+        <div className="toast-in" style={{position:"fixed",top:0,left:0,right:0,bottom:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.55)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",zIndex:60,pointerEvents:"none"}}>
+          <div style={{background:"rgba(30,30,30,.96)",borderRadius:22,padding:"32px 40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,boxShadow:"0 8px 40px rgba(0,0,0,.5)"}}>
+            <div style={{fontSize:52,lineHeight:1}}>🎁</div>
+            <div style={{fontSize:20,fontWeight:700,color:"#fff",letterSpacing:"-.3px"}}>Prize Delivered!</div>
+            <div style={{fontSize:14,color:"rgba(255,255,255,.6)",fontWeight:500}}>Notification sent to staff</div>
+          </div>
+        </div>
+      )}
       {toast&&<div className="toast-in" style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>{toast}</div>}
     </div>
   );

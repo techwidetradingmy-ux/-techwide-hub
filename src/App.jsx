@@ -1,5 +1,5 @@
 import AccountSwitcher from"./components/AccountSwitcher";
-import{upsertAccount,getSavedAccounts,getActiveAccountId,getAccountSession}from"./lib/accountManager";
+import{upsertAccount,getSavedAccounts,getActiveAccountId}from"./lib/accountManager";
 import{useState,useEffect,useRef}from"react";
 import DatePicker from"react-datepicker";
 import"react-datepicker/dist/react-datepicker.css";
@@ -592,7 +592,7 @@ export default function App(){
       localStorage.setItem("tw_saved_email",loginEmail.trim().toLowerCase());
       const p=await ensureProfile(data.user);
       if(!p){setLoginErr("Could not load profile. Contact admin.");setLoginLoading(false);return;}
-      upsertAccount(data.session,p);setSession(data.session);setProfile(p);setLoginLoading(false);
+      upsertAccount({id:p.id,email:p.email,name:p.name,avatar:p.avatar,is_admin:p.is_admin});setSession(data.session);setProfile(p);setLoginLoading(false);
     }catch(err){setLoginErr("Connection error. Please try again.");setLoginLoading(false);}
   };
 
@@ -606,7 +606,7 @@ export default function App(){
   if(screen==="signup")return(
     <SignUpScreen
       onBack={(prefillEmail)=>{if(prefillEmail)setLoginEmail(prefillEmail);setScreen("login");}}
-      onSignedIn={(sess,prof)=>{upsertAccount(sess,prof);setSession(sess);setProfile(prof);setScreen("login");}}
+      onSignedIn={(sess,prof)=>{setSession(sess);setProfile(prof);setScreen("login");}}
     />
   );
 
@@ -669,22 +669,8 @@ export default function App(){
     />
   );
 
-  const handleAccountSwitch=async(accountId)=>{
-    setSwitching&&setSwitching(accountId);
-    const tokens=getAccountSession(accountId);
-    if(tokens?.access_token&&tokens?.refresh_token){
-      try{
-        const{data,error}=await supabase.auth.setSession({access_token:tokens.access_token,refresh_token:tokens.refresh_token});
-        if(!error&&data.session&&data.user){
-          const p=await ensureProfile(data.user);
-          if(p){upsertAccount(data.session,p);setSession(data.session);setProfile(p);setShowSwitcher(false);return;}
-        }
-      }catch(err){console.error("Account switch failed:",err);}
-    }
-    // Fallback: drop to login screen
-    setShowSwitcher(false);setProfile(null);setSession(null);
-  };
-  const handleAddAccount=()=>{setShowSwitcher(false);setScreen("login");};
-  if(profile.is_admin)return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><AdminApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount}/></>;
-  return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><UserApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount}/></>;
+  const handleAccountSwitch=(target)=>{setShowSwitcher(false);setLoginEmail(target.email);setLoginPass("");setProfile(null);setSession(null);};
+  const handleAddAccount=()=>{setShowSwitcher(false);setScreen("signup");};
+  if(profile.is_admin)return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><AdminApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount} onShowSwitcher={()=>setShowSwitcher(true)}/></>;
+  return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><UserApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount} onShowSwitcher={()=>setShowSwitcher(true)}/></>;
 }

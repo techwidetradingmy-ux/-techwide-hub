@@ -64,9 +64,9 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   },[messages]);
 
   const loadMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("id,user_id,recipient_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,is_dm,is_system,delivered_at,seen_at,created_at").eq("is_dm",true)
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
       .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:true}).limit(100);
+      .order("created_at",{ascending:true}).limit(200);
     if(data)setMessages(data);
   };
 
@@ -814,7 +814,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   };
 
   const loadGroupMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("id,user_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,is_dm,is_system,created_at").eq("is_dm",false).order("created_at",{ascending:true}).limit(80);
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(200);
     if(data)setMessages(data);
   };
 
@@ -1289,6 +1289,13 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
       {/* Banner */}
       <div onClick={()=>!editing&&setShowBannerFull(true)}
         style={{height:140,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
+        {/* Settings gear — top right corner */}
+        {!editing&&(
+          <button onClick={e=>{e.stopPropagation();setShowSettings(true);}} className="btn"
+            style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,.18)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"none",borderRadius:"50%",width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0}}>
+            ⚙️
+          </button>
+        )}
         {editing&&(
           <>
             <button onClick={e=>{e.stopPropagation();document.getElementById("bnP").click();}}
@@ -1300,7 +1307,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
         )}
       </div>
 
-      {/* Avatar + action buttons */}
+      {/* Avatar + edit */}
       <div style={{padding:"0 16px",marginTop:-48,marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
         <div style={{position:"relative"}}>
           <div onClick={()=>!editing&&setShowAvatarFull(true)}
@@ -1315,20 +1322,12 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
           )}
           <input id="avP" type="file" accept="image/*" onChange={handleFileSelect} style={{display:"none"}}/>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          {!editing&&(
-            <button onClick={()=>setShowSettings(true)} className="btn"
-              style={{background:"rgba(0,0,0,.07)",color:LBL,border:"none",borderRadius:"50%",width:40,height:40,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              ⚙️
-            </button>
-          )}
-          {!editing&&(
-            <button onClick={()=>setEditing(true)} className="btn"
-              style={{background:"rgba(0,0,0,.07)",color:LBL,border:"none",borderRadius:99,padding:"10px 20px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
-              Edit Profile
-            </button>
-          )}
-        </div>
+        {!editing&&(
+          <button onClick={()=>setEditing(true)} className="btn"
+            style={{background:"rgba(0,0,0,.07)",color:LBL,border:"none",borderRadius:99,padding:"10px 20px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
+            Edit Profile
+          </button>
+        )}
       </div>
 
       {/* Name + tier */}

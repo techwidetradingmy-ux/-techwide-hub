@@ -1286,16 +1286,19 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
         </div>
       )}
 
-      {/* Banner */}
-      <div onClick={()=>!editing&&setShowBannerFull(true)}
-        style={{height:140,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
-        {/* Settings gear — top right corner */}
+      {/* Header bar */}
+      <div style={{position:"relative",height:52,background:BG}}>
         {!editing&&(
-          <button onClick={e=>{e.stopPropagation();setShowSettings(true);}} className="btn"
-            style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,.18)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"none",borderRadius:"50%",width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0}}>
+          <button onClick={()=>setShowSettings(true)} className="btn"
+            style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",borderRadius:"50%",width:38,height:38,fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:LBL,flexShrink:0}}>
             ⚙️
           </button>
         )}
+      </div>
+
+      {/* Banner */}
+      <div onClick={()=>!editing&&setShowBannerFull(true)}
+        style={{height:140,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
         {editing&&(
           <>
             <button onClick={e=>{e.stopPropagation();document.getElementById("bnP").click();}}

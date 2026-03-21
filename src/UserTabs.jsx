@@ -54,14 +54,12 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   const bottomRef=useRef(null);
   const inputRef=useRef(null);
   const touchStartX=useRef(0);
-  const msgsRef=useRef([]);
-  const DM_LIMIT=50;
-
-  useEffect(()=>{msgsRef.current=messages;},[messages]);
+  const lastMsgTsRef=useRef(null);
+  const firstMsgTsRef=useRef(null);
 
   useEffect(()=>{
     loadMsgs();markSeen();
-    const iv=setInterval(pollMsgs,2000);
+    const iv=setInterval(()=>{loadMsgs();markSeen();},2000);
     return()=>clearInterval(iv);
   },[]);
 
@@ -69,34 +67,28 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
     setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),80);
   },[messages]);
 
+  const DM_FILTER=`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`;
   const loadMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
-      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:false}).limit(DM_LIMIT);
-    if(data){setMessages(data.reverse());setHasMore(data.length===DM_LIMIT);}
-  };
-
-  const pollMsgs=async()=>{
-    const real=msgsRef.current.filter(m=>!String(m.id).startsWith("temp_"));
-    const latest=real.length>0?real[real.length-1].created_at:null;
-    if(!latest){loadMsgs();return;}
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
-      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:true}).gt("created_at",latest);
-    if(data&&data.length>0){
-      setMessages(p=>[...p.filter(m=>!String(m.id).startsWith("temp_")),...data]);
-      markSeen();
+    if(lastMsgTsRef.current){
+      const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+        .or(DM_FILTER).gt("created_at",lastMsgTsRef.current).order("created_at",{ascending:true});
+      if(data&&data.length>0){
+        lastMsgTsRef.current=data[data.length-1].created_at;
+        setMessages(p=>[...p.filter(m=>!String(m.id).startsWith("temp_")),...data.filter(d=>!p.find(m=>m.id===d.id))]);
+      }else setMessages(p=>p.filter(m=>!String(m.id).startsWith("temp_")));
+    }else{
+      const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+        .or(DM_FILTER).order("created_at",{ascending:false}).limit(50);
+      if(data){const sorted=data.reverse();setMessages(sorted);if(sorted.length>0){lastMsgTsRef.current=sorted[sorted.length-1].created_at;firstMsgTsRef.current=sorted[0].created_at;}setHasMore(data.length>=50);}
     }
   };
-
   const loadMore=async()=>{
-    if(loadingMore||msgsRef.current.length===0)return;
+    if(loadingMore||!hasMore||!firstMsgTsRef.current)return;
     setLoadingMore(true);
-    const oldest=msgsRef.current[0].created_at;
     const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
-      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:false}).lt("created_at",oldest).limit(DM_LIMIT);
-    if(data){setMessages(p=>[...data.reverse(),...p]);setHasMore(data.length===DM_LIMIT);}
+      .or(DM_FILTER).lt("created_at",firstMsgTsRef.current).order("created_at",{ascending:false}).limit(50);
+    if(data&&data.length>0){const sorted=data.reverse();firstMsgTsRef.current=sorted[0].created_at;setMessages(p=>[...sorted,...p.filter(m=>!String(m.id).startsWith("temp_"))]);setHasMore(data.length>=50);}
+    else setHasMore(false);
     setLoadingMore(false);
   };
 
@@ -216,10 +208,9 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
       {/* Messages — flex:1 + minHeight:0 critical */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 14px",display:"flex",flexDirection:"column",gap:6,background:`${ACC}06`,minHeight:0}}>
         {hasMore&&(
-          <div style={{textAlign:"center",padding:"6px 0 2px"}}>
-            <button onClick={loadMore} disabled={loadingMore}
-              style={{background:`${ACC}12`,border:`1px solid ${ACC}25`,borderRadius:99,padding:"7px 20px",fontSize:13,color:ACC,fontWeight:600,cursor:loadingMore?"not-allowed":"pointer",fontFamily:SF}}>
-              {loadingMore?"Loading…":"↑ Load older messages"}
+          <div style={{textAlign:"center",paddingBottom:8}}>
+            <button onClick={loadMore} disabled={loadingMore} style={{background:`${ACC}10`,border:"none",borderRadius:99,padding:"8px 18px",fontSize:14,color:ACC,fontWeight:600,cursor:loadingMore?"default":"pointer",fontFamily:SF}}>
+              {loadingMore?"Loading…":"↑ Load earlier messages"}
             </button>
           </div>
         )}
@@ -530,8 +521,8 @@ export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,sho
 
   const claimOf=id=>myClaims.find(c=>c.mission_id===id);
   const newMissions    =missions.filter(m=>{const c=claimOf(m.id);return!c;});
-  const ongoingMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&!c.completed&&c.status!=="declined"&&c.status!=="completed";});
-  const completedMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&(c.completed===true||c.status==="completed");});
+  const ongoingMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&!c.completed&&c.status!=="declined"&&c.status!=="completed"&&c.status!=="approved";});
+  const completedMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&(c.completed===true||c.status==="completed"||c.status==="approved");});
   const skippedMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&c.status==="declined";});
 
   const COLUMNS=[
@@ -829,13 +820,11 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const [showEmoji,setShowEmoji]=useState(false);
   const [grpRecording,setGrpRecording]=useState(false);
   const [grpMediaRecorder,setGrpMediaRecorder]=useState(null);
-  const [grpHasMore,setGrpHasMore]=useState(false);
-  const [grpLoadingMore,setGrpLoadingMore]=useState(false);
+  const [hasMoreGroup,setHasMoreGroup]=useState(false);
+  const [loadingMoreGroup,setLoadingMoreGroup]=useState(false);
   const bottomRef=useRef(null);
-  const grpMsgsRef=useRef([]);
-  const GRP_LIMIT=50;
-
-  useEffect(()=>{grpMsgsRef.current=messages;},[messages]);
+  const lastGrpMsgTsRef=useRef(null);
+  const firstGrpMsgTsRef=useRef(null);
 
   useEffect(()=>{if(dmTarget){setDmWith(dmTarget);setMode("dm");}},[dmTarget]);
   useEffect(()=>{if(setDmOpen)setDmOpen(mode==="dm");},[mode]);
@@ -843,7 +832,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const loadConversations=async()=>{
     const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
       .or(`user_id.eq.${profile.id},recipient_id.eq.${profile.id}`)
-      .order("created_at",{ascending:false}).limit(500);
+      .order("created_at",{ascending:false});
     if(!data)return;
     const seen=new Set();const convs=[];
     data.forEach(msg=>{
@@ -858,36 +847,32 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   };
 
   const loadGroupMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
-      .order("created_at",{ascending:false}).limit(GRP_LIMIT);
-    if(data){setMessages(data.reverse());setGrpHasMore(data.length===GRP_LIMIT);}
+    if(lastGrpMsgTsRef.current){
+      const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
+        .gt("created_at",lastGrpMsgTsRef.current).order("created_at",{ascending:true});
+      if(data&&data.length>0){lastGrpMsgTsRef.current=data[data.length-1].created_at;setMessages(p=>[...p,...data]);}
+    }else{
+      const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
+        .order("created_at",{ascending:false}).limit(50);
+      if(data){const sorted=data.reverse();setMessages(sorted);if(sorted.length>0){lastGrpMsgTsRef.current=sorted[sorted.length-1].created_at;firstGrpMsgTsRef.current=sorted[0].created_at;}setHasMoreGroup(data.length>=50);}
+    }
   };
-
-  const pollGroupMsgs=async()=>{
-    const real=grpMsgsRef.current.filter(m=>!String(m.id).startsWith("temp_"));
-    const latest=real.length>0?real[real.length-1].created_at:null;
-    if(!latest){loadGroupMsgs();return;}
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
-      .order("created_at",{ascending:true}).gt("created_at",latest);
-    if(data&&data.length>0)
-      setMessages(p=>[...p.filter(m=>!String(m.id).startsWith("temp_")),...data]);
-  };
-
   const loadMoreGroup=async()=>{
-    if(grpLoadingMore||grpMsgsRef.current.length===0)return;
-    setGrpLoadingMore(true);
-    const oldest=grpMsgsRef.current[0].created_at;
+    if(loadingMoreGroup||!hasMoreGroup||!firstGrpMsgTsRef.current)return;
+    setLoadingMoreGroup(true);
     const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
-      .order("created_at",{ascending:false}).lt("created_at",oldest).limit(GRP_LIMIT);
-    if(data){setMessages(p=>[...data.reverse(),...p]);setGrpHasMore(data.length===GRP_LIMIT);}
-    setGrpLoadingMore(false);
+      .lt("created_at",firstGrpMsgTsRef.current).order("created_at",{ascending:false}).limit(50);
+    if(data&&data.length>0){const sorted=data.reverse();firstGrpMsgTsRef.current=sorted[0].created_at;setMessages(p=>[...sorted,...p]);setHasMoreGroup(data.length>=50);}
+    else setHasMoreGroup(false);
+    setLoadingMoreGroup(false);
   };
 
   useEffect(()=>{
     loadConversations();
     if(mode==="group"){
+      lastGrpMsgTsRef.current=null;firstGrpMsgTsRef.current=null;
       loadGroupMsgs();
-      const iv=setInterval(pollGroupMsgs,3000);
+      const iv=setInterval(loadGroupMsgs,3000);
       return()=>clearInterval(iv);
     }
     if(mode==="chats"){
@@ -1068,11 +1053,10 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
 
           {/* Messages */}
           <div style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
-            {grpHasMore&&(
-              <div style={{textAlign:"center",padding:"6px 0 2px"}}>
-                <button onClick={loadMoreGroup} disabled={grpLoadingMore}
-                  style={{background:`${ACC}12`,border:`1px solid ${ACC}25`,borderRadius:99,padding:"7px 20px",fontSize:13,color:ACC,fontWeight:600,cursor:grpLoadingMore?"not-allowed":"pointer",fontFamily:SF}}>
-                  {grpLoadingMore?"Loading…":"↑ Load older messages"}
+            {hasMoreGroup&&(
+              <div style={{textAlign:"center",paddingBottom:8}}>
+                <button onClick={loadMoreGroup} disabled={loadingMoreGroup} style={{background:`${ACC}10`,border:"none",borderRadius:99,padding:"8px 18px",fontSize:14,color:ACC,fontWeight:600,cursor:loadingMoreGroup?"default":"pointer",fontFamily:SF}}>
+                  {loadingMoreGroup?"Loading…":"↑ Load earlier messages"}
                 </button>
               </div>
             )}

@@ -31,26 +31,6 @@ const playNotifSound=()=>{
   }catch(e){console.warn("sound:",e);}
 };
 
-const playPullSound=()=>{
-  try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    [0,80,160].forEach((delay,i)=>{
-      setTimeout(()=>{
-        try{
-          const o=ctx.createOscillator();const g=ctx.createGain();
-          o.connect(g);g.connect(ctx.destination);
-          o.type="sine";
-          o.frequency.setValueAtTime(400+i*120,ctx.currentTime);
-          g.gain.setValueAtTime(0,ctx.currentTime);
-          g.gain.linearRampToValueAtTime(0.15,ctx.currentTime+0.03);
-          g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.25);
-          o.start(ctx.currentTime);o.stop(ctx.currentTime+0.25);
-        }catch{}
-      },delay);
-    });
-  }catch(e){console.warn("pull sound:",e);}
-};
-
 // ── COMPACT FULL PROFILE PAGE — auto-fits on screen ──────────────────
 function FullProfilePage({user,currentUserId,onBack,onDM}){
   const [expanded,setExpanded]=useState(false);
@@ -228,9 +208,9 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   const [redeemSuccess,setRedeemSuccess]  =useState(null);
   const [missionAccepted,setMissionAccepted]=useState(false);
   const [dmOpen,setDmOpen]                =useState(false);
-  const [refreshing,setRefreshing]        =useState(false);
-  const [pullPct,setPullPct]              =useState(0);
-  const pullRef                           =useRef({startY:0,pulling:false});
+  const [ptrY,setPtrY]                    =useState(0);
+  const [ptrLoading,setPtrLoading]        =useState(false);
+  const ptrRef                            =useRef({startY:0,active:false});
   const scrollRef                         =useRef(null);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
@@ -312,6 +292,10 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
     if(p.data)setPrizes(p.data.length>0?p.data:PRIZES.map(x=>({...x,id:x.id,cost:x.pts,category:x.cat})));
     try{const{data:own}=await supabase.from("profiles").select("*").eq("id",uid).single();if(own)syncProfile(own);}catch(e){console.warn(e);}
   };
+
+  const handlePtrStart=e=>{if(scrollRef.current?.scrollTop===0){ptrRef.current={startY:e.touches[0].clientY,active:true};}};
+  const handlePtrMove=e=>{if(!ptrRef.current.active||ptrLoading)return;const dy=e.touches[0].clientY-ptrRef.current.startY;if(dy>0)setPtrY(Math.min(dy*0.45,80));else{ptrRef.current.active=false;setPtrY(0);}};
+  const handlePtrEnd=async()=>{if(!ptrRef.current.active)return;ptrRef.current.active=false;const y=ptrY;setPtrY(0);if(y>=60){setPtrLoading(true);await loadAll();setPtrLoading(false);}};
 
   const loadNotifications=async()=>{
     const{data}=await supabase.from("notifications").select("*").eq("user_id",profile.id).order("created_at",{ascending:false}).limit(30);
@@ -571,6 +555,13 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   return(
     <div style={{height:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
 
+      {/* ── Pull-to-refresh spinner (above header) ── */}
+      <div style={{position:"fixed",top:0,left:"50%",width:"100%",maxWidth:430,zIndex:999,pointerEvents:"none",display:"flex",justifyContent:"center",transform:`translateX(-50%) translateY(${ptrLoading?20:-40+ptrY*0.75}px)`,transition:ptrY>0?"none":".35s transform cubic-bezier(.4,0,.2,1)"}}>
+        <div style={{width:40,height:40,borderRadius:"50%",background:"#fff",boxShadow:"0 2px 12px rgba(0,0,0,.18)",display:"flex",alignItems:"center",justifyContent:"center",marginTop:6}}>
+          <div style={{width:22,height:22,border:`2.5px solid ${ACC}30`,borderTop:`2.5px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>
+        </div>
+      </div>
+
       {/* ── CENTERED Modals ── */}
       {redeemSuccess&&<RedeemSuccessModal prize={redeemSuccess} onClose={()=>setRedeemSuccess(null)}/>}
       {missionAccepted&&<MissionAcceptedModal onClose={()=>setMissionAccepted(false)}/>}
@@ -578,28 +569,16 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
       {showNotif&&<NotifPanel/>}
 
       {popupNotif&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}
+        <div className="toast-in"
+          style={{position:"absolute",top:16,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:18,padding:"16px 20px",maxWidth:"92vw",zIndex:300,boxShadow:"0 8px 32px rgba(0,0,0,.35)",cursor:"pointer",width:"calc(100% - 32px)"}}
           onClick={()=>{setPopupNotif(null);setShowNotif(true);}}>
-          <div className="toast-in"
-            style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:24,padding:"32px 28px",maxWidth:340,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.45)"}}
-            onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",gap:16,alignItems:"flex-start",marginBottom:16}}>
-              <div style={{fontSize:40,lineHeight:1}}>🔔</div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:6}}>{popupNotif.title}</div>
-                {popupNotif.body&&<div style={{fontSize:14,color:"rgba(255,255,255,.75)",lineHeight:1.5}}>{popupNotif.body}</div>}
-              </div>
+          <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+            <div style={{fontSize:26,flexShrink:0,lineHeight:1,marginTop:1}}>🔔</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:3,lineHeight:1.3}}>{popupNotif.title}</div>
+              {popupNotif.body&&<div style={{fontSize:13,color:"rgba(255,255,255,.7)",lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{popupNotif.body}</div>}
             </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{setPopupNotif(null);setShowNotif(true);}}
-                style={{flex:1,padding:"12px",background:"rgba(255,255,255,.15)",border:"none",borderRadius:12,color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
-                View All
-              </button>
-              <button onClick={()=>setPopupNotif(null)}
-                style={{flex:1,padding:"12px",background:ORG,border:"none",borderRadius:12,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
-                OK
-              </button>
-            </div>
+            <button onClick={e=>{e.stopPropagation();setPopupNotif(null);}} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:"50%",width:26,height:26,color:"#fff",fontSize:14,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
           </div>
         </div>
       )}
@@ -639,34 +618,7 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {tab!=="chat"&&(
-          <div key={tabKey} ref={scrollRef} className="page-enter-forward" style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}
-            onTouchStart={e=>{
-              const el=scrollRef.current;
-              if(el&&el.scrollTop===0){pullRef.current={startY:e.touches[0].clientY,pulling:true};}
-              else{pullRef.current.pulling=false;}
-            }}
-            onTouchMove={e=>{
-              if(!pullRef.current.pulling)return;
-              const dy=e.touches[0].clientY-pullRef.current.startY;
-              if(dy>0){setPullPct(dy);if(dy>5){try{e.preventDefault();}catch{}}}
-              else{pullRef.current.pulling=false;setPullPct(0);}
-            }}
-            onTouchEnd={async()=>{
-              if(pullRef.current.pulling&&pullPct>60){
-                setRefreshing(true);setPullPct(0);pullRef.current.pulling=false;
-                playPullSound();
-                await loadAll();
-                setRefreshing(false);
-                scrollRef.current?.scrollTo({top:0,behavior:"smooth"});
-              } else {
-                pullRef.current.pulling=false;setPullPct(0);
-              }
-            }}>
-            {(pullPct>0||refreshing)&&(
-              <div style={{height:refreshing?56:Math.min(pullPct*0.6,56),display:"flex",alignItems:"center",justifyContent:"center",background:BG,transition:refreshing?"height .2s":"none",overflow:"hidden",flexShrink:0}}>
-                <div style={{width:28,height:28,border:`3px solid ${ACC}30`,borderTop:`3px solid ${ACC}`,borderRadius:"50%",animation:refreshing?"spin .7s linear infinite":"none",transform:refreshing?"none":`rotate(${pullPct*3}deg)`,transition:"transform .1s"}}/>
-              </div>
-            )}
+          <div ref={scrollRef} key={tabKey} className="page-enter-forward" onTouchStart={handlePtrStart} onTouchMove={handlePtrMove} onTouchEnd={handlePtrEnd} style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}>
             <div style={{padding:"14px 0 0"}}>
               {tab==="home"    &&<HomeTab/>}
               {tab==="missions"&&<MissionsTab{...shared} showMissionAccepted={shared.showMissionAccepted}/>}

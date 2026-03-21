@@ -1,5 +1,5 @@
 import AccountSwitcher from"./components/AccountSwitcher";
-import{upsertAccount,getSavedAccounts,getActiveAccountId}from"./lib/accountManager";
+import{upsertAccount,getSavedAccounts,getActiveAccountId,getAccountSession}from"./lib/accountManager";
 import{useState,useEffect,useRef}from"react";
 import DatePicker from"react-datepicker";
 import"react-datepicker/dist/react-datepicker.css";
@@ -592,7 +592,7 @@ export default function App(){
       localStorage.setItem("tw_saved_email",loginEmail.trim().toLowerCase());
       const p=await ensureProfile(data.user);
       if(!p){setLoginErr("Could not load profile. Contact admin.");setLoginLoading(false);return;}
-      upsertAccount({id:p.id,email:p.email,name:p.name,avatar:p.avatar,is_admin:p.is_admin});setSession(data.session);setProfile(p);setLoginLoading(false);
+      upsertAccount(session,p);setSession(data.session);setProfile(p);setLoginLoading(false);
     }catch(err){setLoginErr("Connection error. Please try again.");setLoginLoading(false);}
   };
 
@@ -669,8 +669,8 @@ export default function App(){
     />
   );
 
-  const handleAccountSwitch=(target)=>{setShowSwitcher(false);setLoginEmail(target.email);setLoginPass("");setProfile(null);setSession(null);};
+  const handleAccountSwitch=async(accountId)=>{setShowSwitcher(false);const tokens=getAccountSession(accountId);if(tokens){try{await supabase.auth.setSession({access_token:tokens.access_token,refresh_token:tokens.refresh_token});return;}catch(e){console.error("Session restore failed",e);}}await supabase.auth.signOut();setScreen("login");};
   const handleAddAccount=()=>{setShowSwitcher(false);setScreen("signup");};
-  if(profile.is_admin)return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><AdminApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount} onShowSwitcher={()=>setShowSwitcher(true)}/></>;
+  if(profile.is_admin)return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={async()=>{setShowSwitcher(false);await supabase.auth.signOut();setScreen("login");}}/><AdminApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount} onShowSwitcher={()=>setShowSwitcher(true)}/></>;
   return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><UserApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount} onShowSwitcher={()=>setShowSwitcher(true)}/></>;
 }

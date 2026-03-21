@@ -3,7 +3,7 @@ import DatePicker from"react-datepicker";
 import"react-datepicker/dist/react-datepicker.css";
 import{supabase}from"./supabaseClient";
 import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}from"./constants";
-import{getSavedAccounts,getActiveAccountId,switchToAccount}from"./lib/accountManager";
+import{getSavedAccounts,getActiveAccountId}from"./lib/accountManager";
 
 const MISSION_CATS=["Sales","Teamwork","Admin","Creativity","KOL","Content","Live Hosting","Others"];
 const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
@@ -691,6 +691,11 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   const [toast,setToast]                =useState(null);
   const [showSettings,setShowSettings]  =useState(false);
   const [switching,setSwitching]        =useState(null);
+  const [deliveredModal,setDeliveredModal]=useState(null);
+  const [ptrY,setPtrY]                  =useState(0);
+  const [ptrLoading,setPtrLoading]      =useState(false);
+  const ptrRef                          =useRef({startY:0,active:false});
+  const scrollRef                       =useRef(null);
 
   useEffect(()=>{
     loadAll();
@@ -723,6 +728,10 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
     if(re.data)setRedemptions(re.data);
     if(vr.data)setVerifReqs(vr.data);
   };
+
+  const handlePtrStart=e=>{if(scrollRef.current?.scrollTop===0){ptrRef.current={startY:e.touches[0].clientY,active:true};}};
+  const handlePtrMove=e=>{if(!ptrRef.current.active||ptrLoading)return;const dy=e.touches[0].clientY-ptrRef.current.startY;if(dy>0)setPtrY(Math.min(dy*0.45,80));else{ptrRef.current.active=false;setPtrY(0);}};
+  const handlePtrEnd=async()=>{if(!ptrRef.current.active)return;ptrRef.current.active=false;const y=ptrY;setPtrY(0);if(y>=60){setPtrLoading(true);await loadAll();setPtrLoading(false);}};
 
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),3000);};
   const today=new Date().toISOString().split("T")[0];
@@ -778,7 +787,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
       try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
       await notifyAll(annTitle,annBody,"redemption");
     }
-    showToast("✅ Prize delivered!");
+    setDeliveredModal(red?.prize_name||"Prize");setTimeout(()=>setDeliveredModal(null),3000);
   };
 
   const approveVerification=async(req,approve)=>{
@@ -883,7 +892,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
     if(switching)return;
     if(acct.id===getActiveAccountId())return;
     setSwitching(acct.id);
-    try{const target=await switchToAccount(acct.id);if(onSwitchAccount)onSwitchAccount(target);}
+    try{if(onSwitchAccount)await onSwitchAccount(acct.id);}
     catch(err){console.error("Switch failed:",err);}
     setSwitching(null);
   };
@@ -898,6 +907,23 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
+      {/* Pull-to-refresh spinner (above header) */}
+      <div style={{position:"fixed",top:0,left:"50%",width:"100%",maxWidth:430,zIndex:999,pointerEvents:"none",display:"flex",justifyContent:"center",transform:`translateX(-50%) translateY(${ptrLoading?20:-40+ptrY*0.75}px)`,transition:ptrY>0?"none":".35s transform cubic-bezier(.4,0,.2,1)"}}>
+        <div style={{width:40,height:40,borderRadius:"50%",background:"#fff",boxShadow:"0 2px 12px rgba(0,0,0,.18)",display:"flex",alignItems:"center",justifyContent:"center",marginTop:6}}>
+          <div style={{width:22,height:22,border:`2.5px solid ${ACC}30`,borderTop:`2.5px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>
+        </div>
+      </div>
+      {/* Prize Delivered centered modal */}
+      {deliveredModal&&(
+        <div className="toast-in" style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.45)",backdropFilter:"blur(4px)"}}>
+          <div style={{background:BG,borderRadius:24,padding:"36px 32px",display:"flex",flexDirection:"column",alignItems:"center",gap:12,boxShadow:"0 12px 48px rgba(0,0,0,.25)",maxWidth:320,width:"85%",textAlign:"center"}}>
+            <div style={{fontSize:56,lineHeight:1}}>🎁</div>
+            <div style={{fontSize:22,fontWeight:700,color:LBL}}>Prize Delivered!</div>
+            <div style={{fontSize:16,color:LB3,fontWeight:500}}>{deliveredModal}</div>
+            <div style={{fontSize:14,color:LB3,marginTop:4}}>Notification sent to recipient ✓</div>
+          </div>
+        </div>
+      )}
       {/* Settings overlay */}
       {showSettings&&(
         <div style={{position:"fixed",inset:0,background:BG,zIndex:100,maxWidth:430,margin:"0 auto",overflowY:"auto",fontFamily:SF}}>
@@ -905,25 +931,50 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
             <button onClick={()=>setShowSettings(false)} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:ACC,padding:0,lineHeight:1}}>←</button>
             <div style={{fontSize:20,fontWeight:700,color:LBL}}>Settings</div>
           </div>
-          <div style={{padding:"0 16px",marginBottom:20}}>
-            <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Accounts</div>
-            <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
-              {onShowSwitcher&&(
-                <button onClick={()=>{setShowSettings(false);onShowSwitcher();}} className="btn"
-                  style={{width:"100%",padding:"16px",fontSize:16,fontWeight:600,color:ACC,background:"none",border:"none",cursor:"pointer",fontFamily:SF,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:44,height:44,borderRadius:"50%",background:`${ACC}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>⇄</div>
-                  Switch Account
-                </button>
-              )}
-            </div>
-            {onAddAccount&&(
-              <button onClick={onAddAccount} className="btn"
-                style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:ACC,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",gap:12,marginTop:8,textAlign:"left"}}>
-                <div style={{width:44,height:44,borderRadius:"50%",border:`2px dashed ${SEP}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:LB3,flexShrink:0}}>+</div>
-                Add Another Account
-              </button>
-            )}
-          </div>
+          {(()=>{
+            const savedAccts=getSavedAccounts().sort((a,b)=>(b.lastUsed||0)-(a.lastUsed||0));
+            const activeId=getActiveAccountId();
+            return(
+              <div style={{padding:"0 16px",marginBottom:20}}>
+                <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Saved Accounts</div>
+                {savedAccts.length>0&&(
+                  <div style={{background:BG2,borderRadius:14,overflow:"hidden",marginBottom:8}}>
+                    {savedAccts.map((acct,i)=>{
+                      const isActive=acct.id===activeId;
+                      const isSwitching=switching===acct.id;
+                      const initials=(acct.nickname||acct.name||acct.email||"?").slice(0,2).toUpperCase();
+                      return(
+                        <div key={acct.id}
+                          onClick={!isActive&&!isSwitching?()=>handleAcctSwitch(acct):undefined}
+                          className={!isActive?"card-press":""}
+                          style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:isActive?`${ACC}0D`:"transparent",borderBottom:i<savedAccts.length-1?`1px solid ${SEP}`:"none",cursor:isActive?"default":"pointer"}}>
+                          {acct.avatar_url
+                            ?<img src={acct.avatar_url} alt={initials} style={{width:46,height:46,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:isActive?`2px solid ${ACC}`:"2px solid transparent"}}/>
+                            :<div style={{width:46,height:46,borderRadius:"50%",background:ACC,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,flexShrink:0,border:isActive?`2px solid ${ACC}`:"2px solid transparent"}}>{initials}</div>
+                          }
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:16,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}>
+                              {acct.nickname||acct.name||acct.email?.split("@")[0]}
+                              {isActive&&<span style={{fontSize:10,color:"#fff",fontWeight:700,background:ACC,borderRadius:99,padding:"1px 7px"}}>ACTIVE</span>}
+                            </div>
+                            <div style={{fontSize:13,color:LB3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.email}</div>
+                          </div>
+                          {isSwitching&&<div style={{width:20,height:20,border:"2px solid "+ACC+"44",borderTop:"2px solid "+ACC,borderRadius:"50%",animation:"spin .7s linear infinite",flexShrink:0}}/>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {onAddAccount&&(
+                  <button onClick={onAddAccount} className="btn"
+                    style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:ACC,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",gap:12,textAlign:"left"}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",border:`2px dashed ${SEP}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:LB3,flexShrink:0}}>+</div>
+                    Add Another Account
+                  </button>
+                )}
+              </div>
+            );
+          })()}
           <div style={{padding:"0 16px"}}>
             <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Account</div>
             <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
@@ -935,6 +986,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           </div>
         </div>
       )}
+      {tab==="dash"&&(
       <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -946,11 +998,10 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
             <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
           </div>
         </div>
-        <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>
-          {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}{tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
-        </div>
+        <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>Dashboard 📊</div>
       </div>
-      <div style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}>
+      )}
+      <div ref={scrollRef} onTouchStart={handlePtrStart} onTouchMove={handlePtrMove} onTouchEnd={handlePtrEnd} style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}>
         {tab==="dash"     &&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today}/>}
         {tab==="staff"    &&<StaffTab allProfiles={allProfiles} today={today}/>}
         {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification}/>}

@@ -31,6 +31,26 @@ const playNotifSound=()=>{
   }catch(e){console.warn("sound:",e);}
 };
 
+const playPullSound=()=>{
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [0,80,160].forEach((delay,i)=>{
+      setTimeout(()=>{
+        try{
+          const o=ctx.createOscillator();const g=ctx.createGain();
+          o.connect(g);g.connect(ctx.destination);
+          o.type="sine";
+          o.frequency.setValueAtTime(400+i*120,ctx.currentTime);
+          g.gain.setValueAtTime(0,ctx.currentTime);
+          g.gain.linearRampToValueAtTime(0.15,ctx.currentTime+0.03);
+          g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.25);
+          o.start(ctx.currentTime);o.stop(ctx.currentTime+0.25);
+        }catch{}
+      },delay);
+    });
+  }catch(e){console.warn("pull sound:",e);}
+};
+
 // ── COMPACT FULL PROFILE PAGE — auto-fits on screen ──────────────────
 function FullProfilePage({user,currentUserId,onBack,onDM}){
   const [expanded,setExpanded]=useState(false);
@@ -209,7 +229,9 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   const [missionAccepted,setMissionAccepted]=useState(false);
   const [dmOpen,setDmOpen]                =useState(false);
   const [refreshing,setRefreshing]        =useState(false);
-  const pullStartY=useRef(0);const pullDist=useRef(0);
+  const [pullPct,setPullPct]              =useState(0);
+  const pullRef                           =useRef({startY:0,pulling:false});
+  const scrollRef                         =useRef(null);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
   const switchTab=newTab=>{setTab(newTab);setTabKey(k=>k+1);};
@@ -556,20 +578,28 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
       {showNotif&&<NotifPanel/>}
 
       {popupNotif&&(
-        <div className="toast-in"
-          style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}
           onClick={()=>{setPopupNotif(null);setShowNotif(true);}}>
-          <div style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:24,padding:"28px 24px",maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}
+          <div className="toast-in"
+            style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:24,padding:"32px 28px",maxWidth:340,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.45)"}}
             onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:16}}>
-              <div style={{fontSize:32,flexShrink:0,lineHeight:1}}>🔔</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:4,lineHeight:1.3}}>{popupNotif.title}</div>
+            <div style={{display:"flex",gap:16,alignItems:"flex-start",marginBottom:16}}>
+              <div style={{fontSize:40,lineHeight:1}}>🔔</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:6}}>{popupNotif.title}</div>
                 {popupNotif.body&&<div style={{fontSize:14,color:"rgba(255,255,255,.75)",lineHeight:1.5}}>{popupNotif.body}</div>}
               </div>
-              <button onClick={e=>{e.stopPropagation();setPopupNotif(null);}} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:30,height:30,color:"#fff",fontSize:15,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
             </div>
-            <button onClick={()=>{setPopupNotif(null);setShowNotif(true);}} style={{width:"100%",background:"rgba(255,255,255,.15)",border:"none",borderRadius:12,padding:"11px",fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:"SF Pro Display,-apple-system,sans-serif"}}>View All Notifications</button>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{setPopupNotif(null);setShowNotif(true);}}
+                style={{flex:1,padding:"12px",background:"rgba(255,255,255,.15)",border:"none",borderRadius:12,color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:SF}}>
+                View All
+              </button>
+              <button onClick={()=>setPopupNotif(null)}
+                style={{flex:1,padding:"12px",background:ORG,border:"none",borderRadius:12,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -609,12 +639,34 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {tab!=="chat"&&(
-          <div key={tabKey} className="page-enter-forward"
-            style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`,position:"relative"}}
-            onTouchStart={e=>{pullStartY.current=e.touches[0].clientY;pullDist.current=0;}}
-            onTouchMove={e=>{const el=e.currentTarget;if(el.scrollTop>0)return;const d=e.touches[0].clientY-pullStartY.current;if(d>0){pullDist.current=Math.min(d,90);setRefreshing(true);}}}
-            onTouchEnd={async()=>{if(pullDist.current>60){await loadAll();}pullDist.current=0;setRefreshing(false);}}>
-            {refreshing&&<div style={{display:"flex",justifyContent:"center",padding:"12px 0",position:"absolute",top:0,left:0,right:0,zIndex:10}}><div style={{width:22,height:22,border:"2px solid #0057ff",borderTop:"2px solid transparent",borderRadius:"50%",animation:"spin .7s linear infinite"}}/></div>}
+          <div key={tabKey} ref={scrollRef} className="page-enter-forward" style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}
+            onTouchStart={e=>{
+              const el=scrollRef.current;
+              if(el&&el.scrollTop===0){pullRef.current={startY:e.touches[0].clientY,pulling:true};}
+              else{pullRef.current.pulling=false;}
+            }}
+            onTouchMove={e=>{
+              if(!pullRef.current.pulling)return;
+              const dy=e.touches[0].clientY-pullRef.current.startY;
+              if(dy>0){setPullPct(dy);if(dy>5){try{e.preventDefault();}catch{}}}
+              else{pullRef.current.pulling=false;setPullPct(0);}
+            }}
+            onTouchEnd={async()=>{
+              if(pullRef.current.pulling&&pullPct>60){
+                setRefreshing(true);setPullPct(0);pullRef.current.pulling=false;
+                playPullSound();
+                await loadAll();
+                setRefreshing(false);
+                scrollRef.current?.scrollTo({top:0,behavior:"smooth"});
+              } else {
+                pullRef.current.pulling=false;setPullPct(0);
+              }
+            }}>
+            {(pullPct>0||refreshing)&&(
+              <div style={{height:refreshing?56:Math.min(pullPct*0.6,56),display:"flex",alignItems:"center",justifyContent:"center",background:BG,transition:refreshing?"height .2s":"none",overflow:"hidden",flexShrink:0}}>
+                <div style={{width:28,height:28,border:`3px solid ${ACC}30`,borderTop:`3px solid ${ACC}`,borderRadius:"50%",animation:refreshing?"spin .7s linear infinite":"none",transform:refreshing?"none":`rotate(${pullPct*3}deg)`,transition:"transform .1s"}}/>
+              </div>
+            )}
             <div style={{padding:"14px 0 0"}}>
               {tab==="home"    &&<HomeTab/>}
               {tab==="missions"&&<MissionsTab{...shared} showMissionAccepted={shared.showMissionAccepted}/>}
@@ -643,7 +695,7 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
       </div>
 
       {toast&&(
-        <div className="toast-in" style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"rgba(0,0,0,.85)",backdropFilter:"blur(16px)",borderRadius:18,padding:"16px 28px",fontSize:16,color:"#fff",fontWeight:600,zIndex:200,pointerEvents:"none",maxWidth:"88vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.4)"}}>
+        <div className="toast-in" style={{position:"absolute",bottom:110,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>
           {toast}
         </div>
       )}

@@ -2,7 +2,7 @@ import{useState,useEffect,useRef}from"react";
 import{supabase}from"./supabaseClient";
 import CircleCrop from"./CircleCrop";
 import{PRIZES,getTier,calcScore,formatContact,formatIC,getICDigits,BANK_TYPES,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}from"./constants";
-import{getSavedAccounts,getActiveAccountId,removeAccount}from"./lib/accountManager";
+import{getSavedAccounts,getActiveAccountId}from"./lib/accountManager";
 
 const CAT_C={Sales:"#5856d6",Teamwork:"#007aff",Admin:"#af52de",Creativity:"#ff2d55",KOL:"#ff6b35",Content:"#30b0c7","Live Hosting":"#e91e8c",Others:"#8e8e93"};
 const fmtDate=iso=>{if(!iso)return null;const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
@@ -64,9 +64,9 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   },[messages]);
 
   const loadMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+    const{data}=await supabase.from("messages").select("id,user_id,recipient_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,is_dm,is_system,delivered_at,seen_at,created_at").eq("is_dm",true)
       .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:true}).limit(200);
+      .order("created_at",{ascending:true}).limit(100);
     if(data)setMessages(data);
   };
 
@@ -814,7 +814,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   };
 
   const loadGroupMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(200);
+    const{data}=await supabase.from("messages").select("id,user_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,is_dm,is_system,created_at").eq("is_dm",false).order("created_at",{ascending:true}).limit(80);
     if(data)setMessages(data);
   };
 
@@ -1243,12 +1243,6 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
                       <div style={{fontSize:13,color:LB3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.email}</div>
                     </div>
                     {isSwitching&&<div style={{width:20,height:20,border:"2px solid "+ACC+"44",borderTop:"2px solid "+ACC,borderRadius:"50%",animation:"spin .7s linear infinite",flexShrink:0}}/>}
-                    {!isActive&&!isSwitching&&(
-                      <button onClick={e=>{e.stopPropagation();removeAccount(acct.id);}}
-                        style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#ff3b30",fontWeight:600,padding:"6px 10px",flexShrink:0,fontFamily:SF,borderRadius:8,background:"#ff3b3010"}}>
-                        Remove
-                      </button>
-                    )}
                   </div>
                 );
               })}
@@ -1292,13 +1286,6 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
         </div>
       )}
 
-      {/* Settings gear — fixed top-right corner of profile page */}
-      {!editing&&(
-        <button onClick={()=>setShowSettings(true)} className="btn"
-          style={{position:"fixed",top:16,right:16,zIndex:90,background:"rgba(30,30,40,.62)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",border:"none",borderRadius:"50%",width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0,boxShadow:"0 2px 10px rgba(0,0,0,.25)"}}>
-          ⚙️
-        </button>
-      )}
       {/* Banner */}
       <div onClick={()=>!editing&&setShowBannerFull(true)}
         style={{height:140,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
@@ -1313,7 +1300,7 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
         )}
       </div>
 
-      {/* Avatar + edit */}
+      {/* Avatar + action buttons */}
       <div style={{padding:"0 16px",marginTop:-48,marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
         <div style={{position:"relative"}}>
           <div onClick={()=>!editing&&setShowAvatarFull(true)}
@@ -1328,12 +1315,20 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
           )}
           <input id="avP" type="file" accept="image/*" onChange={handleFileSelect} style={{display:"none"}}/>
         </div>
-        {!editing&&(
-          <button onClick={()=>setEditing(true)} className="btn"
-            style={{background:"rgba(0,0,0,.07)",color:LBL,border:"none",borderRadius:99,padding:"10px 20px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
-            Edit Profile
-          </button>
-        )}
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {!editing&&(
+            <button onClick={()=>setShowSettings(true)} className="btn"
+              style={{background:"rgba(0,0,0,.07)",color:LBL,border:"none",borderRadius:"50%",width:40,height:40,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              ⚙️
+            </button>
+          )}
+          {!editing&&(
+            <button onClick={()=>setEditing(true)} className="btn"
+              style={{background:"rgba(0,0,0,.07)",color:LBL,border:"none",borderRadius:99,padding:"10px 20px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:SF}}>
+              Edit Profile
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Name + tier */}

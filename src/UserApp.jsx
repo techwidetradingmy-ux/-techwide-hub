@@ -231,13 +231,15 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
         setPopupNotif(n);
         setTimeout(()=>setPopupNotif(null),6000);
         playNotifSound();
+        if(n.type==="redemption"){supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});}
+        if(n.type==="approval"){supabase.from("mission_claims").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyClaims(data);});}
         if("Notification" in window&&Notification.permission==="granted"){try{new Notification(n.title,{body:n.body,icon:"/TECHWIDE_LOGO.png"});}catch(e){console.warn(e);}}
       })
-      // realtime: no row-filter — fires reliably without REPLICA IDENTITY FULL
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"redemptions"},()=>{
+      // ── FIX: redemptions UPDATE realtime — catches status change to Approved ──
+      .on("postgres_changes",{event:"*",schema:"public",table:"redemptions",filter:`user_id=eq.${profile.id}`},()=>{
         supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});
       })
-      .on("postgres_changes",{event:"*",schema:"public",table:"mission_claims"},()=>{
+      .on("postgres_changes",{event:"*",schema:"public",table:"mission_claims",filter:`user_id=eq.${profile.id}`},()=>{
         supabase.from("mission_claims").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyClaims(data);});
       })
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"missions"},payload=>{if(payload.new?.active)setMissions(p=>[...p,payload.new]);})
@@ -391,7 +393,6 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
     {id:"profile", label:"Profile",   emoji:"👤"},
   ];
 
-
   function NotifPanel(){
     return(
       <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
@@ -538,18 +539,16 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   return(
     <div style={{height:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
 
-      {/* ── Profile overlay (leaderboard / community tap) ── */}
+      {/* ── CENTERED Modals ── */}
+      {redeemSuccess&&<RedeemSuccessModal prize={redeemSuccess} onClose={()=>setRedeemSuccess(null)}/>}
+      {missionAccepted&&<MissionAcceptedModal onClose={()=>setMissionAccepted(false)}/>}
       {viewingProfile&&(
-        <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:200,background:BG,overflowY:"auto"}}>
+        <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:50,maxWidth:430,margin:"0 auto",background:BG,overflowY:"auto"}}>
           <FullProfilePage user={viewingProfile} currentUserId={profile.id}
             onBack={()=>setViewingProfile(null)}
             onDM={u=>{setDmTarget(u);setViewingProfile(null);switchTab("chat");}}/>
         </div>
       )}
-
-      {/* ── CENTERED Modals ── */}
-      {redeemSuccess&&<RedeemSuccessModal prize={redeemSuccess} onClose={()=>setRedeemSuccess(null)}/>}
-      {missionAccepted&&<MissionAcceptedModal onClose={()=>setMissionAccepted(false)}/>}
 
       {showNotif&&<NotifPanel/>}
 

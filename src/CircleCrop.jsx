@@ -1,96 +1,263 @@
-import{useState,useEffect,useRef}from"react";
+import{useState,useEffect,useRef,useCallback}from"react";
 import{ACC,SF}from"./constants";
 
 export default function CircleCrop({src,onCrop,onCancel}){
-  const canvasRef=useRef(null);
-  const imgRef=useRef(null);
-  const [pos,setPos]=useState({x:0,y:0});
-  const [zoom,setZoom]=useState(1);
-  const [drag,setDrag]=useState(false);
-  const [last,setLast]=useState({x:0,y:0});
-  const [ready,setReady]=useState(false);
-  const S=280;
+  const[imgNat,setImgNat]=useState({w:0,h:0});
+  const[offset,setOffset]=useState({x:0,y:0});
+  const[zoom,setZoom]=useState(1);
+  const[dims,setDims]=useState({vw:window.innerWidth,vh:window.innerHeight});
+  const[isDrag,setIsDrag]=useState(false);
 
+  const dragRef=useRef(null);
+  const pinchRef=useRef(null);
+  const zoomRef=useRef(zoom);
+  zoomRef.current=zoom;
+
+  // Responsive circle radius — 40% of smaller dimension, max 200
+  const R=Math.min(Math.min(dims.vw,dims.vh)*0.4,200);
+  const cx=dims.vw/2;
+  const cy=dims.vh/2;
+
+  // Window resize
   useEffect(()=>{
+    const h=()=>setDims({vw:window.innerWidth,vh:window.innerHeight});
+    window.addEventListener('resize',h);
+    return()=>window.removeEventListener('resize',h);
+  },[]);
+
+  // Lock body scroll
+  useEffect(()=>{
+    const prev=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    return()=>{document.body.style.overflow=prev;};
+  },[]);
+
+  // Load image + set initial zoom to fill crop circle
+  useEffect(()=>{
+    if(!src)return;
     const img=new Image();
     img.onload=()=>{
-      imgRef.current=img;
-      const sc=Math.max(S/img.width,S/img.height)*1.1;
-      setZoom(sc);
-      setPos({x:(S-img.width*sc)/2,y:(S-img.height*sc)/2});
-      setReady(true);
+      const w=img.naturalWidth,h=img.naturalHeight;
+      setImgNat({w,h});
+      const minDim=Math.min(w,h);
+      setZoom((R*2)/minDim);
+      setOffset({x:0,y:0});
     };
     img.src=src;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[src]);
 
-  useEffect(()=>{
-    if(!ready||!canvasRef.current||!imgRef.current)return;
-    const c=canvasRef.current,ctx=c.getContext('2d'),img=imgRef.current;
-    ctx.clearRect(0,0,S,S);
-    ctx.globalAlpha=0.35;
-    ctx.drawImage(img,pos.x,pos.y,img.width*zoom,img.height*zoom);
-    ctx.globalAlpha=1;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(S/2,S/2,S/2-2,0,Math.PI*2);
-    ctx.clip();
-    ctx.drawImage(img,pos.x,pos.y,img.width*zoom,img.height*zoom);
-    ctx.restore();
-    ctx.beginPath();
-    ctx.arc(S/2,S/2,S/2-2,0,Math.PI*2);
-    ctx.strokeStyle='rgba(255,255,255,.9)';
-    ctx.lineWidth=2.5;
-    ctx.stroke();
-  },[ready,pos,zoom]);
+  const getTouchDist=touches=>{
+    const dx=touches[0].clientX-touches[1].clientX;
+    const dy=touches[0].clientY-touches[1].clientY;
+    return Math.sqrt(dx*dx+dy*dy);
+  };
 
-  const getXY=(e,rect)=>({
-    x:(e.touches?e.touches[0].clientX:e.clientX)-rect.left,
-    y:(e.touches?e.touches[0].clientY:e.clientY)-rect.top
-  });
-  const onDown=e=>{
+  const onMouseDown=useCallback(e=>{
+    // Don't hijack button/range clicks
+    if(e.target.tagName==='BUTTON'||e.target.tagName==='INPUT')return;
     e.preventDefault();
-    setDrag(true);
-    setLast(getXY(e,canvasRef.current.getBoundingClientRect()));
-  };
-  const onMove=e=>{
-    e.preventDefault();
-    if(!drag)return;
-    const cur=getXY(e,canvasRef.current.getBoundingClientRect());
-    setPos(p=>({x:p.x+(cur.x-last.x),y:p.y+(cur.y-last.y)}));
-    setLast(cur);
-  };
-  const onUp=()=>setDrag(false);
+    dragRef.current={lastX:e.clientX,lastY:e.clientY};
+    setIsDrag(true);
+  },[]);
 
-  const crop=()=>{
-    const out=document.createElement('canvas');
-    out.width=out.height=S;
-    const ctx=out.getContext('2d');
-    ctx.beginPath();
-    ctx.arc(S/2,S/2,S/2,0,Math.PI*2);
-    ctx.clip();
-    ctx.drawImage(imgRef.current,pos.x,pos.y,imgRef.current.width*zoom,imgRef.current.height*zoom);
-    onCrop(out.toDataURL('image/png'));
-  };
+  const onMouseMove=useCallback(e=>{
+    if(!dragRef.current)return;
+    const dx=e.clientX-dragRef.current.lastX;
+    const dy=e.clientY-dragRef.current.lastY;
+    dragRef.current={lastX:e.clientX,lastY:e.clientY};
+    setOffset(o=>({x:o.x+dx,y:o.y+dy}));
+  },[]);
+
+  const onMouseUp=useCallback(()=>{
+    dragRef.current=null;
+    setIsDrag(false);
+  },[]);
+
+  const onWheel=useCallback(e=>{
+    e.preventDefault();
+    const factor=e.deltaY<0?1.09:0.92;
+    setZoom(z=>Math.max(0.05,Math.min(20,z*factor)));
+  },[]);
+
+  const onTouchStart=useCallback(e=>{
+    if(e.target.tagName==='BUTTON'||e.target.tagName==='INPUT')return;
+    e.preventDefault();
+    if(e.touches.length>=2){
+      pinchRef.current={dist:getTouchDist(e.touches),zoom:zoomRef.current};
+      dragRef.current=null;
+    }else{
+      dragRef.current={lastX:e.touches[0].clientX,lastY:e.touches[0].clientY};
+      pinchRef.current=null;
+    }
+  },[]);
+
+  const onTouchMove=useCallback(e=>{
+    if(e.target.tagName==='INPUT')return;
+    e.preventDefault();
+    if(e.touches.length>=2&&pinchRef.current){
+      const newDist=getTouchDist(e.touches);
+      const scale=newDist/pinchRef.current.dist;
+      setZoom(Math.max(0.05,Math.min(20,pinchRef.current.zoom*scale)));
+    }else if(e.touches.length===1&&dragRef.current){
+      const dx=e.touches[0].clientX-dragRef.current.lastX;
+      const dy=e.touches[0].clientY-dragRef.current.lastY;
+      dragRef.current={lastX:e.touches[0].clientX,lastY:e.touches[0].clientY};
+      setOffset(o=>({x:o.x+dx,y:o.y+dy}));
+    }
+  },[]);
+
+  const onTouchEnd=useCallback(e=>{
+    if(e.touches.length<2)pinchRef.current=null;
+    if(e.touches.length===0){
+      dragRef.current=null;
+    }else if(e.touches.length===1){
+      dragRef.current={lastX:e.touches[0].clientX,lastY:e.touches[0].clientY};
+    }
+  },[]);
+
+  const crop=useCallback(()=>{
+    const size=Math.round(R*2);
+    const canvas=document.createElement('canvas');
+    canvas.width=canvas.height=size;
+    const ctx=canvas.getContext('2d');
+    const imgW=imgNat.w*zoom;
+    const imgH=imgNat.h*zoom;
+    // Image screen position (centered on cx+offset.x, cy+offset.y)
+    const imgScreenLeft=cx+offset.x-imgW/2;
+    const imgScreenTop=cy+offset.y-imgH/2;
+    // Crop square starts at (cx-R, cy-R)
+    const relX=imgScreenLeft-(cx-R);
+    const relY=imgScreenTop-(cy-R);
+    const img=new Image();
+    img.onload=()=>{
+      ctx.drawImage(img,relX,relY,imgW,imgH);
+      onCrop(canvas.toDataURL('image/png'));
+    };
+    img.src=src;
+  },[cx,cy,R,imgNat,zoom,offset,src,onCrop]);
+
+  const imgW=imgNat.w*zoom;
+  const imgH=imgNat.h*zoom;
+  const imgLeft=cx+offset.x-imgW/2;
+  const imgTop=cy+offset.y-imgH/2;
 
   return(
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.92)',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24,fontFamily:SF}}>
-      <div style={{fontSize:17,fontWeight:600,color:'#fff',marginBottom:6}}>Adjust Your Photo</div>
-      <div style={{fontSize:13,color:'rgba(255,255,255,.45)',marginBottom:20,textAlign:'center'}}>Drag to reposition · Slider to zoom</div>
-      {!ready?<div style={{width:S,height:S,borderRadius:'50%',background:'#222',display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(255,255,255,.3)',fontSize:15}}>Loading…</div>:(
-        <canvas ref={canvasRef} width={S} height={S}
-          style={{cursor:drag?'grabbing':'grab',display:'block',marginBottom:20,touchAction:'none'}}
-          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-          onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+    <div
+      style={{
+        position:'fixed',inset:0,zIndex:9999,
+        background:'#000',overflow:'hidden',
+        touchAction:'none',userSelect:'none',
+        cursor:isDrag?'grabbing':'grab',
+        fontFamily:SF,
+      }}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp}
+      onWheel={onWheel}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Image */}
+      {imgNat.w>0&&(
+        <img
+          src={src}
+          alt=""
+          draggable={false}
+          style={{
+            position:'absolute',
+            left:imgLeft,top:imgTop,
+            width:imgW,height:imgH,
+            pointerEvents:'none',userSelect:'none',
+          }}
         />
       )}
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24,width:'100%',maxWidth:S}}>
-        <span style={{fontSize:16,color:'rgba(255,255,255,.5)'}}>−</span>
-        <input type="range" min={0.3} max={5} step={0.01} value={zoom} onChange={e=>setZoom(+e.target.value)} style={{flex:1,accentColor:ACC}}/>
-        <span style={{fontSize:16,color:'rgba(255,255,255,.5)'}}>+</span>
+
+      {/* Dark overlay with circular cutout via radial-gradient */}
+      <div
+        style={{
+          position:'absolute',inset:0,pointerEvents:'none',
+          background:`radial-gradient(circle ${R}px at ${cx}px ${cy}px, transparent ${R-1}px, rgba(0,0,0,0.72) ${R}px)`,
+        }}
+      />
+
+      {/* Circle border */}
+      <svg
+        style={{position:'absolute',inset:0,pointerEvents:'none',overflow:'visible'}}
+        width={dims.vw} height={dims.vh}
+      >
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="2"/>
+        {/* Rule-of-thirds guides inside circle */}
+        <line x1={cx-R} y1={cy} x2={cx+R} y2={cy} stroke="rgba(255,255,255,0.18)" strokeWidth="1" clipPath={`circle(${R}px at ${cx}px ${cy}px)`}/>
+        <line x1={cx} y1={cy-R} x2={cx} y2={cy+R} stroke="rgba(255,255,255,0.18)" strokeWidth="1" clipPath={`circle(${R}px at ${cx}px ${cy}px)`}/>
+      </svg>
+
+      {/* Header */}
+      <div
+        style={{
+          position:'absolute',top:0,left:0,right:0,
+          padding:'env(safe-area-inset-top,20px) 24px 20px',
+          paddingTop:'max(env(safe-area-inset-top,20px),20px)',
+          background:'linear-gradient(to bottom,rgba(0,0,0,0.75) 0%,transparent 100%)',
+          textAlign:'center',pointerEvents:'none',
+        }}
+      >
+        <div style={{fontSize:17,fontWeight:600,color:'#fff',marginBottom:4}}>Adjust Your Photo</div>
+        <div style={{fontSize:13,color:'rgba(255,255,255,0.5)'}}>Pinch to zoom · Drag to reposition</div>
       </div>
-      <div style={{display:'flex',gap:10,width:'100%',maxWidth:S}}>
-        <button onClick={onCancel} style={{flex:1,padding:'13px',background:'rgba(255,255,255,.12)',color:'#fff',border:'none',borderRadius:12,fontSize:16,cursor:'pointer',fontFamily:SF}}>Cancel</button>
-        <button onClick={crop} style={{flex:2,padding:'13px',background:ACC,color:'#fff',border:'none',borderRadius:12,fontSize:16,fontWeight:600,cursor:'pointer',fontFamily:SF}}>Use Photo ✓</button>
+
+      {/* Zoom slider */}
+      <div
+        style={{
+          position:'absolute',bottom:130,left:24,right:24,
+          display:'flex',alignItems:'center',gap:12,
+          pointerEvents:'auto',
+        }}
+        onMouseDown={e=>e.stopPropagation()}
+      >
+        <span style={{fontSize:20,color:'rgba(255,255,255,0.5)',lineHeight:1,userSelect:'none'}}>−</span>
+        <input
+          type="range" min={0.05} max={10} step={0.005}
+          value={zoom}
+          onChange={e=>setZoom(+e.target.value)}
+          style={{flex:1,accentColor:ACC,height:4,cursor:'pointer'}}
+        />
+        <span style={{fontSize:20,color:'rgba(255,255,255,0.5)',lineHeight:1,userSelect:'none'}}>+</span>
+      </div>
+
+      {/* Action buttons */}
+      <div
+        style={{
+          position:'absolute',bottom:40,left:24,right:24,
+          display:'flex',gap:10,
+          pointerEvents:'auto',
+        }}
+        onMouseDown={e=>e.stopPropagation()}
+      >
+        <button
+          onClick={onCancel}
+          style={{
+            flex:1,padding:'14px 0',
+            background:'rgba(255,255,255,0.14)',color:'#fff',
+            border:'none',borderRadius:14,fontSize:16,
+            cursor:'pointer',fontFamily:SF,
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={crop}
+          style={{
+            flex:2,padding:'14px 0',
+            background:ACC,color:'#fff',
+            border:'none',borderRadius:14,fontSize:16,fontWeight:600,
+            cursor:'pointer',fontFamily:SF,
+          }}
+        >
+          Use Photo ✓
+        </button>
       </div>
     </div>
   );

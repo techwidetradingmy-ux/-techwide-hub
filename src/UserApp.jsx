@@ -144,6 +144,23 @@ function FullProfilePage({user,currentUserId,onBack,onDM}){
   );
 }
 
+// ── CENTERED MISSION ACCEPTED MODAL ──────────────────────────────────
+function MissionAcceptedModal({onClose}){
+  useEffect(()=>{const t=setTimeout(onClose,3000);return()=>clearTimeout(t);},[]);
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}
+      onClick={onClose}>
+      <div className="toast-in"
+        style={{background:"#1c3258",borderRadius:24,padding:"32px 28px",textAlign:"center",maxWidth:300,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}
+        onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:58,marginBottom:12}}>💪</div>
+        <div style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>Mission Accepted!</div>
+        <div style={{fontSize:15,color:"rgba(255,255,255,.7)",lineHeight:1.5}}>Go complete it and submit your proof to earn points!</div>
+      </div>
+    </div>
+  );
+}
+
 // ── CENTERED REDEMPTION SUCCESS MODAL ────────────────────────────────
 function RedeemSuccessModal({prize,onClose}){
   useEffect(()=>{const t=setTimeout(onClose,3500);return()=>clearTimeout(t);},[]);
@@ -189,6 +206,8 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   const [weather,setWeather]              =useState(null);
   // ── NEW: centered success modal for redemptions ──
   const [redeemSuccess,setRedeemSuccess]  =useState(null);
+  const [missionAccepted,setMissionAccepted]=useState(false);
+  const [dmOpen,setDmOpen]                =useState(false);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
   const switchTab=newTab=>{setTab(newTab);setTabKey(k=>k+1);};
@@ -233,12 +252,12 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
     const claimsPoll=setInterval(async()=>{
       try{const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);}
       catch(e){console.warn(e);}
-    },30000);
-    // ── Poll redemptions every 30s — catches Approved status (indexes handle the load) ──
+    },15000);
+    // ── Poll redemptions every 20s — catches Approved status ──
     const redPoll=setInterval(async()=>{
       try{const{data}=await supabase.from("redemptions").select("*").eq("user_id",profile.id);if(data)setMyRedemptions(data);}
       catch(e){console.warn(e);}
-    },30000);
+    },20000);
 
     return()=>{clearInterval(notifIv);clearInterval(profilePoll);clearInterval(claimsPoll);clearInterval(redPoll);supabase.removeChannel(ch);};
   },[]);
@@ -359,6 +378,8 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
     getLevel,getLvlPct,calcScore,getTier,
     dmTarget,setDmTarget,setViewingProfile,
     onSwitchAccount,onAddAccount,onShowSwitcher,
+    setDmOpen,
+    showMissionAccepted:()=>setMissionAccepted(true),
   };
 
   const TABS=[
@@ -526,8 +547,9 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   return(
     <div style={{height:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
 
-      {/* ── CENTERED Redemption Success Modal ── */}
+      {/* ── CENTERED Modals ── */}
       {redeemSuccess&&<RedeemSuccessModal prize={redeemSuccess} onClose={()=>setRedeemSuccess(null)}/>}
+      {missionAccepted&&<MissionAcceptedModal onClose={()=>setMissionAccepted(false)}/>}
 
       {showNotif&&<NotifPanel/>}
 
@@ -584,7 +606,7 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
           <div key={tabKey} className="page-enter-forward" style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}>
             <div style={{padding:"14px 0 0"}}>
               {tab==="home"    &&<HomeTab/>}
-              {tab==="missions"&&<MissionsTab{...shared}/>}
+              {tab==="missions"&&<MissionsTab{...shared} showMissionAccepted={shared.showMissionAccepted}/>}
               {tab==="leaders" &&<LeaderboardTab{...shared}/>}
               {tab==="prizes"  &&<PrizesTab{...shared}/>}
               {tab==="profile" &&<ProfileTab{...shared}/>}
@@ -599,7 +621,7 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
         )}
       </div>
 
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.97)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20,paddingBottom:"env(safe-area-inset-bottom)"}}>
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.97)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:dmOpen?"none":"flex",zIndex:20,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>switchTab(t.id)} className="tab-btn"
             style={{flex:1,padding:"11px 2px 15px",display:"flex",flexDirection:"column",alignItems:"center",gap:4,background:"none",border:"none",cursor:"pointer"}}>

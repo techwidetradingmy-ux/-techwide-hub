@@ -208,10 +208,6 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   const [redeemSuccess,setRedeemSuccess]  =useState(null);
   const [missionAccepted,setMissionAccepted]=useState(false);
   const [dmOpen,setDmOpen]                =useState(false);
-  const [ptrY,setPtrY]                    =useState(0);
-  const [ptrLoading,setPtrLoading]        =useState(false);
-  const ptrRef                            =useRef({startY:0,active:false});
-  const scrollRef                         =useRef(null);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
   const switchTab=newTab=>{setTab(newTab);setTabKey(k=>k+1);};
@@ -292,10 +288,6 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
     if(p.data)setPrizes(p.data.length>0?p.data:PRIZES.map(x=>({...x,id:x.id,cost:x.pts,category:x.cat})));
     try{const{data:own}=await supabase.from("profiles").select("*").eq("id",uid).single();if(own)syncProfile(own);}catch(e){console.warn(e);}
   };
-
-  const handlePtrStart=e=>{if(scrollRef.current?.scrollTop===0){ptrRef.current={startY:e.touches[0].clientY,active:true};}};
-  const handlePtrMove=e=>{if(!ptrRef.current.active||ptrLoading)return;const dy=e.touches[0].clientY-ptrRef.current.startY;if(dy>0)setPtrY(Math.min(dy*0.45,80));else{ptrRef.current.active=false;setPtrY(0);}};
-  const handlePtrEnd=async()=>{if(!ptrRef.current.active)return;ptrRef.current.active=false;const y=ptrY;setPtrY(0);if(y>=60){setPtrLoading(true);await loadAll();setPtrLoading(false);}};
 
   const loadNotifications=async()=>{
     const{data}=await supabase.from("notifications").select("*").eq("user_id",profile.id).order("created_at",{ascending:false}).limit(30);
@@ -552,15 +544,49 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
   const HEADER_H=58;const TABBAR_H=82;
 
+  // ── Pull-to-refresh ──
+  const [pullY,setPullY]=useState(0);
+  const [isRefreshing,setIsRefreshing]=useState(false);
+  const ptrTouchY=useRef(0);
+  const ptrScrollRef=useRef(null);
+  const ptrActive=useRef(false);
+  const PTR_THRESHOLD=54;
+  // ptrH: the height of the indicator bar driving the animation
+  const ptrH=isRefreshing?54:pullY;
+
+  const handlePtrTouchStart=e=>{
+    if(ptrScrollRef.current&&ptrScrollRef.current.scrollTop===0){
+      ptrTouchY.current=e.touches[0].clientY;
+      ptrActive.current=true;
+    }
+  };
+  const handlePtrTouchMove=e=>{
+    if(!ptrActive.current)return;
+    const dy=e.touches[0].clientY-ptrTouchY.current;
+    if(dy>0&&ptrScrollRef.current&&ptrScrollRef.current.scrollTop===0){
+      e.preventDefault();
+      setPullY(Math.min(dy*0.55,PTR_THRESHOLD));
+    }else{
+      ptrActive.current=false;
+      setPullY(0);
+    }
+  };
+  const handlePtrTouchEnd=async()=>{
+    if(!ptrActive.current)return;
+    ptrActive.current=false;
+    if(pullY>=PTR_THRESHOLD){
+      setPullY(0);
+      setIsRefreshing(true);
+      try{await loadAll();}finally{
+        setIsRefreshing(false);
+      }
+    }else{
+      setPullY(0);
+    }
+  };
+
   return(
     <div style={{height:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
-
-      {/* ── Pull-to-refresh spinner (above header) ── */}
-      <div style={{position:"fixed",top:0,left:"50%",width:"100%",maxWidth:430,zIndex:999,pointerEvents:"none",display:"flex",justifyContent:"center",transform:`translateX(-50%) translateY(${ptrLoading?20:-40+ptrY*0.75}px)`,transition:ptrY>0?"none":".35s transform cubic-bezier(.4,0,.2,1)"}}>
-        <div style={{width:40,height:40,borderRadius:"50%",background:"#fff",boxShadow:"0 2px 12px rgba(0,0,0,.18)",display:"flex",alignItems:"center",justifyContent:"center",marginTop:6}}>
-          <div style={{width:22,height:22,border:`2.5px solid ${ACC}30`,borderTop:`2.5px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>
-        </div>
-      </div>
 
       {/* ── CENTERED Modals ── */}
       {redeemSuccess&&<RedeemSuccessModal prize={redeemSuccess} onClose={()=>setRedeemSuccess(null)}/>}
@@ -582,6 +608,11 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
           </div>
         </div>
       )}
+
+      {/* ── PTR indicator — above header, slides in/out smoothly ── */}
+      <div style={{height:ptrH,overflow:"hidden",flexShrink:0,background:BG,display:"flex",alignItems:"center",justifyContent:"center",transition:pullY>0?"none":"height .28s cubic-bezier(.4,0,.2,1)"}}>
+        {ptrH>0&&<div style={{width:26,height:26,border:`3px solid ${ACC}30`,borderTop:`3px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
+      </div>
 
       {tab==="home"&&(
         <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",flexShrink:0,zIndex:20}}>
@@ -618,7 +649,12 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {tab!=="chat"&&(
-          <div ref={scrollRef} key={tabKey} className="page-enter-forward" onTouchStart={handlePtrStart} onTouchMove={handlePtrMove} onTouchEnd={handlePtrEnd} style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}>
+          <div key={tabKey} className="page-enter-forward"
+            ref={ptrScrollRef}
+            style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}
+            onTouchStart={handlePtrTouchStart}
+            onTouchMove={handlePtrTouchMove}
+            onTouchEnd={handlePtrTouchEnd}>
             <div style={{padding:"14px 0 0"}}>
               {tab==="home"    &&<HomeTab/>}
               {tab==="missions"&&<MissionsTab{...shared} showMissionAccepted={shared.showMissionAccepted}/>}

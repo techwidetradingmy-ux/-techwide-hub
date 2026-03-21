@@ -3,7 +3,7 @@ import DatePicker from"react-datepicker";
 import"react-datepicker/dist/react-datepicker.css";
 import{supabase}from"./supabaseClient";
 import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}from"./constants";
-import{getSavedAccounts,getActiveAccountId,switchToAccount}from"./lib/accountManager";
+import{getSavedAccounts,getActiveAccountId,getAccountSession}from"./lib/accountManager";
 
 const MISSION_CATS=["Sales","Teamwork","Admin","Creativity","KOL","Content","Live Hosting","Others"];
 const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
@@ -883,7 +883,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
     if(switching)return;
     if(acct.id===getActiveAccountId())return;
     setSwitching(acct.id);
-    try{const target=await switchToAccount(acct.id);if(onSwitchAccount)onSwitchAccount(target);}
+    try{const target=await getAccountSession(acct.id);if(onSwitchAccount)onSwitchAccount(target);}
     catch(err){console.error("Switch failed:",err);}
     setSwitching(null);
   };

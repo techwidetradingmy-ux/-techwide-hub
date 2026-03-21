@@ -1,5 +1,5 @@
 import AccountSwitcher from"./components/AccountSwitcher";
-import{upsertAccount,getSavedAccounts,getActiveAccountId,switchToAccount,getAccountSession,removeAccount,savePassword,getSavedPassword,clearPassword}from"./lib/accountManager";
+import{upsertAccount,getSavedAccounts,getActiveAccountId,switchToAccount,getAccountSession}from"./lib/accountManager";
 import{useState,useEffect,useRef}from"react";
 import DatePicker from"react-datepicker";
 import"react-datepicker/dist/react-datepicker.css";
@@ -92,7 +92,7 @@ const dateToDisplay=date=>{
 
 const ensureProfile=async(user)=>{
   try{
-    const{data:ex}=await supabase.from("profiles").select("id,email,name,nickname,role,avatar_url,avatar,is_admin,onboarded,xp,streak,badges,contribution_score,bio,birthday,contact_number,gender,hometown,hobby,favorite_food,banner_url,bank_type,joined_date,joined_date_verified,ic_number,ic_verified,epf_number,epf_verified,bank_account,bank_verified,birthday_verified,position").eq("id",user.id).maybeSingle();
+    const{data:ex}=await supabase.from("profiles").select("*").eq("id",user.id).maybeSingle();
     if(ex)return ex;
     const avatar=(user.email||"").split("@")[0].slice(0,2).toUpperCase()||"??";
     const{data:cr,error}=await supabase.from("profiles").upsert({
@@ -113,6 +113,8 @@ function SignUpScreen({onBack,onSignedIn}){
   const [checking,setChecking]=useState(false);
   const [emailStatus,setEmailStatus]=useState(null);
   const [formErr,setFormErr]=useState({});
+  const [showPass,setShowPass]=useState(false);
+  const [showConfirm,setShowConfirm]=useState(false);
   const timerRef=useRef(null);
 
   const fullEmail=()=>`${prefix.trim().toLowerCase()}${DOMAIN}`;
@@ -212,9 +214,17 @@ function SignUpScreen({onBack,onSignedIn}){
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Password</div>
               <div style={{fontSize:12,color:"#ff3b30",fontWeight:700}}>*</div>
             </div>
-            <input value={pass} onChange={e=>{setPass(e.target.value);setFormErr(p=>({...p,pass:undefined}));}}
-              placeholder="Minimum 6 characters" type="password" autoComplete="new-password"
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input value={pass} onChange={e=>{setPass(e.target.value);setFormErr(p=>({...p,pass:undefined}));}}
+                placeholder="Minimum 6 characters" type={showPass?"text":"password"} autoComplete="new-password"
+                style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+              <button type="button" onClick={()=>setShowPass(v=>!v)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:LB3,display:"flex",alignItems:"center",flexShrink:0}}>
+                {showPass
+                  ?<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  :<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                }
+              </button>
+            </div>
             {pass&&(
               <div style={{display:"flex",gap:5,marginTop:8,flexWrap:"wrap"}}>
                 {[{label:"6+ chars",ok:pass.length>=6},{label:"Uppercase",ok:/[A-Z]/.test(pass)},{label:"Number",ok:/[0-9]/.test(pass)}].map(x=>(
@@ -228,10 +238,18 @@ function SignUpScreen({onBack,onSignedIn}){
               <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600}}>Confirm Password</div>
               <div style={{fontSize:12,color:"#ff3b30",fontWeight:700}}>*</div>
             </div>
-            <input value={confirm} onChange={e=>{setConfirm(e.target.value);setFormErr(p=>({...p,confirm:undefined}));}}
-              placeholder="Re-enter your password" type="password" autoComplete="new-password"
-              onKeyDown={e=>e.key==="Enter"&&canSubmit&&handleSignUp()}
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input value={confirm} onChange={e=>{setConfirm(e.target.value);setFormErr(p=>({...p,confirm:undefined}));}}
+                placeholder="Re-enter your password" type={showConfirm?"text":"password"} autoComplete="new-password"
+                onKeyDown={e=>e.key==="Enter"&&canSubmit&&handleSignUp()}
+                style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+              <button type="button" onClick={()=>setShowConfirm(v=>!v)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:LB3,display:"flex",alignItems:"center",flexShrink:0}}>
+                {showConfirm
+                  ?<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  :<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                }
+              </button>
+            </div>
             {confirm&&matchOk&&passOk&&<div style={{fontSize:12,color:"#34c759",marginTop:5,fontWeight:500}}>✓ Passwords match</div>}
             {confirm&&!matchOk&&<div style={{fontSize:12,color:"#ff3b30",marginTop:5,fontWeight:500}}>✕ Do not match</div>}
           </div>
@@ -543,9 +561,7 @@ export default function App(){
   const [loginEmail,setLoginEmail]=useState(()=>localStorage.getItem("tw_saved_email")||"");
   const [loginPass,setLoginPass]=useState("");
   const [loginErr,setLoginErr]=useState("");
-  const [loginLoading,setLoginLoading]=useState(false);
-  const [rememberPass,setRememberPass]=useState(()=>localStorage.getItem("tw_remember_pass")==="1");
-  const [showAllAccounts,setShowAllAccounts]=useState(false);const [showSwitcher,setShowSwitcher]=useState(false);
+  const [loginLoading,setLoginLoading]=useState(false);const [showSwitcher,setShowSwitcher]=useState(false);
 
   useEffect(()=>{
     const el=document.createElement("style");
@@ -592,12 +608,9 @@ export default function App(){
       }
       if(!data?.user){setLoginErr("Login failed. Please try again.");setLoginLoading(false);return;}
       localStorage.setItem("tw_saved_email",loginEmail.trim().toLowerCase());
-      if(rememberPass)localStorage.setItem("tw_remember_pass","1");else localStorage.removeItem("tw_remember_pass");
       const p=await ensureProfile(data.user);
       if(!p){setLoginErr("Could not load profile. Contact admin.");setLoginLoading(false);return;}
-      upsertAccount(data.session,p);
-      if(rememberPass)savePassword(p.id,loginPass);else clearPassword(p.id);
-      setSession(data.session);setProfile(p);setLoginLoading(false);
+      upsertAccount(data.session,p);setSession(data.session);setProfile(p);setLoginLoading(false);
     }catch(err){setLoginErr("Connection error. Please try again.");setLoginLoading(false);}
   };
 
@@ -630,10 +643,8 @@ export default function App(){
         }catch(e){console.warn("Token login failed:",e);}
         setLoginLoading(false);
       }
-      // Fallback: prefill email + saved password
-      setLoginEmail(acct.email);setLoginErr("");
-      const savedPw=getSavedPassword(acct.id);
-      if(savedPw)setLoginPass(savedPw);
+      // Fallback: prefill email
+      setLoginEmail(acct.authEmail||acct.email);setLoginErr("");
     };
     return(
       <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
@@ -643,41 +654,31 @@ export default function App(){
           <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:2}}>Sincerity · Love · Responsible · Respectful</div>
         </div>
         <div className="fade" style={{width:"100%",maxWidth:360}}>
-          {/* Saved accounts — show most recent first, rest behind "More accounts" */}
+          {/* Saved accounts — tappable cards */}
           {savedAccts.length>0&&(
             <div style={{marginBottom:16}}>
               <div style={{fontSize:12,color:LB3,fontWeight:600,letterSpacing:".4px",textTransform:"uppercase",marginBottom:8,paddingLeft:2}}>Saved Accounts</div>
               <div style={{background:BG2,borderRadius:13,overflow:"hidden"}}>
-                {(showAllAccounts?savedAccts:savedAccts.slice(0,1)).map((acct,i,arr)=>{
+                {savedAccts.map((acct,i)=>{
                   const initials=(acct.nickname||acct.name||acct.email||"?").slice(0,2).toUpperCase();
                   return(
-                    <div key={acct.id}
-                      style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<arr.length-1?`1px solid ${SEP}`:"none"}}>
-                      <div onClick={()=>handleSavedAccountTap(acct)} className="card-press"
-                        style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0,cursor:"pointer"}}>
-                        {acct.avatar_url
-                          ?<img src={acct.avatar_url} alt={initials} style={{width:46,height:46,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>
-                          :<div style={{width:46,height:46,borderRadius:"50%",background:ACC,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,flexShrink:0}}>{initials}</div>
-                        }
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:16,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.nickname||acct.name||acct.email?.split("@")[0]}</div>
-                          <div style={{fontSize:13,color:LB3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.email}</div>
-                        </div>
-                        <div style={{color:LB3,fontSize:20}}>›</div>
+                    <div key={acct.id} onClick={()=>handleSavedAccountTap(acct)}
+                      className="card-press"
+                      style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<savedAccts.length-1?`1px solid ${SEP}`:"none",cursor:"pointer"}}>
+                      {acct.avatar_url
+                        ?<img src={acct.avatar_url} alt={initials} style={{width:46,height:46,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>
+                        :<div style={{width:46,height:46,borderRadius:"50%",background:ACC,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,flexShrink:0}}>{initials}</div>
+                      }
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:16,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.nickname||acct.name||acct.email?.split("@")[0]}</div>
+                        <div style={{fontSize:13,color:LB3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.authEmail||acct.email}</div>
                       </div>
-                      <button onClick={e=>{e.stopPropagation();removeAccount(acct.id);if(showAllAccounts&&getSavedAccounts().length===0)setShowAllAccounts(false);}}
-                        style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:LB3,padding:"4px 6px",flexShrink:0,lineHeight:1}}>×</button>
+                      <div style={{color:LB3,fontSize:20}}>›</div>
                     </div>
                   );
                 })}
               </div>
-              {savedAccts.length>1&&(
-                <button onClick={()=>setShowAllAccounts(v=>!v)}
-                  style={{width:"100%",background:"none",border:"none",cursor:"pointer",fontSize:13,color:ACC,fontWeight:600,padding:"8px 4px",textAlign:"center",fontFamily:SF}}>
-                  {showAllAccounts?`Hide accounts ▲`:`More accounts (${savedAccts.length-1} more) ▼`}
-                </button>
-              )}
-              <div style={{display:"flex",alignItems:"center",gap:10,margin:"10px 0 10px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 10px"}}>
                 <div style={{flex:1,height:1,background:SEP}}/><div style={{fontSize:12,color:LB3}}>or sign in manually</div><div style={{flex:1,height:1,background:SEP}}/>
               </div>
             </div>
@@ -696,12 +697,6 @@ export default function App(){
                 onKeyDown={e=>e.key==="Enter"&&doLogin()}
                 style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
             </div>
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 4px",marginBottom:4,cursor:"pointer"}} onClick={()=>setRememberPass(v=>!v)}>
-            <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${rememberPass?ACC:SEP}`,background:rememberPass?ACC:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .15s"}}>
-              {rememberPass&&<span style={{color:"#fff",fontSize:14,fontWeight:700,lineHeight:1}}>✓</span>}
-            </div>
-            <span style={{fontSize:14,color:LB2,userSelect:"none"}}>Remember password</span>
           </div>
           {loginErr&&<div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px",lineHeight:1.5}}>{loginErr}</div>}
           <button onClick={doLogin} disabled={loginLoading} className="btn-primary"
@@ -742,25 +737,15 @@ export default function App(){
       try{
         const{data,error}=await supabase.auth.setSession({access_token:tokens.access_token,refresh_token:tokens.refresh_token});
         if(error||!data?.session)throw new Error("Session restore failed");
-        const p=await ensureProfile(data.session.user);
-        if(p){
-          upsertAccount(data.session,p);
-          setSession(data.session);
-          setProfile(p);
-          setLoading(false);
-          return;
-        }
-        throw new Error("Profile not found");
+        setSession(data.session);
+        await loadUserProfile(data.session);
+        setLoading(false);return;
       }catch(err){console.error("Seamless switch failed:",err);setLoading(false);}
     }
-    // Fallback: go to login screen with email prefilled + saved password
+    // Fallback: go to login screen with email prefilled
     const acct=getSavedAccounts().find(a=>a.id===accountId);
-    if(acct){
-      setLoginEmail(acct.email);
-      const savedPw=getSavedPassword(acct.id);
-      if(savedPw)setLoginPass(savedPw);else setLoginPass("");
-    }
-    setProfile(null);setSession(null);
+    if(acct)setLoginEmail(acct.authEmail||acct.email);
+    setLoginPass("");setProfile(null);setSession(null);
   };
   const handleAddAccount=()=>{setShowSwitcher(false);setScreen("signup");};
   if(profile.is_admin)return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><AdminApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount} onShowSwitcher={()=>setShowSwitcher(true)}/></>;

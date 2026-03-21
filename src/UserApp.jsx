@@ -208,6 +208,8 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   const [redeemSuccess,setRedeemSuccess]  =useState(null);
   const [missionAccepted,setMissionAccepted]=useState(false);
   const [dmOpen,setDmOpen]                =useState(false);
+  const [refreshing,setRefreshing]        =useState(false);
+  const pullStartY=useRef(0);const pullDist=useRef(0);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
   const switchTab=newTab=>{setTab(newTab);setTabKey(k=>k+1);};
@@ -555,15 +557,19 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
       {popupNotif&&(
         <div className="toast-in"
-          style={{position:"absolute",top:16,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:18,padding:"16px 20px",maxWidth:"92vw",zIndex:300,boxShadow:"0 8px 32px rgba(0,0,0,.35)",cursor:"pointer",width:"calc(100% - 32px)"}}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}
           onClick={()=>{setPopupNotif(null);setShowNotif(true);}}>
-          <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
-            <div style={{fontSize:26,flexShrink:0,lineHeight:1,marginTop:1}}>🔔</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:3,lineHeight:1.3}}>{popupNotif.title}</div>
-              {popupNotif.body&&<div style={{fontSize:13,color:"rgba(255,255,255,.7)",lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{popupNotif.body}</div>}
+          <div style={{background:`linear-gradient(135deg,${ACC},#0e2140)`,borderRadius:24,padding:"28px 24px",maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:16}}>
+              <div style={{fontSize:32,flexShrink:0,lineHeight:1}}>🔔</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:4,lineHeight:1.3}}>{popupNotif.title}</div>
+                {popupNotif.body&&<div style={{fontSize:14,color:"rgba(255,255,255,.75)",lineHeight:1.5}}>{popupNotif.body}</div>}
+              </div>
+              <button onClick={e=>{e.stopPropagation();setPopupNotif(null);}} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:30,height:30,color:"#fff",fontSize:15,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
             </div>
-            <button onClick={e=>{e.stopPropagation();setPopupNotif(null);}} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:"50%",width:26,height:26,color:"#fff",fontSize:14,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+            <button onClick={()=>{setPopupNotif(null);setShowNotif(true);}} style={{width:"100%",background:"rgba(255,255,255,.15)",border:"none",borderRadius:12,padding:"11px",fontSize:14,color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:"SF Pro Display,-apple-system,sans-serif"}}>View All Notifications</button>
           </div>
         </div>
       )}
@@ -603,7 +609,12 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {tab!=="chat"&&(
-          <div key={tabKey} className="page-enter-forward" style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}>
+          <div key={tabKey} className="page-enter-forward"
+            style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`,position:"relative"}}
+            onTouchStart={e=>{pullStartY.current=e.touches[0].clientY;pullDist.current=0;}}
+            onTouchMove={e=>{const el=e.currentTarget;if(el.scrollTop>0)return;const d=e.touches[0].clientY-pullStartY.current;if(d>0){pullDist.current=Math.min(d,90);setRefreshing(true);}}}
+            onTouchEnd={async()=>{if(pullDist.current>60){await loadAll();}pullDist.current=0;setRefreshing(false);}}>
+            {refreshing&&<div style={{display:"flex",justifyContent:"center",padding:"12px 0",position:"absolute",top:0,left:0,right:0,zIndex:10}}><div style={{width:22,height:22,border:"2px solid #0057ff",borderTop:"2px solid transparent",borderRadius:"50%",animation:"spin .7s linear infinite"}}/></div>}
             <div style={{padding:"14px 0 0"}}>
               {tab==="home"    &&<HomeTab/>}
               {tab==="missions"&&<MissionsTab{...shared} showMissionAccepted={shared.showMissionAccepted}/>}
@@ -632,7 +643,7 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
       </div>
 
       {toast&&(
-        <div className="toast-in" style={{position:"absolute",bottom:110,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>
+        <div className="toast-in" style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"rgba(0,0,0,.85)",backdropFilter:"blur(16px)",borderRadius:18,padding:"16px 28px",fontSize:16,color:"#fff",fontWeight:600,zIndex:200,pointerEvents:"none",maxWidth:"88vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.4)"}}>
           {toast}
         </div>
       )}

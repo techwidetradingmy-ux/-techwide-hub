@@ -35,8 +35,7 @@ export function upsertAccount(session, profile) {
   const initials = (profile.name || profile.email || "").slice(0, 2).toUpperCase() || "??";
   const entry = {
     id,
-    authEmail: session?.user?.email || "",
-    email: profile.email || "",
+    email: session?.user?.email || profile.email || "",
     name: profile.name || profile.email?.split("@")[0] || "",
     nickname: profile.nickname || null,
     avatar_url: profile.avatar_url || null,

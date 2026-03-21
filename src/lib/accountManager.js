@@ -1,14 +1,3 @@
-
-export async function switchToAccount(accountId) {
-  const accounts = getAllAccounts();
-  const acct = accounts[accountId];
-  if (!acct) return null;
-  setActiveId(accountId);
-  acct.lastUsed = Date.now();
-  accounts[accountId] = acct;
-  try { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts)); } catch {}
-  return acct;
-}
 // Account Manager - Manages multiple Techwide Hub accounts
 
 const STORAGE_KEY = "tw_accounts";
@@ -46,8 +35,9 @@ export function upsertAccount(session, profile) {
   const initials = (profile.name || profile.email || "").slice(0, 2).toUpperCase() || "??";
   const entry = {
     id,
-    email: session?.user?.email || profile.email || "",
+    email: profile.email || "",
     name: profile.name || profile.email?.split("@")[0] || "",
+    nickname: profile.nickname || null,
     avatar_url: profile.avatar_url || null,
     avatar: profile.avatar || initials,
     is_admin: !!profile.is_admin,
@@ -92,6 +82,19 @@ export function getAccountsSorted() {
     .map(({ access_token, refresh_token, ...rest }) => rest);
 }
 
+/**
+ * Switch to a saved account — sets it as active and returns stored tokens.
+ * Caller is responsible for calling supabase.auth.setSession(tokens).
+ */
+export function switchToAccount(accountId) {
+  const tokens = getAccountSession(accountId);
+  if (!tokens?.access_token || !tokens?.refresh_token) {
+    throw new Error("No stored session for this account");
+  }
+  setActiveId(accountId);
+  return tokens;
+}
+
 export default {
   getSavedAccounts,
   getActiveAccountId,
@@ -99,4 +102,5 @@ export default {
   removeAccount,
   getAccountSession,
   getAccountsSorted,
+  switchToAccount,
 };

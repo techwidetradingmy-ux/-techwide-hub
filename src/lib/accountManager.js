@@ -2,6 +2,7 @@
 
 const STORAGE_KEY = "tw_accounts";
 const ACTIVE_KEY = "tw_active_account";
+const PASS_KEY = "tw_saved_passes";
 
 function loadAccounts() {
   try {
@@ -73,6 +74,8 @@ export function removeAccount(id) {
   const accounts = loadAccounts().filter((a) => a.id !== id);
   saveAccounts(accounts);
   if (getActiveAccountId() === id) setActiveId(accounts[0]?.id || null);
+  // Also clear saved password
+  clearPassword(id);
   return accounts;
 }
 
@@ -95,6 +98,34 @@ export function switchToAccount(accountId) {
   return tokens;
 }
 
+/** Save a base64-encoded password for quick re-login. */
+export function savePassword(accountId, password) {
+  try {
+    const passes = JSON.parse(localStorage.getItem(PASS_KEY) || "{}");
+    passes[accountId] = btoa(unescape(encodeURIComponent(password)));
+    localStorage.setItem(PASS_KEY, JSON.stringify(passes));
+  } catch { /* ignore */ }
+}
+
+/** Retrieve the saved password for an account (decoded). Returns null if none. */
+export function getSavedPassword(accountId) {
+  try {
+    const passes = JSON.parse(localStorage.getItem(PASS_KEY) || "{}");
+    const enc = passes[accountId];
+    if (!enc) return null;
+    return decodeURIComponent(escape(atob(enc)));
+  } catch { return null; }
+}
+
+/** Remove a saved password for an account. */
+export function clearPassword(accountId) {
+  try {
+    const passes = JSON.parse(localStorage.getItem(PASS_KEY) || "{}");
+    delete passes[accountId];
+    localStorage.setItem(PASS_KEY, JSON.stringify(passes));
+  } catch { /* ignore */ }
+}
+
 export default {
   getSavedAccounts,
   getActiveAccountId,
@@ -103,4 +134,7 @@ export default {
   getAccountSession,
   getAccountsSorted,
   switchToAccount,
+  savePassword,
+  getSavedPassword,
+  clearPassword,
 };

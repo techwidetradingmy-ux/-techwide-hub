@@ -543,7 +543,7 @@ export default function App(){
   const [loginEmail,setLoginEmail]=useState(()=>localStorage.getItem("tw_saved_email")||"");
   const [loginPass,setLoginPass]=useState("");
   const [loginErr,setLoginErr]=useState("");
-  const [loginLoading,setLoginLoading]=useState(false);const [showSwitcher,setShowSwitcher]=useState(false);
+  const [loginLoading,setLoginLoading]=useState(false);const [showSwitcher,setShowSwitcher]=useState(false);const [showPass,setShowPass]=useState(false);const [selectedAccountId,setSelectedAccountId]=useState(null);const [useAltLogin,setUseAltLogin]=useState(false);
 
   useEffect(()=>{
     const el=document.createElement("style");
@@ -575,12 +575,13 @@ export default function App(){
     setLoading(false);
   };
 
-  const doLogin=async()=>{
-    if(!loginEmail.trim()){setLoginErr("Please enter your email");return;}
+  const doLogin=async(emailOverride)=>{
+    const _email=emailOverride||loginEmail;
+    if(!_email.trim()){setLoginErr("Please enter your email");return;}
     if(!loginPass){setLoginErr("Please enter your password");return;}
     setLoginErr("");setLoginLoading(true);
     try{
-      const{data,error}=await supabase.auth.signInWithPassword({email:loginEmail.trim().toLowerCase(),password:loginPass});
+      const{data,error}=await supabase.auth.signInWithPassword({email:_email.trim().toLowerCase(),password:loginPass});
       if(error){
         const msg=error.message.toLowerCase();
         if(msg.includes("invalid login")||msg.includes("invalid credentials"))setLoginErr("Incorrect email or password.");
@@ -589,7 +590,7 @@ export default function App(){
         setLoginLoading(false);return;
       }
       if(!data?.user){setLoginErr("Login failed. Please try again.");setLoginLoading(false);return;}
-      localStorage.setItem("tw_saved_email",loginEmail.trim().toLowerCase());
+      localStorage.setItem("tw_saved_email",_email.trim().toLowerCase());
       const p=await ensureProfile(data.user);
       if(!p){setLoginErr("Could not load profile. Contact admin.");setLoginLoading(false);return;}
       upsertAccount(data.session,p);setSession(data.session);setProfile(p);setLoginLoading(false);
@@ -606,57 +607,106 @@ export default function App(){
   if(screen==="signup")return(
     <SignUpScreen
       onBack={(prefillEmail)=>{if(prefillEmail)setLoginEmail(prefillEmail);setScreen("login");}}
-      onSignedIn={(sess,prof)=>{upsertAccount(sess,prof);setSession(sess);setProfile(prof);setScreen("login");}}
+      onSignedIn={(sess,prof)=>{setSession(sess);setProfile(prof);setScreen("login");}}
     />
   );
 
-  if(!session||!profile)return(
-    <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
-      <div className="fade" style={{textAlign:"center",marginBottom:36}}>
-        <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:100,height:100,borderRadius:22,objectFit:"cover",margin:"0 auto 16px",display:"block",boxShadow:"0 8px 28px rgba(28,50,88,.2)"}}/>
-        <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px"}}>Techwide Hub</div>
-        <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:2}}>Sincerity · Love · Responsible · Respectful</div>
+  if(!session||!profile){
+    const savedAccts=getSavedAccounts();
+    const returnUser=savedAccts.length>0&&!useAltLogin;
+    const selAcct=returnUser?(savedAccts.find(a=>a.id===selectedAccountId)||savedAccts[0]):null;
+    const EyeOpen=()=><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+    const EyeOff=()=><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
+    return(
+      <div style={{minHeight:"100vh",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",fontFamily:SF}}>
+        <div className="fade" style={{textAlign:"center",marginBottom:36}}>
+          <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:100,height:100,borderRadius:22,objectFit:"cover",margin:"0 auto 16px",display:"block",boxShadow:"0 8px 28px rgba(28,50,88,.2)"}}/>
+          <div style={{fontSize:26,fontWeight:700,color:LBL,letterSpacing:"-.6px"}}>Techwide Hub</div>
+          <div style={{fontSize:13,color:LB3,marginTop:8,lineHeight:2}}>Sincerity · Love · Responsible · Respectful</div>
+        </div>
+        <div className="fade" style={{width:"100%",maxWidth:360}}>
+          {returnUser?(
+            <>
+              <div style={{textAlign:"center",marginBottom:20}}>
+                {selAcct?.avatar_url?(
+                  <img src={selAcct.avatar_url} alt="" style={{width:72,height:72,borderRadius:"50%",objectFit:"cover",margin:"0 auto 12px",display:"block",border:`2px solid ${ACC}22`}}/>
+                ):(
+                  <div style={{width:72,height:72,borderRadius:"50%",background:ACC,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:700,margin:"0 auto 12px"}}>{(selAcct?.name||selAcct?.email||"?").slice(0,2).toUpperCase()}</div>
+                )}
+                <div style={{fontSize:18,fontWeight:700,color:LBL,marginBottom:2}}>{selAcct?.name||selAcct?.email?.split("@")[0]||"User"}</div>
+                <div style={{fontSize:13,color:LB3,marginBottom:8}}>{selAcct?.email}</div>
+                {savedAccts.length>1&&(
+                  <div style={{position:"relative",display:"inline-block"}}>
+                    <select value={selectedAccountId||selAcct?.id||""} onChange={e=>{setSelectedAccountId(e.target.value);setLoginPass("");setLoginErr("");}} style={{background:BG2,border:`1px solid ${SEP}`,borderRadius:99,padding:"5px 28px 5px 12px",fontSize:13,color:LBL,appearance:"none",WebkitAppearance:"none",cursor:"pointer",outline:"none"}}>
+                      {savedAccts.map(a=><option key={a.id} value={a.id}>{a.name||a.email?.split("@")[0]} ({a.email})</option>)}
+                    </select>
+                    <div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:LB3,pointerEvents:"none"}}>▾</div>
+                  </div>
+                )}
+              </div>
+              <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
+                <div style={{padding:"11px 16px"}}>
+                  <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Password</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <input value={loginPass} onChange={e=>{setLoginPass(e.target.value);setLoginErr("");}} placeholder="Enter your password" type={showPass?"text":"password"} autoComplete="current-password" onKeyDown={e=>e.key==="Enter"&&doLogin(selAcct?.email)} style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+                    <button onClick={()=>setShowPass(v=>!v)} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",color:LB3,display:"flex",alignItems:"center",flexShrink:0}}>{showPass?<EyeOff/>:<EyeOpen/>}</button>
+                  </div>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12,padding:"0 2px"}}>
+                <div style={{width:16,height:16,borderRadius:4,background:ACC,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><div style={{color:"#fff",fontSize:11,fontWeight:700}}>✓</div></div>
+                <div style={{fontSize:13,color:LB3}}>Remember me — you'll stay logged in</div>
+              </div>
+              {loginErr&&<div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px",lineHeight:1.5}}>{loginErr}</div>}
+              <button onClick={()=>doLogin(selAcct?.email)} disabled={loginLoading} className="btn-primary" style={{width:"100%",background:loginLoading?"#e5e5ea":ACC,color:loginLoading?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:10}}>
+                {loginLoading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
+                {loginLoading?"Signing In…":"Sign In"}
+              </button>
+              <div style={{textAlign:"center",marginBottom:10}}>
+                <button onClick={()=>{setUseAltLogin(true);setLoginEmail("");setLoginPass("");setLoginErr("");}} className="btn" style={{background:"none",border:"none",color:ACC,fontSize:14,fontWeight:600,cursor:"pointer"}}>Use a different account</button>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                <div style={{flex:1,height:1,background:SEP}}/><div style={{fontSize:12,color:LB3}}>or</div><div style={{flex:1,height:1,background:SEP}}/>
+              </div>
+              <button onClick={()=>setScreen("signup")} className="btn-primary" style={{width:"100%",background:"transparent",color:ACC,border:`1.5px solid ${ACC}`,borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>🆕 First Time Login</button>
+              <div style={{textAlign:"center",fontSize:12,color:LB3,marginTop:14,lineHeight:1.6}}>By signing in you agree to our<br/>company policies and code of conduct</div>
+            </>
+          ):(
+            <>
+              <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
+                <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
+                  <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Email</div>
+                  <input value={loginEmail} onChange={e=>{setLoginEmail(e.target.value);setLoginErr("");}} placeholder="name@techwide.com" type="email" autoComplete="email" style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+                </div>
+                <div style={{padding:"11px 16px"}}>
+                  <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Password</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <input value={loginPass} onChange={e=>{setLoginPass(e.target.value);setLoginErr("");}} placeholder="Password" type={showPass?"text":"password"} autoComplete="current-password" onKeyDown={e=>e.key==="Enter"&&doLogin()} style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
+                    <button onClick={()=>setShowPass(v=>!v)} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",color:LB3,display:"flex",alignItems:"center",flexShrink:0}}>{showPass?<EyeOff/>:<EyeOpen/>}</button>
+                  </div>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12,padding:"0 2px"}}>
+                <div style={{width:16,height:16,borderRadius:4,background:ACC,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><div style={{color:"#fff",fontSize:11,fontWeight:700}}>✓</div></div>
+                <div style={{fontSize:13,color:LB3}}>Remember me — you'll stay logged in</div>
+              </div>
+              {loginErr&&<div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px",lineHeight:1.5}}>{loginErr}</div>}
+              <button onClick={()=>doLogin()} disabled={loginLoading} className="btn-primary" style={{width:"100%",background:loginLoading?"#e5e5ea":ACC,color:loginLoading?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:10}}>
+                {loginLoading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
+                {loginLoading?"Signing In…":"Sign In"}
+              </button>
+              {savedAccts.length>0&&<div style={{textAlign:"center",marginBottom:10}}><button onClick={()=>{setUseAltLogin(false);setLoginPass("");setLoginErr("");}} className="btn" style={{background:"none",border:"none",color:ACC,fontSize:14,fontWeight:600,cursor:"pointer"}}>← Back to saved accounts</button></div>}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                <div style={{flex:1,height:1,background:SEP}}/><div style={{fontSize:12,color:LB3}}>or</div><div style={{flex:1,height:1,background:SEP}}/>
+              </div>
+              <button onClick={()=>setScreen("signup")} className="btn-primary" style={{width:"100%",background:"transparent",color:ACC,border:`1.5px solid ${ACC}`,borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>🆕 First Time Login</button>
+              <div style={{textAlign:"center",fontSize:12,color:LB3,marginTop:14,lineHeight:1.6}}>By signing in you agree to our<br/>company policies and code of conduct</div>
+            </>
+          )}
+        </div>
       </div>
-      <div className="fade" style={{width:"100%",maxWidth:360}}>
-        <div style={{background:BG2,borderRadius:13,overflow:"hidden",marginBottom:12}}>
-          <div style={{padding:"11px 16px",borderBottom:`1px solid ${SEP}`}}>
-            <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Email</div>
-            <input value={loginEmail} onChange={e=>{setLoginEmail(e.target.value);setLoginErr("");}}
-              placeholder="name@techwide.com" type="email" autoComplete="email"
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
-          </div>
-          <div style={{padding:"11px 16px"}}>
-            <div style={{fontSize:12,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:5}}>Password</div>
-            <input value={loginPass} onChange={e=>{setLoginPass(e.target.value);setLoginErr("");}}
-              placeholder="Password" type="password" autoComplete="current-password"
-              onKeyDown={e=>e.key==="Enter"&&doLogin()}
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:17,color:LBL}}/>
-          </div>
-        </div>
-        {/* Remember me badge */}
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12,padding:"0 2px"}}>
-          <div style={{width:16,height:16,borderRadius:4,background:ACC,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <div style={{color:"#fff",fontSize:11,fontWeight:700}}>✓</div>
-          </div>
-          <div style={{fontSize:13,color:LB3}}>Remember me — you'll stay logged in</div>
-        </div>
-        {loginErr&&<div style={{fontSize:14,color:"#ff3b30",textAlign:"center",marginBottom:12,fontWeight:500,background:"#ff3b3010",borderRadius:10,padding:"10px 14px",lineHeight:1.5}}>{loginErr}</div>}
-        <button onClick={doLogin} disabled={loginLoading} className="btn-primary"
-          style={{width:"100%",background:loginLoading?"#e5e5ea":ACC,color:loginLoading?LB3:"#fff",border:"none",borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:10}}>
-          {loginLoading&&<div style={{width:18,height:18,border:"2px solid #fff4",borderTop:"2px solid #fff",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}
-          {loginLoading?"Signing In…":"Sign In"}
-        </button>
-        {getSavedAccounts().length>1&&<button onClick={()=>setShowSwitcher(true)} className="btn" style={{width:"100%",background:BG2,border:"1px solid "+SEP,borderRadius:13,padding:"13px",fontSize:15,fontWeight:600,color:LBL,cursor:"pointer",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>Switch Account</button>}<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-          <div style={{flex:1,height:1,background:SEP}}/><div style={{fontSize:12,color:LB3}}>or</div><div style={{flex:1,height:1,background:SEP}}/>
-        </div>
-        <button onClick={()=>setScreen("signup")} className="btn-primary"
-          style={{width:"100%",background:"transparent",color:ACC,border:`1.5px solid ${ACC}`,borderRadius:13,padding:"15px",fontSize:17,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-          🆕 First Time Login
-        </button>
-        <div style={{textAlign:"center",fontSize:12,color:LB3,marginTop:14,lineHeight:1.6}}>By signing in you agree to our<br/>company policies and code of conduct</div>
-      </div>
-    </div>
-  );
+    );
+  }
 
   if(!profile.onboarded)return(
     <OnboardingFlow
@@ -669,21 +719,8 @@ export default function App(){
     />
   );
 
-  const handleAccountSwitch=async(accountIdOrObj)=>{
-    const accountId=typeof accountIdOrObj==="string"?accountIdOrObj:accountIdOrObj?.id;
-    const tokens=getAccountSession(accountId);
-    if(tokens?.access_token&&tokens?.refresh_token){
-      try{
-        const{data,error}=await supabase.auth.setSession({access_token:tokens.access_token,refresh_token:tokens.refresh_token});
-        if(!error&&data.session&&data.user){
-          const p=await ensureProfile(data.user);
-          if(p){upsertAccount(data.session,p);setSession(data.session);setProfile(p);setShowSwitcher(false);return;}
-        }
-      }catch(err){console.error("Account switch failed:",err);}
-    }
-    setShowSwitcher(false);setProfile(null);setSession(null);
-  };
-  const handleAddAccount=()=>{setShowSwitcher(false);setScreen("login");};
+  const handleAccountSwitch=async(accountId)=>{setShowSwitcher(false);const stored=getAccountSession(accountId);if(stored?.access_token&&stored?.refresh_token){try{const{data,error}=await supabase.auth.setSession({access_token:stored.access_token,refresh_token:stored.refresh_token});if(!error&&data?.session){const p=await ensureProfile(data.session.user);if(p){upsertAccount(data.session,p);setSession(data.session);setProfile(p);return;}}}catch(e){console.error("Switch error:",e);}}const accts=getSavedAccounts();const acct=accts.find(a=>a.id===accountId);if(acct)setLoginEmail(acct.email);setLoginPass("");setProfile(null);setSession(null);};
+  const handleAddAccount=()=>{setShowSwitcher(false);supabase.auth.signOut();setLoginEmail("");setLoginPass("");setLoginErr("");setUseAltLogin(true);setProfile(null);setSession(null);};
   if(profile.is_admin)return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><AdminApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount} onShowSwitcher={()=>setShowSwitcher(true)}/></>;
   return<><AccountSwitcher show={showSwitcher} onClose={()=>setShowSwitcher(false)} onSwitch={handleAccountSwitch} onAddNew={handleAddAccount}/><UserApp profile={profile} session={session} onProfileUpdate={setProfile} onSwitchAccount={handleAccountSwitch} onAddAccount={handleAddAccount} onShowSwitcher={()=>setShowSwitcher(true)}/></>;
 }

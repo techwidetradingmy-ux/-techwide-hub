@@ -1,3 +1,14 @@
+
+export async function switchToAccount(accountId) {
+  const accounts = getAllAccounts();
+  const acct = accounts[accountId];
+  if (!acct) return null;
+  setActiveId(accountId);
+  acct.lastUsed = Date.now();
+  accounts[accountId] = acct;
+  try { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts)); } catch {}
+  return acct;
+}
 // Account Manager - Manages multiple Techwide Hub accounts
 
 const STORAGE_KEY = "tw_accounts";

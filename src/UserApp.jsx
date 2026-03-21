@@ -169,7 +169,7 @@ function RedeemSuccessModal({prize,onClose}){
   );
 }
 
-export default function UserApp({profile:init,session,onProfileUpdate}){
+export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAccount,onAddAccount,onShowSwitcher}){
   const [profile,setProfile]              =useState(init);
   const profileRef                        =useRef(init);
   const [tab,setTab]                      =useState("home");
@@ -358,6 +358,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
     SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,
     getLevel,getLvlPct,calcScore,getTier,
     dmTarget,setDmTarget,setViewingProfile,
+    onSwitchAccount,onAddAccount,
   };
 
   const TABS=[
@@ -558,6 +559,7 @@ export default function UserApp({profile:init,session,onProfileUpdate}){
                 <span style={{fontSize:24}}>🔔</span>
                 {unreadCount>0&&<div className="notif-dot" style={{position:"absolute",top:0,right:0,minWidth:18,height:18,background:"#ff3b30",borderRadius:99,fontSize:11,color:"#fff",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>{unreadCount}</div>}
               </button>
+              {onShowSwitcher&&<button onClick={onShowSwitcher} className="btn" style={{fontSize:14,fontWeight:600,background:"rgba(0,0,0,.06)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF,color:LBL}}>⚙️</button>}
               <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"5px 11px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Out</button>
             </div>
           </div>

@@ -49,13 +49,19 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   const [showEmoji,setShowEmoji]=useState(false);
   const [recording,setRecording]=useState(false);
   const [mediaRecorder,setMediaRecorder]=useState(null);
+  const [hasMore,setHasMore]=useState(false);
+  const [loadingMore,setLoadingMore]=useState(false);
   const bottomRef=useRef(null);
   const inputRef=useRef(null);
   const touchStartX=useRef(0);
+  const msgsRef=useRef([]);
+  const DM_LIMIT=50;
+
+  useEffect(()=>{msgsRef.current=messages;},[messages]);
 
   useEffect(()=>{
     loadMsgs();markSeen();
-    const iv=setInterval(()=>{loadMsgs();markSeen();},2000);
+    const iv=setInterval(pollMsgs,2000);
     return()=>clearInterval(iv);
   },[]);
 
@@ -66,8 +72,32 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   const loadMsgs=async()=>{
     const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
       .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:true}).limit(200);
-    if(data)setMessages(data);
+      .order("created_at",{ascending:false}).limit(DM_LIMIT);
+    if(data){setMessages(data.reverse());setHasMore(data.length===DM_LIMIT);}
+  };
+
+  const pollMsgs=async()=>{
+    const real=msgsRef.current.filter(m=>!String(m.id).startsWith("temp_"));
+    const latest=real.length>0?real[real.length-1].created_at:null;
+    if(!latest){loadMsgs();return;}
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
+      .order("created_at",{ascending:true}).gt("created_at",latest);
+    if(data&&data.length>0){
+      setMessages(p=>[...p.filter(m=>!String(m.id).startsWith("temp_")),...data]);
+      markSeen();
+    }
+  };
+
+  const loadMore=async()=>{
+    if(loadingMore||msgsRef.current.length===0)return;
+    setLoadingMore(true);
+    const oldest=msgsRef.current[0].created_at;
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
+      .order("created_at",{ascending:false}).lt("created_at",oldest).limit(DM_LIMIT);
+    if(data){setMessages(p=>[...data.reverse(),...p]);setHasMore(data.length===DM_LIMIT);}
+    setLoadingMore(false);
   };
 
   const markSeen=async()=>{
@@ -185,6 +215,14 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
 
       {/* Messages — flex:1 + minHeight:0 critical */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 14px",display:"flex",flexDirection:"column",gap:6,background:`${ACC}06`,minHeight:0}}>
+        {hasMore&&(
+          <div style={{textAlign:"center",padding:"6px 0 2px"}}>
+            <button onClick={loadMore} disabled={loadingMore}
+              style={{background:`${ACC}12`,border:`1px solid ${ACC}25`,borderRadius:99,padding:"7px 20px",fontSize:13,color:ACC,fontWeight:600,cursor:loadingMore?"not-allowed":"pointer",fontFamily:SF}}>
+              {loadingMore?"Loading…":"↑ Load older messages"}
+            </button>
+          </div>
+        )}
         {messages.length===0&&(
           <div style={{textAlign:"center",padding:"50px 20px",color:LB3}}>
             <div style={{fontSize:44,marginBottom:14}}>💬</div>
@@ -791,7 +829,13 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const [showEmoji,setShowEmoji]=useState(false);
   const [grpRecording,setGrpRecording]=useState(false);
   const [grpMediaRecorder,setGrpMediaRecorder]=useState(null);
+  const [grpHasMore,setGrpHasMore]=useState(false);
+  const [grpLoadingMore,setGrpLoadingMore]=useState(false);
   const bottomRef=useRef(null);
+  const grpMsgsRef=useRef([]);
+  const GRP_LIMIT=50;
+
+  useEffect(()=>{grpMsgsRef.current=messages;},[messages]);
 
   useEffect(()=>{if(dmTarget){setDmWith(dmTarget);setMode("dm");}},[dmTarget]);
   useEffect(()=>{if(setDmOpen)setDmOpen(mode==="dm");},[mode]);
@@ -799,7 +843,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const loadConversations=async()=>{
     const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
       .or(`user_id.eq.${profile.id},recipient_id.eq.${profile.id}`)
-      .order("created_at",{ascending:false});
+      .order("created_at",{ascending:false}).limit(500);
     if(!data)return;
     const seen=new Set();const convs=[];
     data.forEach(msg=>{
@@ -814,15 +858,36 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   };
 
   const loadGroupMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",false).order("created_at",{ascending:true}).limit(200);
-    if(data)setMessages(data);
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
+      .order("created_at",{ascending:false}).limit(GRP_LIMIT);
+    if(data){setMessages(data.reverse());setGrpHasMore(data.length===GRP_LIMIT);}
+  };
+
+  const pollGroupMsgs=async()=>{
+    const real=grpMsgsRef.current.filter(m=>!String(m.id).startsWith("temp_"));
+    const latest=real.length>0?real[real.length-1].created_at:null;
+    if(!latest){loadGroupMsgs();return;}
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
+      .order("created_at",{ascending:true}).gt("created_at",latest);
+    if(data&&data.length>0)
+      setMessages(p=>[...p.filter(m=>!String(m.id).startsWith("temp_")),...data]);
+  };
+
+  const loadMoreGroup=async()=>{
+    if(grpLoadingMore||grpMsgsRef.current.length===0)return;
+    setGrpLoadingMore(true);
+    const oldest=grpMsgsRef.current[0].created_at;
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
+      .order("created_at",{ascending:false}).lt("created_at",oldest).limit(GRP_LIMIT);
+    if(data){setMessages(p=>[...data.reverse(),...p]);setGrpHasMore(data.length===GRP_LIMIT);}
+    setGrpLoadingMore(false);
   };
 
   useEffect(()=>{
     loadConversations();
     if(mode==="group"){
       loadGroupMsgs();
-      const iv=setInterval(loadGroupMsgs,3000);
+      const iv=setInterval(pollGroupMsgs,3000);
       return()=>clearInterval(iv);
     }
     if(mode==="chats"){
@@ -1003,6 +1068,14 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
 
           {/* Messages */}
           <div style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
+            {grpHasMore&&(
+              <div style={{textAlign:"center",padding:"6px 0 2px"}}>
+                <button onClick={loadMoreGroup} disabled={grpLoadingMore}
+                  style={{background:`${ACC}12`,border:`1px solid ${ACC}25`,borderRadius:99,padding:"7px 20px",fontSize:13,color:ACC,fontWeight:600,cursor:grpLoadingMore?"not-allowed":"pointer",fontFamily:SF}}>
+                  {grpLoadingMore?"Loading…":"↑ Load older messages"}
+                </button>
+              </div>
+            )}
             {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:17}}>No messages yet. Say hi! 👋</div>}
             {messages.map(msg=>{
               const me=msg.user_id===profile.id;
@@ -1286,19 +1359,16 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
         </div>
       )}
 
-      {/* Header bar */}
-      <div style={{position:"relative",height:52,background:BG}}>
-        {!editing&&(
-          <button onClick={()=>setShowSettings(true)} className="btn"
-            style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",borderRadius:"50%",width:38,height:38,fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:LBL,flexShrink:0}}>
-            ⚙️
-          </button>
-        )}
-      </div>
-
       {/* Banner */}
       <div onClick={()=>!editing&&setShowBannerFull(true)}
         style={{height:140,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
+        {/* Settings gear — top right corner */}
+        {!editing&&(
+          <button onClick={e=>{e.stopPropagation();setShowSettings(true);}} className="btn"
+            style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,.18)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"none",borderRadius:"50%",width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0}}>
+            ⚙️
+          </button>
+        )}
         {editing&&(
           <>
             <button onClick={e=>{e.stopPropagation();document.getElementById("bnP").click();}}

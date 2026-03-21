@@ -3,6 +3,7 @@ import DatePicker from"react-datepicker";
 import"react-datepicker/dist/react-datepicker.css";
 import{supabase}from"./supabaseClient";
 import{SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,PRIZES,getTier,calcScore,formatContact}from"./constants";
+import{getSavedAccounts,getActiveAccountId,switchToAccount}from"./lib/accountManager";
 
 const MISSION_CATS=["Sales","Teamwork","Admin","Creativity","KOL","Content","Live Hosting","Others"];
 const fmtDate=iso=>{if(!iso)return"N/A";const p=iso.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso;};
@@ -678,7 +679,7 @@ function CommunityTab({allProfiles}){
   );
 }
 
-export default function AdminApp({profile,onProfileUpdate}){
+export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddAccount,onShowSwitcher}){
   const [tab,setTab]                    =useState("dash");
   const [allProfiles,setAllProfiles]    =useState([]);
   const [missions,setMissions]          =useState([]);
@@ -688,6 +689,8 @@ export default function AdminApp({profile,onProfileUpdate}){
   const [redemptions,setRedemptions]    =useState([]);
   const [verifReqs,setVerifReqs]        =useState([]);
   const [toast,setToast]                =useState(null);
+  const [showSettings,setShowSettings]  =useState(false);
+  const [switching,setSwitching]        =useState(null);
 
   useEffect(()=>{
     loadAll();
@@ -876,6 +879,15 @@ export default function AdminApp({profile,onProfileUpdate}){
   const deleteAnn=async id=>{setAnnouncements(p=>p.filter(a=>a.id!==id));await supabase.from("announcements").delete().eq("id",id);showToast("Deleted");};
   const togglePin=async ann=>{const pinned=!ann.pinned;setAnnouncements(p=>p.map(a=>a.id===ann.id?{...a,pinned}:a));await supabase.from("announcements").update({pinned}).eq("id",ann.id);};
 
+  const handleAcctSwitch=async(acct)=>{
+    if(switching)return;
+    if(acct.id===getActiveAccountId())return;
+    setSwitching(acct.id);
+    try{const target=await switchToAccount(acct.id);if(onSwitchAccount)onSwitchAccount(target);}
+    catch(err){console.error("Switch failed:",err);}
+    setSwitching(null);
+  };
+
   const TABS=[
     {id:"dash",      label:"Dashboard",emoji:"📊"},
     {id:"staff",     label:"Staff",    emoji:"👥"},
@@ -886,13 +898,67 @@ export default function AdminApp({profile,onProfileUpdate}){
 
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:SF,maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column"}}>
+      {/* Settings overlay */}
+      {showSettings&&(
+        <div style={{position:"fixed",inset:0,background:BG,zIndex:100,maxWidth:430,margin:"0 auto",overflowY:"auto",fontFamily:SF}}>
+          <div style={{padding:"60px 16px 24px",display:"flex",alignItems:"center",gap:12}}>
+            <button onClick={()=>setShowSettings(false)} className="btn" style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:ACC,padding:0,lineHeight:1}}>←</button>
+            <div style={{fontSize:20,fontWeight:700,color:LBL}}>Settings</div>
+          </div>
+          <div style={{padding:"0 16px",marginBottom:20}}>
+            <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Accounts</div>
+            <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
+              {getSavedAccounts().map((acct,i,arr)=>{
+                const isActive=acct.id===getActiveAccountId();
+                const isSwitching=switching===acct.id;
+                return(
+                  <div key={acct.id} onClick={()=>!isActive&&handleAcctSwitch(acct)}
+                    style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:i<arr.length-1?`1px solid ${SEP}`:"none",cursor:isActive?"default":"pointer",background:isActive?`${ACC}08`:"transparent"}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",background:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>
+                      {acct.avatar||acct.name?.slice(0,2).toUpperCase()}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:16,fontWeight:600,color:LBL,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}}>{acct.name||"Unknown"}</span>
+                        {isActive&&<span style={{fontSize:11,color:ACC,fontWeight:700,background:`${ACC}18`,padding:"2px 7px",borderRadius:99,flexShrink:0}}>ACTIVE</span>}
+                      </div>
+                      <div style={{fontSize:13,color:LB3,marginTop:1}}>{acct.email}{acct.is_admin?" · Admin":""}</div>
+                    </div>
+                    {isSwitching&&<div style={{width:20,height:20,border:`2px solid ${ACC}44`,borderTop:`2px solid ${ACC}`,borderRadius:"50%",animation:"spin .7s linear infinite",flexShrink:0}}/>}
+                    {!isActive&&!isSwitching&&<div style={{fontSize:18,color:LB3,flexShrink:0}}>›</div>}
+                  </div>
+                );
+              })}
+            </div>
+            {onAddAccount&&(
+              <button onClick={onAddAccount} className="btn"
+                style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:ACC,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",gap:12,marginTop:8,textAlign:"left"}}>
+                <div style={{width:44,height:44,borderRadius:"50%",border:`2px dashed ${SEP}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:LB3,flexShrink:0}}>+</div>
+                Add Another Account
+              </button>
+            )}
+          </div>
+          <div style={{padding:"0 16px"}}>
+            <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Account</div>
+            <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
+              <button onClick={()=>supabase.auth.signOut()} className="btn"
+                style={{width:"100%",padding:"16px",fontSize:16,fontWeight:600,color:"#ff3b30",background:"none",border:"none",cursor:"pointer",fontFamily:SF,textAlign:"left"}}>
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:34,height:34,borderRadius:8,objectFit:"cover"}}/>
             <div style={{fontSize:18,fontWeight:700,color:LBL}}>Admin Panel</div>
           </div>
-          <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={()=>onShowSwitcher&&onShowSwitcher()} className="btn" style={{fontSize:14,fontWeight:600,background:"rgba(0,0,0,.06)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF,color:LBL}}>⚙️</button>
+            <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
+          </div>
         </div>
         <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>
           {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}{tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}

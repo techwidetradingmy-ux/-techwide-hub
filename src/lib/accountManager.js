@@ -68,6 +68,20 @@ export function getAccountSession(accountId) {
   return { access_token: acct.access_token, refresh_token: acct.refresh_token };
 }
 
+/**
+ * Switch to a saved account by ID. Sets it as active and returns the account
+ * data (including tokens) so the caller can restore the session.
+ */
+export async function switchToAccount(accountId) {
+  const accounts = loadAccounts();
+  const acct = accounts.find((a) => a.id === accountId);
+  if (!acct) return null;
+  setActiveId(accountId);
+  const idx = accounts.findIndex((a) => a.id === accountId);
+  if (idx >= 0) { accounts[idx].lastUsed = Date.now(); saveAccounts(accounts); }
+  return { ...acct };
+}
+
 export function removeAccount(id) {
   const accounts = loadAccounts().filter((a) => a.id !== id);
   saveAccounts(accounts);
@@ -88,4 +102,5 @@ export default {
   removeAccount,
   getAccountSession,
   getAccountsSorted,
+  switchToAccount,
 };

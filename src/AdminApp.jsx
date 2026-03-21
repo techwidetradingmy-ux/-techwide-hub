@@ -689,7 +689,6 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   const [redemptions,setRedemptions]    =useState([]);
   const [verifReqs,setVerifReqs]        =useState([]);
   const [toast,setToast]                =useState(null);
-  const [deliveredModal,setDeliveredModal]=useState(false);
   const [showSettings,setShowSettings]  =useState(false);
   const [switching,setSwitching]        =useState(null);
 
@@ -779,7 +778,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
       try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"System"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
       await notifyAll(annTitle,annBody,"redemption");
     }
-    setDeliveredModal(true);setTimeout(()=>setDeliveredModal(false),2800);
+    showToast("✅ Prize delivered!");
   };
 
   const approveVerification=async(req,approve)=>{
@@ -908,15 +907,28 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           </div>
           <div style={{padding:"0 16px",marginBottom:20}}>
             <div style={{fontSize:13,color:LB3,letterSpacing:".4px",textTransform:"uppercase",fontWeight:600,marginBottom:8,paddingLeft:4}}>Accounts</div>
-            <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
-              {onShowSwitcher&&(
-                <button onClick={()=>{setShowSettings(false);onShowSwitcher();}} className="btn"
-                  style={{width:"100%",padding:"16px",fontSize:16,fontWeight:600,color:ACC,background:"none",border:"none",cursor:"pointer",fontFamily:SF,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:44,height:44,borderRadius:"50%",background:`${ACC}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>⇄</div>
-                  Switch Account
-                </button>
-              )}
-            </div>
+            {(()=>{
+              const accts=getSavedAccounts();
+              const activeId=getActiveAccountId();
+              if(accts.length===0)return null;
+              return(
+                <div style={{background:BG2,borderRadius:14,overflow:"hidden"}}>
+                  {accts.map((a,i)=>(
+                    <button key={a.id} onClick={()=>handleAcctSwitch(a)} className="btn"
+                      style={{width:"100%",padding:"14px 16px",background:a.id===activeId?`${ACC}08`:"none",border:"none",borderBottom:i<accts.length-1?`1px solid ${SEP}`:"none",cursor:"pointer",fontFamily:SF,textAlign:"left",display:"flex",alignItems:"center",gap:12,opacity:switching===a.id?.6:1}}>
+                      <div style={{width:44,height:44,borderRadius:"50%",background:a.avatar_url?`url(${a.avatar_url}) center/cover`:`${ACC}20`,backgroundSize:"cover",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:ACC,flexShrink:0,overflow:"hidden"}}>
+                        {!a.avatar_url&&(a.avatar||"?")}
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:15,fontWeight:600,color:LBL,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name||a.email}</div>
+                        <div style={{fontSize:12,color:LB3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.email}</div>
+                      </div>
+                      {a.id===activeId?<span style={{fontSize:12,color:ACC,fontWeight:700,background:`${ACC}18`,padding:"3px 9px",borderRadius:99,flexShrink:0}}>Active</span>:switching===a.id?<span style={{fontSize:13,color:LB3}}>...</span>:null}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
             {onAddAccount&&(
               <button onClick={onAddAccount} className="btn"
                 style={{width:"100%",background:BG2,border:`1px solid ${SEP}`,borderRadius:14,padding:"14px 16px",fontSize:16,fontWeight:600,color:ACC,cursor:"pointer",fontFamily:SF,display:"flex",alignItems:"center",gap:12,marginTop:8,textAlign:"left"}}>
@@ -968,15 +980,6 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           </button>
         ))}
       </div>
-      {deliveredModal&&(
-        <div className="toast-in" style={{position:"fixed",top:0,left:0,right:0,bottom:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.55)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",zIndex:60,pointerEvents:"none"}}>
-          <div style={{background:"rgba(30,30,30,.96)",borderRadius:22,padding:"32px 40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,boxShadow:"0 8px 40px rgba(0,0,0,.5)"}}>
-            <div style={{fontSize:52,lineHeight:1}}>🎁</div>
-            <div style={{fontSize:20,fontWeight:700,color:"#fff",letterSpacing:"-.3px"}}>Prize Delivered!</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,.6)",fontWeight:500}}>Notification sent to staff</div>
-          </div>
-        </div>
-      )}
       {toast&&<div className="toast-in" style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>{toast}</div>}
     </div>
   );

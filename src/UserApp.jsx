@@ -212,6 +212,10 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
         setPopupNotif(n);
         setTimeout(()=>setPopupNotif(null),6000);
         playNotifSound();
+        // Refresh mission claims and redemptions immediately when any notification arrives
+        // (admin always sends a notification when approving missions or rewards)
+        supabase.from("mission_claims").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyClaims(data);});
+        supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});
         if("Notification" in window&&Notification.permission==="granted"){try{new Notification(n.title,{body:n.body,icon:"/TECHWIDE_LOGO.png"});}catch(e){console.warn(e);}}
       })
       // ── FIX: redemptions UPDATE realtime — catches status change to Approved ──
@@ -233,12 +237,12 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
     const claimsPoll=setInterval(async()=>{
       try{const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);}
       catch(e){console.warn(e);}
-    },15000);
-    // ── Poll redemptions every 20s — catches Approved status ──
+    },5000);
+    // ── Poll redemptions every 10s — catches Approved status ──
     const redPoll=setInterval(async()=>{
       try{const{data}=await supabase.from("redemptions").select("*").eq("user_id",profile.id);if(data)setMyRedemptions(data);}
       catch(e){console.warn(e);}
-    },20000);
+    },10000);
 
     return()=>{clearInterval(notifIv);clearInterval(profilePoll);clearInterval(claimsPoll);clearInterval(redPoll);supabase.removeChannel(ch);};
   },[]);

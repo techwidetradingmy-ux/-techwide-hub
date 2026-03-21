@@ -31,6 +31,25 @@ const playNotifSound=()=>{
   }catch(e){console.warn("sound:",e);}
 };
 
+const playBubbleSound=()=>{
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const tones=[523,659,784];
+    tones.forEach((freq,i)=>{
+      const o=ctx.createOscillator();const g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);
+      o.type="sine";
+      const t=ctx.currentTime+i*0.11;
+      o.frequency.setValueAtTime(freq,t);
+      o.frequency.exponentialRampToValueAtTime(freq*1.4,t+0.12);
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.18,t+0.03);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.25);
+      o.start(t);o.stop(t+0.25);
+    });
+  }catch(e){console.warn("bubble:",e);}
+};
+
 // ── COMPACT FULL PROFILE PAGE — auto-fits on screen ──────────────────
 function FullProfilePage({user,currentUserId,onBack,onDM}){
   const [expanded,setExpanded]=useState(false);
@@ -208,6 +227,11 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
   const [redeemSuccess,setRedeemSuccess]  =useState(null);
   const [missionAccepted,setMissionAccepted]=useState(false);
   const [dmOpen,setDmOpen]                =useState(false);
+  const [pullUI,setPullUI]                =useState({active:false,progress:0});
+  const pullStartY                        =useRef(0);
+  const isPullingRef                      =useRef(false);
+  const pullProgressRef                   =useRef(0);
+  const scrollRef                         =useRef(null);
 
   const syncProfile=u=>{profileRef.current=u;setProfile(u);onProfileUpdate(u);};
   const switchTab=newTab=>{setTab(newTab);setTabKey(k=>k+1);};
@@ -231,8 +255,6 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
         setPopupNotif(n);
         setTimeout(()=>setPopupNotif(null),6000);
         playNotifSound();
-        if(n.type==="redemption"){supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});}
-        if(n.type==="approval"){supabase.from("mission_claims").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyClaims(data);});}
         if("Notification" in window&&Notification.permission==="granted"){try{new Notification(n.title,{body:n.body,icon:"/TECHWIDE_LOGO.png"});}catch(e){console.warn(e);}}
       })
       // ── FIX: redemptions UPDATE realtime — catches status change to Approved ──
@@ -255,17 +277,57 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
       try{const{data}=await supabase.from("mission_claims").select("*").eq("user_id",profile.id);if(data)setMyClaims(data);}
       catch(e){console.warn(e);}
     },15000);
-    // ── Poll redemptions every 20s — catches Approved status ──
+    // ── Poll redemptions every 5s — catches Approved status quickly ──
     const redPoll=setInterval(async()=>{
       try{const{data}=await supabase.from("redemptions").select("*").eq("user_id",profile.id);if(data)setMyRedemptions(data);}
       catch(e){console.warn(e);}
-    },20000);
+    },5000);
 
     return()=>{clearInterval(notifIv);clearInterval(profilePoll);clearInterval(claimsPoll);clearInterval(redPoll);supabase.removeChannel(ch);};
   },[]);
 
   useEffect(()=>{if(dmTarget)switchTab("chat");},[dmTarget]);
   useEffect(()=>{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission();},[]);
+
+  // ── Pull-to-refresh touch handlers ──
+  useEffect(()=>{
+    const el=scrollRef.current;
+    if(!el)return;
+    const THRESH=80;
+    const onStart=e=>{
+      if(el.scrollTop>0)return;
+      pullStartY.current=e.touches[0].clientY;
+    };
+    const onMove=e=>{
+      if(el.scrollTop>0||pullStartY.current===0)return;
+      const dy=e.touches[0].clientY-pullStartY.current;
+      if(dy>0){
+        e.preventDefault();
+        const p=Math.min(dy/THRESH,1);
+        isPullingRef.current=true;
+        pullProgressRef.current=p;
+        setPullUI({active:true,progress:p});
+      }
+    };
+    const onEnd=async()=>{
+      if(!isPullingRef.current)return;
+      const full=pullProgressRef.current>=1;
+      isPullingRef.current=false;pullProgressRef.current=0;pullStartY.current=0;
+      setPullUI({active:false,progress:0});
+      if(full){playBubbleSound();await loadAll();showToast("Refreshed ✓");}
+    };
+    el.addEventListener("touchstart",onStart,{passive:true});
+    el.addEventListener("touchmove",onMove,{passive:false});
+    el.addEventListener("touchend",onEnd);
+    return()=>{el.removeEventListener("touchstart",onStart);el.removeEventListener("touchmove",onMove);el.removeEventListener("touchend",onEnd);};
+  },[tab]);
+
+  // ── Refresh redemptions instantly when user opens Prizes tab ──
+  useEffect(()=>{
+    if(tab==="prizes"){
+      supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});
+    }
+  },[tab]);
 
   const fetchWeather=()=>{
     if(!navigator.geolocation)return;
@@ -392,6 +454,16 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
     {id:"chat",    label:"Community", emoji:"💬"},
     {id:"profile", label:"Profile",   emoji:"👤"},
   ];
+
+  if(viewingProfile){
+    return(
+      <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:50,maxWidth:430,margin:"0 auto",background:BG,overflowY:"auto"}}>
+        <FullProfilePage user={viewingProfile} currentUserId={profile.id}
+          onBack={()=>setViewingProfile(null)}
+          onDM={u=>{setDmTarget(u);setViewingProfile(null);switchTab("chat");}}/>
+      </div>
+    );
+  }
 
   function NotifPanel(){
     return(
@@ -542,15 +614,17 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
       {/* ── CENTERED Modals ── */}
       {redeemSuccess&&<RedeemSuccessModal prize={redeemSuccess} onClose={()=>setRedeemSuccess(null)}/>}
       {missionAccepted&&<MissionAcceptedModal onClose={()=>setMissionAccepted(false)}/>}
-      {viewingProfile&&(
-        <div className="page-enter-forward" style={{position:"fixed",inset:0,zIndex:50,maxWidth:430,margin:"0 auto",background:BG,overflowY:"auto"}}>
-          <FullProfilePage user={viewingProfile} currentUserId={profile.id}
-            onBack={()=>setViewingProfile(null)}
-            onDM={u=>{setDmTarget(u);setViewingProfile(null);switchTab("chat");}}/>
-        </div>
-      )}
 
       {showNotif&&<NotifPanel/>}
+
+      {/* ── Pull-to-refresh spinner ── */}
+      {pullUI.active&&(
+        <div style={{position:"absolute",top:0,left:"50%",zIndex:30,transform:`translateX(-50%) translateY(${Math.max(-4,pullUI.progress*64-4)}px)`,pointerEvents:"none",transition:"none"}}>
+          <div style={{width:44,height:44,borderRadius:"50%",background:"#fff",boxShadow:"0 2px 16px rgba(0,0,0,.2)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <div style={{width:22,height:22,border:`2.5px solid ${ACC}30`,borderTopColor:pullUI.progress>=1?ACC:"transparent",borderRightColor:pullUI.progress>0.4?ACC:"transparent",borderBottomColor:pullUI.progress>0.75?ACC:"transparent",borderLeftColor:ACC,borderRadius:"50%",transform:`rotate(${pullUI.progress*360}deg)`,transition:"none"}}/>
+          </div>
+        </div>
+      )}
 
       {popupNotif&&(
         <div className="toast-in"
@@ -602,7 +676,7 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {tab!=="chat"&&(
-          <div key={tabKey} className="page-enter-forward" style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}>
+          <div key={tabKey} ref={scrollRef} className="page-enter-forward" style={{flex:1,overflowY:"auto",paddingBottom:`calc(82px + env(safe-area-inset-bottom))`}}>
             <div style={{padding:"14px 0 0"}}>
               {tab==="home"    &&<HomeTab/>}
               {tab==="missions"&&<MissionsTab{...shared} showMissionAccepted={shared.showMissionAccepted}/>}

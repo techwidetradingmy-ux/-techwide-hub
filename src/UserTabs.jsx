@@ -1,5 +1,4 @@
-import{useState,useEffect,useRef,memo}from"react";
-import{Virtuoso}from"react-virtuoso";
+import{useState,useEffect,useRef}from"react";
 import{supabase}from"./supabaseClient";
 import CircleCrop from"./CircleCrop";
 import{PRIZES,getTier,calcScore,formatContact,formatIC,getICDigits,BANK_TYPES,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG}from"./constants";
@@ -41,116 +40,81 @@ function EmojiPicker({onSelect}){
   );
 }
 
-// ── DM MESSAGE ROW — memoised so unchanged messages never re-render ──
-const DMMessageRow=memo(function DMMessageRow({msg,profile,allProfiles,setViewingProfile}){
-  const me=msg.user_id===profile.id;
-  const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
-  const c=me?"#fff":LBL;
-  if(msg.is_system)return(
-    <div style={{textAlign:"center",margin:"10px 0",padding:"0 14px"}}>
-      <span style={{background:`${ACC}14`,borderRadius:12,padding:"5px 14px",fontSize:13,color:ACC}}>{msg.content}</span>
-    </div>
-  );
-  const renderContent=()=>{
-    if(msg.message_type==="image"&&msg.media_url)return<div style={{borderRadius:12,overflow:"hidden",maxWidth:240}}><img src={msg.media_url} alt="photo" style={{width:"100%",display:"block"}}/></div>;
-    if(msg.message_type==="video"&&msg.media_url)return<div style={{borderRadius:12,overflow:"hidden",maxWidth:240}}><video src={msg.media_url} controls style={{width:"100%",display:"block"}}/></div>;
-    if(msg.message_type==="audio"&&msg.media_url)return<div style={{display:"flex",alignItems:"center",gap:10,minWidth:180}}><span style={{fontSize:22}}>🎤</span><audio src={msg.media_url} controls style={{height:34,flex:1,minWidth:0}}/></div>;
-    if(msg.message_type==="document"&&msg.media_url)return<a href={msg.media_url} download={msg.file_name} style={{display:"flex",alignItems:"center",gap:10,color:c,textDecoration:"none"}}><span style={{fontSize:26}}>📄</span><div style={{fontSize:14,flex:1,wordBreak:"break-word"}}>{msg.file_name||"Document"}</div></a>;
-    return<div style={{fontSize:16,color:c,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{msg.content}</div>;
-  };
-  return(
-    <div style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4,padding:"2px 14px"}}>
-      {!me&&(
-        <div style={{width:32,height:32,borderRadius:"50%",background:msg.sender_avatar_url?`url(${msg.sender_avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",marginRight:8,alignSelf:"flex-end",cursor:"pointer",border:`2px solid ${BG}`}}
-          onClick={()=>{const s=allProfiles?.find(p=>p.id===msg.user_id);if(s&&setViewingProfile)setViewingProfile(s);}}>
-          {!msg.sender_avatar_url&&(msg.sender_avatar||"?")}
-        </div>
-      )}
-      <div style={{maxWidth:"78%"}}>
-        {!me&&<div style={{fontSize:12,color:ACC,fontWeight:700,marginBottom:3,paddingLeft:2}}>{msg.sender_name}</div>}
-        <div style={{background:me?`linear-gradient(135deg,${ACC},#0e2140)`:BG2,borderRadius:me?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"10px 14px",boxShadow:me?`0 2px 8px ${ACC}30`:"0 1px 4px rgba(0,0,0,.08)"}}>
-          {renderContent()}
-          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:4,marginTop:4}}>
-            <span style={{fontSize:11,color:me?"rgba(255,255,255,.5)":"#aaa"}}>{fmt(msg.created_at)}</span>
-            {me&&(msg.seen_at?<span style={{color:ORG,fontSize:12,marginLeft:4,fontWeight:700}}>✓✓</span>:msg.delivered_at?<span style={{color:"rgba(255,255,255,.5)",fontSize:12,marginLeft:4}}>✓</span>:<span style={{color:"rgba(255,255,255,.3)",fontSize:12,marginLeft:4}}>⏳</span>)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-});
-const DM_PAGE=30;const DM_START=10000;
-
 // ── BRANDED DM CHAT — 100dvh, keyboard-aware ─────────────────────────
 function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   const [messages,setMessages]=useState([]);
-  const [firstItemIndex,setFirstItemIndex]=useState(DM_START);
-  const [hasMore,setHasMore]=useState(true);
-  const [loadingEarlier,setLoadingEarlier]=useState(false);
+  const [loading,setLoading]=useState(true);
   const [text,setText]=useState("");
   const [sending,setSending]=useState(false);
   const [showAttach,setShowAttach]=useState(false);
   const [showEmoji,setShowEmoji]=useState(false);
   const [recording,setRecording]=useState(false);
   const [mediaRecorder,setMediaRecorder]=useState(null);
+  const bottomRef=useRef(null);
   const inputRef=useRef(null);
   const touchStartX=useRef(0);
-  const dmOr=`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`;
+
+  useEffect(()=>{
+    let alive=true;
+    const init=async()=>{await loadMsgs();markSeen();if(alive)setLoading(false);};
+    init();
+    // Realtime subscription for instant delivery
+    const ch=supabase.channel(`dm_${[profile.id,dmWith.id].sort().join("_")}`)
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
+        const m=payload.new;
+        if(!((m.user_id===profile.id&&m.recipient_id===dmWith.id)||(m.user_id===dmWith.id&&m.recipient_id===profile.id)))return;
+        setMessages(p=>p.find(x=>x.id===m.id)?p:[...p,m]);
+        markSeen();
+      })
+      .subscribe();
+    // Fallback poll every 30s
+    const iv=setInterval(()=>{loadMsgs();markSeen();},30000);
+    return()=>{alive=false;clearInterval(iv);supabase.removeChannel(ch);};
+  },[]);
+
+  useEffect(()=>{
+    setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),80);
+  },[messages]);
 
   const loadMsgs=async()=>{
     const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
-      .or(dmOr).order("created_at",{ascending:false}).limit(DM_PAGE);
-    if(data){setMessages(data.reverse());setHasMore(data.length===DM_PAGE);}
+      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
+      .order("created_at",{ascending:true}).limit(100);
+    if(data)setMessages(data);
   };
 
   const markSeen=async()=>{
-    await supabase.from("messages").update({seen_at:new Date().toISOString()})
-      .eq("user_id",dmWith.id).eq("recipient_id",profile.id).is("seen_at",null);
+    await supabase.from("messages")
+      .update({seen_at:new Date().toISOString()})
+      .eq("user_id",dmWith.id)
+      .eq("recipient_id",profile.id)
+      .is("seen_at",null);
   };
-
-  const loadEarlier=async()=>{
-    if(!hasMore||loadingEarlier||messages.length===0)return;
-    setLoadingEarlier(true);
-    const oldest=messages[0]?.created_at;
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
-      .or(dmOr).lt("created_at",oldest).order("created_at",{ascending:false}).limit(DM_PAGE);
-    if(data&&data.length>0){
-      const older=data.reverse();
-      setFirstItemIndex(p=>p-older.length);
-      setMessages(p=>[...older,...p]);
-      setHasMore(data.length===DM_PAGE);
-    }else{setHasMore(false);}
-    setLoadingEarlier(false);
-  };
-
-  useEffect(()=>{
-    loadMsgs();markSeen();
-    const chId=`dm_${[profile.id,dmWith.id].sort().join("_")}`;
-    const ch=supabase.channel(chId)
-      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},pay=>{
-        const m=pay.new;
-        if(!m.is_dm)return;
-        const ok=(m.user_id===profile.id&&m.recipient_id===dmWith.id)||(m.user_id===dmWith.id&&m.recipient_id===profile.id);
-        if(!ok)return;
-        setMessages(p=>{
-          const f=p.filter(x=>!(String(x.id).startsWith("temp_")&&x.content===m.content));
-          if(f.some(x=>x.id===m.id))return f;
-          return[...f,m];
-        });
-        if(m.user_id===dmWith.id)markSeen();
-      }).subscribe();
-    const iv=setInterval(()=>{loadMsgs();markSeen();},30000);
-    return()=>{supabase.removeChannel(ch);clearInterval(iv);};
-  },[]);
 
   const send=async(content=text.trim(),type="text",mediaUrl=null,fileName=null)=>{
     if(type==="text"&&!content)return;
     setSending(true);
-    const msg={user_id:profile.id,recipient_id:dmWith.id,sender_name:profile.nickname||profile.name,sender_avatar:profile.avatar||"",sender_avatar_url:profile.avatar_url||"",content:content||"",message_type:type,media_url:mediaUrl,file_name:fileName,is_dm:true,delivered_at:new Date().toISOString()};
+    const msg={
+      user_id:profile.id,recipient_id:dmWith.id,
+      sender_name:profile.nickname||profile.name,
+      sender_avatar:profile.avatar||"",
+      sender_avatar_url:profile.avatar_url||"",
+      content:content||"",message_type:type,
+      media_url:mediaUrl,file_name:fileName,
+      is_dm:true,delivered_at:new Date().toISOString(),
+    };
     setMessages(p=>[...p,{...msg,id:"temp_"+Date.now(),created_at:new Date().toISOString()}]);
     setText("");setShowEmoji(false);
     await supabase.from("messages").insert(msg);
-    try{await supabase.from("notifications").insert({user_id:dmWith.id,title:`💬 ${profile.nickname||profile.name}`,body:type==="text"?content:`Sent a ${type}`,type:"dm"});}catch(e){console.warn(e);}
+    try{
+      await supabase.from("notifications").insert({
+        user_id:dmWith.id,
+        title:`💬 ${profile.nickname||profile.name}`,
+        body:type==="text"?content:`Sent a ${type}`,
+        type:"dm",
+      });
+    }catch(e){console.warn(e);}
+    await loadMsgs();
     setSending(false);
   };
 
@@ -158,7 +122,9 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
     const file=e.target.files[0];if(!file)return;
     setShowAttach(false);
     const reader=new FileReader();
-    reader.onload=async ev=>{await send(type==="image"?"📷 Photo":type==="video"?"🎥 Video":"📄 "+file.name,type,ev.target.result,file.name);};
+    reader.onload=async ev=>{
+      await send(type==="image"?"📷 Photo":type==="video"?"🎥 Video":"📄 "+file.name,type,ev.target.result,file.name);
+    };
     reader.readAsDataURL(file);
   };
 
@@ -182,15 +148,44 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
   };
   const stopRecording=()=>{if(mediaRecorder)mediaRecorder.stop();setRecording(false);setMediaRecorder(null);};
 
+  const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
+
+  const Ticks=({msg})=>{
+    if(msg.user_id!==profile.id)return null;
+    if(msg.seen_at)return<span style={{color:ORG,fontSize:12,marginLeft:4,fontWeight:700}}>✓✓</span>;
+    if(msg.delivered_at)return<span style={{color:"rgba(255,255,255,.5)",fontSize:12,marginLeft:4}}>✓</span>;
+    return<span style={{color:"rgba(255,255,255,.3)",fontSize:12,marginLeft:4}}>⏳</span>;
+  };
+
+  const MsgContent=({msg,me})=>{
+    const c=me?"#fff":LBL;
+    if(msg.message_type==="image"&&msg.media_url)return<div style={{borderRadius:12,overflow:"hidden",maxWidth:240}}><img src={msg.media_url} alt="photo" style={{width:"100%",display:"block"}}/></div>;
+    if(msg.message_type==="video"&&msg.media_url)return<div style={{borderRadius:12,overflow:"hidden",maxWidth:240}}><video src={msg.media_url} controls style={{width:"100%",display:"block"}}/></div>;
+    if(msg.message_type==="audio"&&msg.media_url)return<div style={{display:"flex",alignItems:"center",gap:10,minWidth:180}}><span style={{fontSize:22}}>🎤</span><audio src={msg.media_url} controls style={{height:34,flex:1,minWidth:0}}/></div>;
+    if(msg.message_type==="document"&&msg.media_url)return<a href={msg.media_url} download={msg.file_name} style={{display:"flex",alignItems:"center",gap:10,color:c,textDecoration:"none"}}><span style={{fontSize:26}}>📄</span><div style={{fontSize:14,flex:1,wordBreak:"break-word"}}>{msg.file_name||"Document"}</div></a>;
+    return<div style={{fontSize:16,color:c,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{msg.content}</div>;
+  };
+
   return(
     <div
-      style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,height:"100dvh",background:BG,zIndex:150,display:"flex",flexDirection:"column",fontFamily:SF,overflow:"hidden"}}
+      style={{
+        position:"fixed",
+        top:0,left:"50%",transform:"translateX(-50%)",
+        width:"100%",maxWidth:430,
+        height:"100dvh",
+        background:BG,zIndex:150,
+        display:"flex",flexDirection:"column",
+        fontFamily:SF,overflow:"hidden",
+      }}
       onTouchStart={e=>touchStartX.current=e.touches[0].clientX}
       onTouchEnd={e=>{if(e.changedTouches[0].clientX-touchStartX.current>80)onBack();}}>
 
       {/* Header */}
       <div style={{background:ACC,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexShrink:0,paddingTop:"max(12px,env(safe-area-inset-top))"}}>
-        <button onClick={onBack} className="btn" style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer",padding:"4px 8px 4px 0",fontFamily:SF}}>←</button>
+        <button onClick={onBack} className="btn"
+          style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer",padding:"4px 8px 4px 0",fontFamily:SF}}>
+          ←
+        </button>
         <div onClick={()=>setViewingProfile&&setViewingProfile(dmWith)}
           style={{width:44,height:44,borderRadius:"50%",background:dmWith.avatar_url?`url(${dmWith.avatar_url}) center/cover`:`linear-gradient(145deg,${ORG},#ffb940)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,color:ACC,overflow:"hidden",flexShrink:0,cursor:"pointer"}}>
           {!dmWith.avatar_url&&(dmWith.avatar||"?")}
@@ -201,30 +196,61 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
         </div>
       </div>
 
-      {/* Messages — Virtuoso virtualised list */}
-      {messages.length===0?(
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:`${ACC}06`}}>
+      {/* Messages — flex:1 + minHeight:0 critical */}
+      <div style={{flex:1,overflowY:"auto",padding:"12px 14px",display:"flex",flexDirection:"column",gap:6,background:`${ACC}06`,minHeight:0}}>
+        {loading?(
+          <div style={{display:"flex",flexDirection:"column",gap:12,padding:"10px 0"}}>
+            {[1,2,3].map(i=>(
+              <div key={i} style={{display:"flex",justifyContent:i%2===0?"flex-end":"flex-start",gap:8}}>
+                {i%2!==0&&<div style={{width:32,height:32,borderRadius:"50%",background:`${ACC}20`,flexShrink:0,alignSelf:"flex-end"}}/>}
+                <div style={{width:i===2?180:120,height:44,borderRadius:14,background:`${ACC}12`,animation:"pulse 1.4s ease-in-out infinite"}}/>
+              </div>
+            ))}
+          </div>
+        ):messages.length===0?(
           <div style={{textAlign:"center",padding:"50px 20px",color:LB3}}>
             <div style={{fontSize:44,marginBottom:14}}>💬</div>
-            <div style={{fontSize:16,background:BG2,borderRadius:14,padding:"14px 22px",display:"inline-block",color:LB2}}>Say hi to {dmWith.nickname||dmWith.name?.split(" ")[0]}!</div>
+            <div style={{fontSize:16,background:BG2,borderRadius:14,padding:"14px 22px",display:"inline-block",color:LB2}}>
+              Say hi to {dmWith.nickname||dmWith.name?.split(" ")[0]}!
+            </div>
           </div>
-        </div>
-      ):(
-        <Virtuoso
-          firstItemIndex={firstItemIndex}
-          initialTopMostItemIndex={messages.length-1}
-          data={messages}
-          followOutput={(atBottom)=>atBottom?"smooth":false}
-          startReached={loadEarlier}
-          style={{flex:1,minHeight:0,background:`${ACC}06`}}
-          components={{Header:()=>loadingEarlier
-            ?<div style={{textAlign:"center",padding:"8px 0",color:LB3,fontSize:13}}>Loading earlier…</div>
-            :hasMore
-            ?<div style={{textAlign:"center",padding:"8px 0",color:ACC,fontSize:13,cursor:"pointer"}} onClick={loadEarlier}>↑ Load earlier messages</div>
-            :<div style={{textAlign:"center",padding:"10px 0",color:LB3,fontSize:13}}>Start of conversation</div>}}
-          itemContent={(_,msg)=><DMMessageRow msg={msg} profile={profile} allProfiles={allProfiles} setViewingProfile={setViewingProfile}/>}
-        />
-      )}
+        ):null}
+        {messages.map(msg=>{
+          const me=msg.user_id===profile.id;
+          if(msg.is_system)return(
+            <div key={msg.id} style={{textAlign:"center",margin:"10px 0"}}>
+              <span style={{background:`${ACC}14`,borderRadius:12,padding:"5px 14px",fontSize:13,color:ACC}}>{msg.content}</span>
+            </div>
+          );
+          return(
+            <div key={msg.id} style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4}}>
+              {!me&&(
+                <div
+                  style={{width:32,height:32,borderRadius:"50%",background:msg.sender_avatar_url?`url(${msg.sender_avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",marginRight:8,alignSelf:"flex-end",cursor:"pointer",border:`2px solid ${BG}`}}
+                  onClick={()=>{const s=allProfiles?.find(p=>p.id===msg.user_id);if(s&&setViewingProfile)setViewingProfile(s);}}>
+                  {!msg.sender_avatar_url&&(msg.sender_avatar||"?")}
+                </div>
+              )}
+              <div style={{maxWidth:"78%"}}>
+                {!me&&<div style={{fontSize:12,color:ACC,fontWeight:700,marginBottom:3,paddingLeft:2}}>{msg.sender_name}</div>}
+                <div style={{
+                  background:me?`linear-gradient(135deg,${ACC},#0e2140)`:BG2,
+                  borderRadius:me?"18px 18px 4px 18px":"18px 18px 18px 4px",
+                  padding:"10px 14px",
+                  boxShadow:me?`0 2px 8px ${ACC}30`:"0 1px 4px rgba(0,0,0,.08)",
+                }}>
+                  <MsgContent msg={msg} me={me}/>
+                  <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:4,marginTop:4}}>
+                    <span style={{fontSize:11,color:me?"rgba(255,255,255,.5)":"#aaa"}}>{fmt(msg.created_at)}</span>
+                    <Ticks msg={msg}/>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomRef}/>
+      </div>
 
       {/* Emoji picker */}
       {showEmoji&&<EmojiPicker onSelect={e=>{setText(p=>p+e);inputRef.current?.focus();}}/>}
@@ -232,26 +258,64 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile}){
       {/* Attach menu */}
       {showAttach&&(
         <div style={{background:BG2,padding:"16px",display:"flex",gap:14,justifyContent:"center",flexWrap:"wrap",borderTop:`1px solid ${SEP}`,flexShrink:0}}>
-          {[{icon:"📷",label:"Camera",accept:"image/*",capture:"environment",type:"image"},{icon:"🎥",label:"Video",accept:"video/*",capture:"camcorder",type:"video"},{icon:"🖼️",label:"Photo",accept:"image/*",type:"image"},{icon:"📄",label:"Document",accept:"*/*",type:"document"}].map((item,i)=>(
-            <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>document.getElementById(`attach_dm_${item.label}`).click()}>
+          {[
+            {icon:"📷",label:"Camera",accept:"image/*",capture:"environment",type:"image"},
+            {icon:"🎥",label:"Video",accept:"video/*",capture:"camcorder",type:"video"},
+            {icon:"🖼️",label:"Photo",accept:"image/*",type:"image"},
+            {icon:"📄",label:"Document",accept:"*/*",type:"document"},
+          ].map((item,i)=>(
+            <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,cursor:"pointer"}}
+              onClick={()=>document.getElementById(`attach_dm_${item.label}`).click()}>
               <div style={{width:54,height:54,borderRadius:"50%",background:`${ACC}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{item.icon}</div>
               <span style={{fontSize:13,color:LB2,fontWeight:500}}>{item.label}</span>
               <input id={`attach_dm_${item.label}`} type="file" accept={item.accept} capture={item.capture||undefined} onChange={e=>handleFile(e,item.type)} style={{display:"none"}}/>
             </div>
           ))}
-          <button onClick={()=>setShowAttach(false)} style={{width:"100%",padding:"12px",background:"rgba(0,0,0,.05)",border:"none",color:"#ff3b30",fontSize:16,cursor:"pointer",fontFamily:SF,borderRadius:12,fontWeight:600}}>Cancel</button>
+          <button onClick={()=>setShowAttach(false)}
+            style={{width:"100%",padding:"12px",background:"rgba(0,0,0,.05)",border:"none",color:"#ff3b30",fontSize:16,cursor:"pointer",fontFamily:SF,borderRadius:12,fontWeight:600}}>
+            Cancel
+          </button>
         </div>
       )}
 
-      {/* Input bar — always above keyboard */}
-      <div style={{background:BG2,padding:"10px 12px",display:"flex",alignItems:"center",gap:8,flexShrink:0,borderTop:`1px solid ${SEP}`,paddingBottom:"max(10px,env(safe-area-inset-bottom))"}}>
-        <button onClick={()=>{setShowAttach(p=>!p);setShowEmoji(false);}} style={{width:42,height:42,borderRadius:"50%",background:`${ACC}12`,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0}}>➕</button>
-        <button onClick={()=>{setShowEmoji(p=>!p);setShowAttach(false);}} style={{width:42,height:42,borderRadius:"50%",background:showEmoji?`${ACC}20`:"transparent",border:`1px solid ${showEmoji?ACC:SEP}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,cursor:"pointer",flexShrink:0,transition:"all .15s"}}>😊</button>
-        <input ref={inputRef} value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Type a message…" style={{flex:1,background:`${ACC}08`,border:`1px solid ${ACC}20`,outline:"none",borderRadius:24,padding:"11px 16px",fontSize:16,color:LBL,fontFamily:SF,minWidth:0}}/>
+      {/* ── Input bar — always above keyboard ── */}
+      <div style={{
+        background:BG2,
+        padding:"10px 12px",
+        display:"flex",alignItems:"center",gap:8,
+        flexShrink:0,
+        borderTop:`1px solid ${SEP}`,
+        paddingBottom:"max(10px,env(safe-area-inset-bottom))",
+      }}>
+        <button onClick={()=>{setShowAttach(p=>!p);setShowEmoji(false);}}
+          style={{width:42,height:42,borderRadius:"50%",background:`${ACC}12`,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0}}>
+          ➕
+        </button>
+        <button onClick={()=>{setShowEmoji(p=>!p);setShowAttach(false);}}
+          style={{width:42,height:42,borderRadius:"50%",background:showEmoji?`${ACC}20`:"transparent",border:`1px solid ${showEmoji?ACC:SEP}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,cursor:"pointer",flexShrink:0,transition:"all .15s"}}>
+          😊
+        </button>
+        <input
+          ref={inputRef}
+          value={text}
+          onChange={e=>setText(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
+          placeholder="Type a message…"
+          style={{flex:1,background:`${ACC}08`,border:`1px solid ${ACC}20`,outline:"none",borderRadius:24,padding:"11px 16px",fontSize:16,color:LBL,fontFamily:SF,minWidth:0}}
+        />
         {text.trim()?(
-          <button onClick={()=>send()} disabled={sending} className="btn-primary ripple-container" onPointerDown={addRipple} style={{width:46,height:46,borderRadius:"50%",background:ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",boxShadow:`0 3px 12px ${ACC}50`}}>{sending?"…":"▶"}</button>
+          <button onClick={()=>send()} disabled={sending}
+            className="btn-primary ripple-container" onPointerDown={addRipple}
+            style={{width:46,height:46,borderRadius:"50%",background:ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",boxShadow:`0 3px 12px ${ACC}50`}}>
+            {sending?"…":"▶"}
+          </button>
         ):(
-          <button onMouseDown={startRecording} onMouseUp={stopRecording} onTouchStart={startRecording} onTouchEnd={stopRecording} style={{width:46,height:46,borderRadius:"50%",background:recording?"#ff3b30":ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",transition:"background .2s",boxShadow:`0 3px 12px ${ACC}50`}}>🎤</button>
+          <button
+            onMouseDown={startRecording} onMouseUp={stopRecording}
+            onTouchStart={startRecording} onTouchEnd={stopRecording}
+            style={{width:46,height:46,borderRadius:"50%",background:recording?"#ff3b30":ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",transition:"background .2s",boxShadow:`0 3px 12px ${ACC}50`}}>
+            🎤
+          </button>
         )}
       </div>
     </div>
@@ -737,61 +801,30 @@ export function PrizesTab({profile,prizes,myRedemptions,doRedeem,Chip,SF,BG,BG2,
   );
 }
 
-// ── GROUP MESSAGE ROW — memoised ─────────────────────────────────────
-const GrpMessageRow=memo(function GrpMessageRow({msg,profile,allProfiles,setViewingProfile}){
-  const me=msg.user_id===profile.id;
-  const avatarUrl=msg.sender_avatar_url||allProfiles?.find(p=>p.id===msg.user_id)?.avatar_url||"";
-  const avatarLetter=msg.sender_avatar||msg.sender_name?.charAt(0)||"?";
-  if(msg.is_system)return(
-    <div style={{textAlign:"center",padding:"4px 16px"}}>
-      <div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%"}}>{msg.content}</div>
-    </div>
-  );
-  return(
-    <div style={{display:"flex",flexDirection:me?"row-reverse":"row",alignItems:"flex-end",gap:10,padding:"4px 16px"}}>
-      {!me&&(
-        <div onClick={()=>{const s=allProfiles?.find(p=>p.id===msg.user_id);if(s&&setViewingProfile)setViewingProfile(s);}}
-          style={{width:38,height:38,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",cursor:"pointer",border:`2px solid ${BG}`}}>
-          {!avatarUrl&&avatarLetter}
-        </div>
-      )}
-      <div style={{maxWidth:"72%"}}>
-        {!me&&<div style={{fontSize:12,color:LB3,marginBottom:4,paddingLeft:4}}>{msg.sender_name}</div>}
-        <div style={{background:me?`linear-gradient(135deg,${ACC},#0e2140)`:BG2,borderRadius:me?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"12px 16px",boxShadow:me?`0 2px 8px ${ACC}30`:"0 1px 4px rgba(0,0,0,.07)"}}>
-          <div style={{fontSize:16,color:me?"#fff":LBL,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{msg.content}</div>
-        </div>
-        <div style={{fontSize:11,color:LB3,marginTop:4,textAlign:me?"right":"left",paddingLeft:me?0:4}}>
-          {new Date(msg.created_at).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true})}
-        </div>
-      </div>
-    </div>
-  );
-});
-const GRP_PAGE=50;const GRP_START=10000;
-
 // ── COMMUNITY TAB — WhatsApp-style DM list + Group Chat ───────────────
 export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,ORG,dmTarget,setDmTarget,setViewingProfile,setDmOpen}){
   const [mode,setMode]=useState("chats");
   const [dmWith,setDmWith]=useState(null);
   const [conversations,setConversations]=useState([]);
   const [messages,setMessages]=useState([]);
-  const [grpFirstItemIndex,setGrpFirstItemIndex]=useState(GRP_START);
-  const [grpHasMore,setGrpHasMore]=useState(true);
-  const [grpLoadingEarlier,setGrpLoadingEarlier]=useState(false);
   const [text,setText]=useState("");
   const [sending,setSending]=useState(false);
   const [showPeople,setShowPeople]=useState(false);
   const [showEmoji,setShowEmoji]=useState(false);
   const [grpRecording,setGrpRecording]=useState(false);
   const [grpMediaRecorder,setGrpMediaRecorder]=useState(null);
+  const bottomRef=useRef(null);
 
   useEffect(()=>{if(dmTarget){setDmWith(dmTarget);setMode("dm");}},[dmTarget]);
   useEffect(()=>{if(setDmOpen)setDmOpen(mode==="dm");},[mode]);
 
   const loadConversations=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+    const{data}=await supabase.from("messages")
+      .select("id,user_id,recipient_id,sender_name,sender_avatar_url,content,message_type,created_at,seen_at")
+      .eq("is_dm",true)
       .or(`user_id.eq.${profile.id},recipient_id.eq.${profile.id}`)
-      .order("created_at",{ascending:false}).limit(200);
+      .order("created_at",{ascending:false})
+      .limit(300);
     if(!data)return;
     const seen=new Set();const convs=[];
     data.forEach(msg=>{
@@ -806,54 +839,35 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   };
 
   const loadGroupMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
-      .order("created_at",{ascending:false}).limit(GRP_PAGE);
-    if(data){setMessages(data.reverse());setGrpHasMore(data.length===GRP_PAGE);}
-  };
-
-  const loadEarlierGrp=async()=>{
-    if(!grpHasMore||grpLoadingEarlier||messages.length===0)return;
-    setGrpLoadingEarlier(true);
-    const oldest=messages[0]?.created_at;
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",false)
-      .lt("created_at",oldest).order("created_at",{ascending:false}).limit(GRP_PAGE);
-    if(data&&data.length>0){
-      const older=data.reverse();
-      setGrpFirstItemIndex(p=>p-older.length);
-      setMessages(p=>[...older,...p]);
-      setGrpHasMore(data.length===GRP_PAGE);
-    }else{setGrpHasMore(false);}
-    setGrpLoadingEarlier(false);
+    const{data}=await supabase.from("messages")
+      .select("id,user_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,created_at,is_system")
+      .eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
+    if(data)setMessages(data);
   };
 
   useEffect(()=>{
     loadConversations();
-    const convCh=supabase.channel("convs_"+profile.id)
-      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`recipient_id=eq.${profile.id}`},()=>loadConversations())
-      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`user_id=eq.${profile.id}`},()=>loadConversations())
-      .subscribe();
-    const convIv=setInterval(loadConversations,30000);
-
-    let grpCh=null;let grpIv=null;
     if(mode==="group"){
       loadGroupMsgs();
-      grpCh=supabase.channel("grpchat")
-        .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},pay=>{
-          const m=pay.new;if(m.is_dm)return;
-          setMessages(p=>{
-            const f=p.filter(x=>!(String(x.id).startsWith("temp_")&&x.content===m.content));
-            if(f.some(x=>x.id===m.id))return f;
-            return[...f,m];
-          });
-        }).subscribe();
-      grpIv=setInterval(loadGroupMsgs,30000);
+      const grpCh=supabase.channel("group_chat_rt")
+        .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
+          const m=payload.new;
+          if(m.is_dm)return;
+          setMessages(p=>p.find(x=>x.id===m.id)?p:[...p,m]);
+        })
+        .subscribe();
+      const iv=setInterval(loadGroupMsgs,30000);
+      return()=>{clearInterval(iv);supabase.removeChannel(grpCh);};
     }
-    return()=>{
-      supabase.removeChannel(convCh);clearInterval(convIv);
-      if(grpCh)supabase.removeChannel(grpCh);
-      if(grpIv)clearInterval(grpIv);
-    };
+    if(mode==="chats"){
+      const iv=setInterval(loadConversations,30000);
+      return()=>clearInterval(iv);
+    }
   },[mode]);
+
+  useEffect(()=>{
+    setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),80);
+  },[messages]);
 
   // DM mode — full screen
   if(mode==="dm"&&dmWith){
@@ -869,11 +883,14 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const send=async()=>{
     if(!text.trim()||sending)return;
     setSending(true);
-    const msg={user_id:profile.id,sender_name:profile.nickname||profile.name,sender_avatar:profile.avatar||"",sender_avatar_url:profile.avatar_url||"",content:text.trim(),is_dm:false,message_type:"text"};
-    setMessages(p=>[...p,{...msg,id:"temp_"+Date.now(),created_at:new Date().toISOString()}]);
-    setText("");setShowEmoji(false);
-    await supabase.from("messages").insert(msg);
-    setSending(false);
+    await supabase.from("messages").insert({
+      user_id:profile.id,
+      sender_name:profile.nickname||profile.name,
+      sender_avatar:profile.avatar||"",
+      sender_avatar_url:profile.avatar_url||"",
+      content:text.trim(),is_dm:false,message_type:"text",
+    });
+    setText("");setShowEmoji(false);await loadGroupMsgs();setSending(false);
   };
 
   const startGrpRecording=async()=>{
@@ -897,7 +914,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
             content:"🎤 Voice message",is_dm:false,message_type:"audio",
             media_url:ev.target.result,file_name:ext,
           });
-          setSending(false);
+          await loadGroupMsgs();setSending(false);
         };
         reader.readAsDataURL(blob);
         stream.getTracks().forEach(t=>t.stop());
@@ -1018,27 +1035,46 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
             </div>
           </div>
 
-          {/* Messages — Virtuoso virtualised list */}
-          {messages.length===0?(
-            <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <div style={{textAlign:"center",padding:40,color:LB3,fontSize:17}}>No messages yet. Say hi! 👋</div>
-            </div>
-          ):(
-            <Virtuoso
-              firstItemIndex={grpFirstItemIndex}
-              initialTopMostItemIndex={messages.length-1}
-              data={messages}
-              followOutput={(atBottom)=>atBottom?"smooth":false}
-              startReached={loadEarlierGrp}
-              style={{flex:1,minHeight:0}}
-              components={{Header:()=>grpLoadingEarlier
-                ?<div style={{textAlign:"center",padding:"8px 0",color:LB3,fontSize:13}}>Loading earlier…</div>
-                :grpHasMore
-                ?<div style={{textAlign:"center",padding:"8px 0",color:ACC,fontSize:13,cursor:"pointer"}} onClick={loadEarlierGrp}>↑ Load earlier messages</div>
-                :<div style={{textAlign:"center",padding:"10px 0",color:LB3,fontSize:13}}>Start of group chat</div>}}
-              itemContent={(_,msg)=><GrpMessageRow msg={msg} profile={profile} allProfiles={allProfiles} setViewingProfile={setViewingProfile}/>}
-            />
-          )}
+          {/* Messages */}
+          <div style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
+            {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:17}}>No messages yet. Say hi! 👋</div>}
+            {messages.map(msg=>{
+              const me=msg.user_id===profile.id;
+              const avatarUrl=msg.sender_avatar_url||allProfiles?.find(p=>p.id===msg.user_id)?.avatar_url||"";
+              const avatarLetter=msg.sender_avatar||msg.sender_name?.charAt(0)||"?";
+              if(msg.is_system)return(
+                <div key={msg.id} style={{textAlign:"center",padding:"4px 8px"}}>
+                  <div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%"}}>{msg.content}</div>
+                </div>
+              );
+              return(
+                <div key={msg.id} style={{display:"flex",flexDirection:me?"row-reverse":"row",alignItems:"flex-end",gap:10}}>
+                  {!me&&(
+                    <div
+                      onClick={()=>{const s=allProfiles?.find(p=>p.id===msg.user_id);if(s&&setViewingProfile)setViewingProfile(s);}}
+                      style={{width:38,height:38,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",cursor:"pointer",border:`2px solid ${BG}`}}>
+                      {!avatarUrl&&avatarLetter}
+                    </div>
+                  )}
+                  <div style={{maxWidth:"72%"}}>
+                    {!me&&<div style={{fontSize:12,color:LB3,marginBottom:4,paddingLeft:4}}>{msg.sender_name}</div>}
+                    <div style={{
+                      background:me?`linear-gradient(135deg,${ACC},#0e2140)`:BG2,
+                      borderRadius:me?"18px 18px 4px 18px":"18px 18px 18px 4px",
+                      padding:"12px 16px",
+                      boxShadow:me?`0 2px 8px ${ACC}30`:"0 1px 4px rgba(0,0,0,.07)",
+                    }}>
+                      <div style={{fontSize:16,color:me?"#fff":LBL,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+                    </div>
+                    <div style={{fontSize:11,color:LB3,marginTop:4,textAlign:me?"right":"left",paddingLeft:me?0:4}}>
+                      {new Date(msg.created_at).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true})}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={bottomRef}/>
+          </div>
 
           {showEmoji&&<EmojiPicker onSelect={e=>{setText(p=>p+e);}}/>}
 

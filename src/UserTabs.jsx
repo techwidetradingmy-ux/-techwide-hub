@@ -807,6 +807,7 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   const [dmWith,setDmWith]=useState(null);
   const [conversations,setConversations]=useState([]);
   const [messages,setMessages]=useState([]);
+  const [groupLoading,setGroupLoading]=useState(true);
   const [text,setText]=useState("");
   const [sending,setSending]=useState(false);
   const [showPeople,setShowPeople]=useState(false);
@@ -843,27 +844,26 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
       .select("id,user_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,created_at,is_system")
       .eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
     if(data)setMessages(data);
+    setGroupLoading(false);
   };
 
+  // Pre-load BOTH conversations and group messages simultaneously on mount.
+  // This means group chat data is already in state before the user even taps
+  // the tab — switching becomes instant instead of waiting for a network round-trip.
   useEffect(()=>{
     loadConversations();
-    if(mode==="group"){
-      loadGroupMsgs();
-      const grpCh=supabase.channel("group_chat_rt")
-        .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
-          const m=payload.new;
-          if(m.is_dm)return;
-          setMessages(p=>p.find(x=>x.id===m.id)?p:[...p,m]);
-        })
-        .subscribe();
-      const iv=setInterval(loadGroupMsgs,30000);
-      return()=>{clearInterval(iv);supabase.removeChannel(grpCh);};
-    }
-    if(mode==="chats"){
-      const iv=setInterval(loadConversations,30000);
-      return()=>clearInterval(iv);
-    }
-  },[mode]);
+    loadGroupMsgs();
+    // Realtime for new group messages (always on, regardless of active tab)
+    const grpCh=supabase.channel("group_chat_rt")
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
+        const m=payload.new;
+        if(!m.is_dm)setMessages(p=>p.find(x=>x.id===m.id)?p:[...p,m]);
+      })
+      .subscribe();
+    // Fallback refresh every 30s
+    const iv=setInterval(()=>{loadConversations();loadGroupMsgs();},30000);
+    return()=>{clearInterval(iv);supabase.removeChannel(grpCh);};
+  },[]);
 
   useEffect(()=>{
     setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),80);
@@ -1037,7 +1037,18 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
 
           {/* Messages */}
           <div style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
-            {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:17}}>No messages yet. Say hi! 👋</div>}
+            {groupLoading&&messages.length===0?(
+              <div style={{display:"flex",flexDirection:"column",gap:14,padding:"10px 0"}}>
+                {[0,1,2,3].map(i=>(
+                  <div key={i} style={{display:"flex",flexDirection:i%2===0?"row":"row-reverse",alignItems:"flex-end",gap:10}}>
+                    {i%2===0&&<div style={{width:38,height:38,borderRadius:"50%",background:`${ACC}15`,flexShrink:0}}/>}
+                    <div style={{width:[170,210,150,195][i],height:50,borderRadius:14,background:`${ACC}10`,animation:"pulse 1.4s ease-in-out infinite",animationDelay:`${i*0.1}s`}}/>
+                  </div>
+                ))}
+              </div>
+            ):messages.length===0?(
+              <div style={{textAlign:"center",padding:40,color:LB3,fontSize:17}}>No messages yet. Say hi! 👋</div>
+            ):null}
             {messages.map(msg=>{
               const me=msg.user_id===profile.id;
               const avatarUrl=msg.sender_avatar_url||allProfiles?.find(p=>p.id===msg.user_id)?.avatar_url||"";

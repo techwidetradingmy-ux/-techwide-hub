@@ -43,6 +43,10 @@ function EmojiPicker({onSelect}){
 // ── BRANDED DM CHAT — 100dvh, keyboard-aware ─────────────────────────
 function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile,initialMessages}){
   const [messages,setMessages]=useState(initialMessages||[]);
+  const [loading,setLoading]=useState(!initialMessages?.length);
+  const [hasMore,setHasMore]=useState(true);
+  const [loadingMore,setLoadingMore]=useState(false);
+  const [oldestTs,setOldestTs]=useState(initialMessages?.length?initialMessages[0].created_at:null);
   const [text,setText]=useState("");
   const [sending,setSending]=useState(false);
   const [showAttach,setShowAttach]=useState(false);
@@ -76,10 +80,36 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile,initialMess
   },[messages]);
 
   const loadMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+    const{data}=await supabase.from("messages")
+      .select("id,user_id,recipient_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,created_at,delivered_at,seen_at,is_system,is_dm")
+      .eq("is_dm",true)
       .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:true}).limit(100);
-    if(data)setMessages(data);
+      .order("created_at",{ascending:false}).limit(50);
+    if(data){
+      const sorted=[...data].reverse();
+      setMessages(sorted);
+      if(sorted.length>0)setOldestTs(sorted[0].created_at);
+      setHasMore(data.length===50);
+      setLoading(false);
+    }
+  };
+
+  const loadMore=async()=>{
+    if(!oldestTs||loadingMore||!hasMore)return;
+    setLoadingMore(true);
+    const{data}=await supabase.from("messages")
+      .select("id,user_id,recipient_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,created_at,delivered_at,seen_at,is_system,is_dm")
+      .eq("is_dm",true)
+      .or(`and(user_id.eq.${profile.id},recipient_id.eq.${dmWith.id}),and(user_id.eq.${dmWith.id},recipient_id.eq.${profile.id})`)
+      .lt("created_at",oldestTs)
+      .order("created_at",{ascending:false}).limit(50);
+    if(data&&data.length>0){
+      const sorted=[...data].reverse();
+      setMessages(p=>[...sorted,...p]);
+      setOldestTs(sorted[0].created_at);
+      setHasMore(data.length===50);
+    }else setHasMore(false);
+    setLoadingMore(false);
   };
 
   const markSeen=async()=>{
@@ -197,12 +227,30 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile,initialMess
 
       {/* Messages — flex:1 + minHeight:0 critical */}
       <div style={{flex:1,overflowY:"auto",padding:"12px 14px",display:"flex",flexDirection:"column",gap:6,background:`${ACC}06`,minHeight:0}}>
-        {messages.length===0&&(
+        {loading&&(
+          <div style={{display:"flex",flexDirection:"column",gap:10,padding:"10px 0"}}>
+            {[1,2,3,4,5].map(i=>(
+              <div key={i} style={{display:"flex",justifyContent:i%2?"flex-end":"flex-start",gap:8}}>
+                {i%2===0&&<div style={{width:32,height:32,borderRadius:"50%",background:"rgba(0,0,0,.08)",flexShrink:0,animation:"pulse .9s ease infinite"}}/>}
+                <div style={{height:44,width:80+i*28,borderRadius:14,background:"rgba(0,0,0,.07)",animation:"pulse .9s ease infinite",animationDelay:`${i*0.08}s`}}/>
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading&&messages.length===0&&(
           <div style={{textAlign:"center",padding:"50px 20px",color:LB3}}>
             <div style={{fontSize:44,marginBottom:14}}>💬</div>
             <div style={{fontSize:16,background:BG2,borderRadius:14,padding:"14px 22px",display:"inline-block",color:LB2}}>
               Say hi to {dmWith.nickname||dmWith.name?.split(" ")[0]}!
             </div>
+          </div>
+        )}
+        {!loading&&hasMore&&messages.length>0&&(
+          <div style={{textAlign:"center",padding:"6px 0 2px"}}>
+            <button onClick={loadMore} disabled={loadingMore} className="btn"
+              style={{background:"rgba(0,0,0,.06)",border:"none",borderRadius:99,padding:"7px 18px",fontSize:13,color:LB2,cursor:loadingMore?"default":"pointer",fontFamily:SF}}>
+              {loadingMore?"Loading...":"↑ Load older messages"}
+            </button>
           </div>
         )}
         {messages.map(msg=>{
@@ -810,10 +858,12 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
   useEffect(()=>{if(setDmOpen)setDmOpen(mode==="dm");},[mode]);
 
   const prefetchDM=async(pid)=>{
-    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+    const{data}=await supabase.from("messages")
+      .select("id,user_id,recipient_id,sender_name,sender_avatar,sender_avatar_url,content,message_type,media_url,file_name,created_at,delivered_at,seen_at,is_system,is_dm")
+      .eq("is_dm",true)
       .or(`and(user_id.eq.${profile.id},recipient_id.eq.${pid}),and(user_id.eq.${pid},recipient_id.eq.${profile.id})`)
-      .order("created_at",{ascending:true}).limit(100);
-    if(data)setDmCache(c=>({...c,[pid]:data}));
+      .order("created_at",{ascending:false}).limit(50);
+    if(data)setDmCache(c=>({...c,[pid]:[...data].reverse()}));
   };
 
   const loadConversations=async()=>{

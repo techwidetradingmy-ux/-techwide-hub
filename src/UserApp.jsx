@@ -338,19 +338,20 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
 
   const loadAll=async()=>{
     const uid=profile.id;
-    const[m,c,ap,a,r,p]=await Promise.all([
+    const[m,c,ap,a,r,p,own]=await Promise.all([
       supabase.from("missions").select("*").eq("active",true),
       supabase.from("mission_claims").select("*").eq("user_id",uid),
       supabase.from("profiles").select("*").order("xp",{ascending:false}),
       supabase.from("announcements").select("*").order("pinned",{ascending:false}).order("created_at",{ascending:false}),
       supabase.from("redemptions").select("*").eq("user_id",uid),
       supabase.from("prizes").select("*").eq("active",true),
+      supabase.from("profiles").select("*").eq("id",uid).single(),
     ]);
     if(m.data)setMissions(m.data);if(c.data)setMyClaims(c.data);
     if(ap.data)setAllProfiles(ap.data);if(a.data)setAnnouncements(a.data);
     if(r.data)setMyRedemptions(r.data);
     if(p.data)setPrizes(p.data.length>0?p.data:PRIZES.map(x=>({...x,id:x.id,cost:x.pts,category:x.cat})));
-    try{const{data:own}=await supabase.from("profiles").select("*").eq("id",uid).single();if(own)syncProfile(own);}catch(e){console.warn(e);}
+    if(own.data)syncProfile(own.data);
   };
 
   const loadNotifications=async()=>{

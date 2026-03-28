@@ -341,18 +341,11 @@ function DMChat({profile,dmWith,allProfiles,onBack,setViewingProfile,initialMess
           placeholder="Type a message…"
           style={{flex:1,background:`${ACC}08`,border:`1px solid ${ACC}20`,outline:"none",borderRadius:24,padding:"11px 16px",fontSize:16,color:LBL,fontFamily:SF,minWidth:0}}
         />
-        {text.trim()?(
+        {text.trim()&&(
           <button onClick={()=>send()} disabled={sending}
             className="btn-primary ripple-container" onPointerDown={addRipple}
             style={{width:46,height:46,borderRadius:"50%",background:ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",boxShadow:`0 3px 12px ${ACC}50`}}>
             {sending?"…":"▶"}
-          </button>
-        ):(
-          <button
-            onMouseDown={startRecording} onMouseUp={stopRecording}
-            onTouchStart={startRecording} onTouchEnd={stopRecording}
-            style={{width:46,height:46,borderRadius:"50%",background:recording?"#ff3b30":ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",transition:"background .2s",boxShadow:`0 3px 12px ${ACC}50`}}>
-            🎤
           </button>
         )}
       </div>
@@ -552,7 +545,7 @@ export function MissionsTab({profile,missions,myClaims,setMyClaims,showToast,sho
 
   const claimOf=id=>myClaims.find(c=>c.mission_id===id);
   const newMissions    =missions.filter(m=>{const c=claimOf(m.id);return!c;});
-  const ongoingMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&!c.completed&&c.status!=="declined"&&c.status!=="completed";});
+  const ongoingMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&!c.completed&&!["declined","completed","rejected","cleared","Rejected","Cleared"].includes(c.status);});
   const completedMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&(c.completed===true||c.status==="completed");});
   const skippedMissions=missions.filter(m=>{const c=claimOf(m.id);return c&&c.status==="declined";});
 
@@ -1143,18 +1136,11 @@ export function CommunityTab({profile,allProfiles,SF,BG,BG2,SEP,LBL,LB2,LB3,ACC,
             onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
             placeholder="Message the team…"
             style={{flex:1,background:`${ACC}08`,border:`1px solid ${ACC}20`,outline:"none",borderRadius:24,padding:"12px 18px",fontSize:16,color:LBL,fontFamily:SF,minWidth:0}}/>
-          {text.trim()?(
+          {text.trim()&&(
             <button onClick={send} disabled={sending}
               className="btn-primary ripple-container" onPointerDown={addRipple}
               style={{width:46,height:46,borderRadius:"50%",background:ACC,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,color:"#fff",boxShadow:`0 3px 12px ${ACC}50`,transition:"background .15s"}}>
               {sending?"…":"▶"}
-            </button>
-          ):(
-            <button
-              onMouseDown={startGrpRecording} onMouseUp={stopGrpRecording}
-              onTouchStart={startGrpRecording} onTouchEnd={stopGrpRecording}
-              style={{width:46,height:46,borderRadius:"50%",background:grpRecording?"#ff3b30":ACC,border:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,cursor:"pointer",flexShrink:0,color:"#fff",transition:"background .2s",boxShadow:`0 3px 12px ${ACC}50`}}>
-              🎤
             </button>
           )}
         </div>
@@ -1375,15 +1361,17 @@ export function ProfileTab({profile,syncProfile,score,tier,completedCount,showTo
       )}
 
       {/* Banner */}
-      <div onClick={()=>!editing&&setShowBannerFull(true)}
-        style={{height:140,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
-        {/* Settings gear — top right corner */}
-        {!editing&&(
-          <button onClick={e=>{e.stopPropagation();setShowSettings(true);}} className="btn"
-            style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,.18)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"none",borderRadius:"50%",width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0}}>
+      {/* Settings gear — above banner, clearly visible */}
+      {!editing&&(
+        <div style={{display:"flex",justifyContent:"flex-end",padding:"4px 16px 4px"}}>
+          <button onClick={()=>setShowSettings(true)} className="btn"
+            style={{background:`${ACC}14`,border:`1px solid ${ACC}22`,borderRadius:"50%",width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:ACC,flexShrink:0}}>
             ⚙️
           </button>
-        )}
+        </div>
+      )}
+      <div onClick={()=>!editing&&setShowBannerFull(true)}
+        style={{height:140,background:bn?`url(${bn}) center/cover`:`linear-gradient(135deg,${ACC},#0e2140)`,position:"relative",cursor:!editing?"zoom-in":"default"}}>
         {editing&&(
           <>
             <button onClick={e=>{e.stopPropagation();document.getElementById("bnP").click();}}

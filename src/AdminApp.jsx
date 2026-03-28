@@ -638,42 +638,136 @@ function ContentTab({missions,announcements,prizes,allProfiles,onAddMission,onDe
   );
 }
 
-function CommunityTab({allProfiles}){
+function CommunityTab({allProfiles,adminProfile}){
+  const [chatMode,setChatMode]=useState("group");
+  const [dmWith,setDmWith]=useState(null);
   const [messages,setMessages]=useState([]);
+  const [dmMessages,setDmMessages]=useState([]);
+  const [text,setText]=useState("");
+  const [sending,setSending]=useState(false);
+  const [showPeople,setShowPeople]=useState(false);
   const bottomRef=useRef(null);
-  useEffect(()=>{loadMsgs();const iv=setInterval(loadMsgs,4000);return()=>clearInterval(iv);},[]);
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
-  const loadMsgs=async()=>{
-    const{data}=await supabase.from("messages").select("*, sender:user_id(avatar_url,avatar)").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
+  const myId=adminProfile?.id;
+  const staff=allProfiles.filter(p=>!p.is_admin);
+  useEffect(()=>{loadGroupMsgs();},[]);
+  useEffect(()=>{if(chatMode==="dm"&&dmWith)loadDmMsgs(dmWith.id);},[chatMode,dmWith]);
+  useEffect(()=>{
+    const iv=setInterval(()=>{
+      if(chatMode==="group")loadGroupMsgs();
+      else if(chatMode==="dm"&&dmWith)loadDmMsgs(dmWith.id);
+    },4000);
+    return()=>clearInterval(iv);
+  },[chatMode,dmWith]);
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages,dmMessages]);
+  const loadGroupMsgs=async()=>{
+    const{data}=await supabase.from("messages").select("*,sender:user_id(avatar_url,avatar)").eq("is_dm",false).order("created_at",{ascending:true}).limit(100);
     if(data)setMessages(data);
+  };
+  const loadDmMsgs=async(otherId)=>{
+    if(!myId||!otherId)return;
+    const{data}=await supabase.from("messages").select("*").eq("is_dm",true)
+      .or(`and(user_id.eq.${myId},recipient_id.eq.${otherId}),and(user_id.eq.${otherId},recipient_id.eq.${myId})`)
+      .order("created_at",{ascending:true}).limit(100);
+    if(data)setDmMessages(data);
+  };
+  const sendGroup=async()=>{
+    if(!text.trim()||!myId||sending)return;
+    setSending(true);
+    await supabase.from("messages").insert({content:text.trim(),user_id:myId,sender_name:adminProfile?.name||"Admin",is_dm:false,is_system:false});
+    setText("");
+    await loadGroupMsgs();
+    setSending(false);
+  };
+  const sendDm=async()=>{
+    if(!text.trim()||!myId||!dmWith||sending)return;
+    setSending(true);
+    await supabase.from("messages").insert({content:text.trim(),user_id:myId,recipient_id:dmWith.id,sender_name:adminProfile?.name||"Admin",sender_avatar:adminProfile?.avatar||"",sender_avatar_url:adminProfile?.avatar_url||"",is_dm:true,delivered_at:new Date().toISOString()});
+    setText("");
+    await loadDmMsgs(dmWith.id);
+    setSending(false);
   };
   const fmt=ts=>new Date(ts).toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:true});
   return(
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 170px)"}}>
-      <div style={{background:`${ACC}10`,borderRadius:12,padding:"12px 16px",margin:"0 16px 10px",fontSize:15,color:ACC,fontWeight:600,flexShrink:0}}>
-        👁️ Monitor Mode — view only
+      <div style={{display:"flex",gap:8,padding:"0 16px",marginBottom:10,flexShrink:0}}>
+        <button onClick={()=>{setChatMode("group");setDmWith(null);}} className="btn"
+          style={{flex:1,padding:"10px",background:chatMode==="group"?ACC:"rgba(0,0,0,.06)",color:chatMode==="group"?"#fff":LB2,border:"none",borderRadius:12,fontSize:15,fontWeight:chatMode==="group"?700:400,cursor:"pointer",fontFamily:SF}}>
+          Group Chat
+        </button>
+        <button onClick={()=>{setChatMode("dm");if(!dmWith)setShowPeople(true);}} className="btn"
+          style={{flex:1,padding:"10px",background:chatMode==="dm"?ACC:"rgba(0,0,0,.06)",color:chatMode==="dm"?"#fff":LB2,border:"none",borderRadius:12,fontSize:15,fontWeight:chatMode==="dm"?700:400,cursor:"pointer",fontFamily:SF}}>
+          {dmWith?`DM: ${dmWith.nickname||dmWith.name}`:"Direct Message"}
+        </button>
       </div>
+      {showPeople&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}} onClick={()=>setShowPeople(false)}>
+          <div style={{background:BG,borderRadius:"20px 20px 0 0",padding:"20px 16px",maxHeight:"60vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:700,color:LBL,marginBottom:14}}>Select Staff Member</div>
+            {staff.map(p=>(
+              <button key={p.id} onClick={()=>{setDmWith(p);setShowPeople(false);loadDmMsgs(p.id);}} className="btn"
+                style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px",background:"none",border:"none",cursor:"pointer",fontFamily:SF,marginBottom:6,borderRadius:12,textAlign:"left"}}>
+                <div style={{width:40,height:40,borderRadius:"50%",background:p.avatar_url?`url(${p.avatar_url}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden"}}>{!p.avatar_url&&(p.avatar||"?")}</div>
+                <div><div style={{fontSize:16,color:LBL,fontWeight:600}}>{p.name}</div><div style={{fontSize:13,color:LB3}}>{p.role}</div></div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{flex:1,overflowY:"auto",padding:"0 16px 16px",display:"flex",flexDirection:"column",gap:10}}>
-        {messages.length===0&&<div style={{textAlign:"center",padding:40,color:LB3,fontSize:16}}>No messages yet 👋</div>}
-        {messages.map(msg=>{
-          if(msg.is_system)return(<div key={msg.id} style={{textAlign:"center"}}><div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%"}}>{msg.content}</div></div>);
-          const avatarUrl=msg.sender?.avatar_url||msg.sender_avatar_url||"";
-          return(
-            <div key={msg.id} style={{display:"flex",alignItems:"flex-end",gap:10}}>
-              <div style={{width:38,height:38,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",border:`2px solid ${BG2}`}}>
-                {!avatarUrl&&(msg.sender?.avatar||"?")}
-              </div>
-              <div style={{maxWidth:"75%"}}>
-                <div style={{fontSize:13,color:LB3,marginBottom:4,paddingLeft:4}}>{msg.sender_name}</div>
-                <div style={{background:BG2,borderRadius:"18px 18px 18px 4px",padding:"12px 16px",boxShadow:"0 1px 4px rgba(0,0,0,.07)"}}>
-                  <div style={{fontSize:16,color:LBL,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+        {chatMode==="group"&&(messages.length===0
+          ?<div style={{textAlign:"center",padding:40,color:LB3,fontSize:16}}>No messages yet 👋</div>
+          :messages.map(msg=>{
+            const isMe=msg.user_id===myId;
+            if(msg.is_system)return(<div key={msg.id} style={{textAlign:"center"}}><div style={{display:"inline-block",background:`${ACC}10`,borderRadius:14,padding:"10px 16px",fontSize:14,color:ACC,lineHeight:1.55,maxWidth:"88%"}}>{msg.content}</div></div>);
+            const avatarUrl=msg.sender?.avatar_url||msg.sender_avatar_url||"";
+            return(
+              <div key={msg.id} style={{display:"flex",alignItems:"flex-end",gap:10,flexDirection:isMe?"row-reverse":"row"}}>
+                {!isMe&&<div style={{width:38,height:38,borderRadius:"50%",background:avatarUrl?`url(${avatarUrl}) center/cover`:`linear-gradient(145deg,${ACC},${ORG})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0,overflow:"hidden",border:`2px solid ${BG2}`}}>{!avatarUrl&&(msg.sender?.avatar||"?")}</div>}
+                <div style={{maxWidth:"75%"}}>
+                  {!isMe&&<div style={{fontSize:13,color:LB3,marginBottom:4,paddingLeft:4}}>{msg.sender_name}</div>}
+                  <div style={{background:isMe?ACC:BG2,borderRadius:isMe?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"12px 16px",boxShadow:"0 1px 4px rgba(0,0,0,.07)"}}>
+                    <div style={{fontSize:16,color:isMe?"#fff":LBL,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+                  </div>
+                  <div style={{fontSize:12,color:LB3,marginTop:4,paddingLeft:4,textAlign:isMe?"right":"left"}}>{fmt(msg.created_at)}</div>
                 </div>
-                <div style={{fontSize:12,color:LB3,marginTop:4,paddingLeft:4}}>{fmt(msg.created_at)}</div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
+        {chatMode==="dm"&&(!dmWith
+          ?<div style={{textAlign:"center",padding:40,color:LB3,fontSize:16}}>Select a staff member to DM 👆</div>
+          :dmMessages.length===0
+            ?<div style={{textAlign:"center",padding:40,color:LB3,fontSize:16}}>No messages yet. Say hi! 👋</div>
+            :dmMessages.map(msg=>{
+              const isMe=msg.user_id===myId;
+              return(
+                <div key={msg.id} style={{display:"flex",alignItems:"flex-end",gap:10,flexDirection:isMe?"row-reverse":"row"}}>
+                  <div style={{maxWidth:"75%"}}>
+                    <div style={{background:isMe?ACC:BG2,borderRadius:isMe?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"12px 16px",boxShadow:"0 1px 4px rgba(0,0,0,.07)"}}>
+                      <div style={{fontSize:16,color:isMe?"#fff":LBL,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{msg.content}</div>
+                    </div>
+                    <div style={{fontSize:12,color:LB3,marginTop:4,paddingLeft:4,textAlign:isMe?"right":"left"}}>{fmt(msg.created_at)}</div>
+                  </div>
+                </div>
+              );
+            })
+        )}
         <div ref={bottomRef}/>
+      </div>
+      <div style={{padding:"8px 16px 12px",borderTop:`1px solid ${SEP}`,display:"flex",gap:10,alignItems:"flex-end",flexShrink:0,background:BG}}>
+        {chatMode==="dm"&&dmWith&&(
+          <button onClick={()=>setShowPeople(true)} style={{width:36,height:36,borderRadius:"50%",background:`${ACC}14`,border:"none",cursor:"pointer",fontSize:18,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>👤</button>
+        )}
+        <textarea value={text} onChange={e=>setText(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();chatMode==="group"?sendGroup():sendDm();}}}
+          placeholder={chatMode==="group"?"Message group…":`Message ${dmWith?.nickname||dmWith?.name||"staff"}…`}
+          rows={1} style={{flex:1,background:"rgba(0,0,0,.05)",border:"none",outline:"none",borderRadius:22,padding:"10px 16px",fontSize:16,color:LBL,fontFamily:SF,resize:"none",lineHeight:1.5,maxHeight:100,overflowY:"auto"}}/>
+        {text.trim()&&(
+          <button onClick={chatMode==="group"?sendGroup:sendDm} disabled={sending}
+            style={{width:40,height:40,borderRadius:"50%",background:ACC,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <span style={{color:"#fff",fontSize:18}}>▶</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -767,9 +861,10 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
   };
 
   const approveRedemption=async id=>{
-    setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
     const red=redemptions.find(r=>r.id===id);
-    await supabase.from("redemptions").update({status:"Approved"}).eq("id",id);
+    const{error}=await supabase.from("redemptions").update({status:"Approved"}).eq("id",id);
+    if(error){showToast("❌ Failed to update redemption");return;}
+    setRedemptions(p=>p.map(r=>r.id===id?{...r,status:"Approved"}:r));
     if(red){
       try{await supabase.from("notifications").insert({user_id:red.user_id,title:"🎁 Prize Delivered!",body:`Your "${red.prize_name}" has been delivered. Enjoy!`,type:"redemption"});}catch(e){console.warn(e);}
       const prof=allProfiles.find(p=>p.id===red.user_id);
@@ -814,8 +909,10 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
       const{error:updateErr}=await supabase.from("profiles").update({xp:newXp}).eq("id",toId);
       if(updateErr)throw new Error(updateErr.message);
       setAllProfiles(p=>p.map(x=>x.id===toId?{...x,xp:newXp}:x));
-      try{await supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"});}catch(e){console.warn(e);}
-      try{await supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason});}catch(e){console.warn(e);}
+      await Promise.all([
+        supabase.from("points_history").insert({user_id:toId,amount:points,reason:`Gift from admin: ${reason}`,type:"credit"}).catch(e=>console.warn(e)),
+        supabase.from("point_gifts").insert({from_id:profile.id,to_id:toId,points,reason}).catch(e=>console.warn(e)),
+      ]);
       const annTitle=`🎁 ${recipient.nickname||recipient.name} received a gift!`;
       const annBody=`${recipient.nickname||recipient.name} has been gifted ${points.toLocaleString()} pts!\n\nReason: ${reason}`;
       try{const{data:newAnn}=await supabase.from("announcements").insert({title:annTitle,body:annBody,pinned:false,author:"Admin"}).select().single();if(newAnn)setAnnouncements(p=>[newAnn,...p]);}catch(e){console.warn(e);}
@@ -948,27 +1045,27 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           </div>
         </div>
       )}
-      <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:20}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:34,height:34,borderRadius:8,objectFit:"cover"}}/>
-            <div style={{fontSize:18,fontWeight:700,color:LBL}}>Admin Panel</div>
+      {tab==="dash"&&(
+        <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,.08)",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <img src="/TECHWIDE_LOGO.png" alt="Techwide" style={{width:34,height:34,borderRadius:8,objectFit:"cover"}}/>
+              <div style={{fontSize:18,fontWeight:700,color:LBL}}>Admin Panel</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <button onClick={()=>setShowSettings(true)} className="btn" style={{fontSize:14,fontWeight:600,background:"rgba(0,0,0,.06)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF,color:LBL}}>⚙️</button>
+              <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
+            </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button onClick={()=>setShowSettings(true)} className="btn" style={{fontSize:14,fontWeight:600,background:"rgba(0,0,0,.06)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF,color:LBL}}>⚙️</button>
-            <button onClick={()=>supabase.auth.signOut()} className="btn" style={{fontSize:14,color:"#ff3b30",fontWeight:600,background:"rgba(255,59,48,.1)",padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:SF}}>Sign Out</button>
-          </div>
+          <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>Dashboard 📊</div>
         </div>
-        <div style={{fontSize:24,fontWeight:700,color:LBL,letterSpacing:"-.5px"}}>
-          {tab==="dash"&&"Dashboard 📊"}{tab==="staff"&&"Staff 👥"}{tab==="approvals"&&"Approvals 📋"}{tab==="content"&&"Content ✏️"}{tab==="community"&&"Community 💬"}
-        </div>
-      </div>
+      )}
       <div style={{flex:1,overflowY:"auto",padding:"14px 0 110px"}}>
         {tab==="dash"     &&<DashTab allProfiles={allProfiles} totalPending={totalPending} pendingVerif={pendingVerifCount} today={today}/>}
         {tab==="staff"    &&<StaffTab allProfiles={allProfiles} today={today}/>}
         {tab==="approvals"&&<ApprovalsTab submissions={submissions} redemptions={redemptions} verifReqs={verifReqs} onApproveSubmission={approveSubmission} onApproveRedemption={approveRedemption} onApproveVerification={approveVerification}/>}
         {tab==="content"  &&<ContentTab missions={missions} announcements={announcements} prizes={prizes} allProfiles={staff} onAddMission={addMission} onDeleteMission={deleteMission} onAddAnn={addAnn} onDeleteAnn={deleteAnn} onTogglePin={togglePin} onAddPrize={addPrize} onGift={giftPoints}/>}
-        {tab==="community"&&<CommunityTab allProfiles={allProfiles}/>}
+        {tab==="community"&&<CommunityTab allProfiles={allProfiles} adminProfile={profile}/>}
       </div>
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(249,249,249,.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.1)",display:"flex",zIndex:20,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>(
@@ -980,7 +1077,7 @@ export default function AdminApp({profile,onProfileUpdate,onSwitchAccount,onAddA
           </button>
         ))}
       </div>
-      {toast&&<div className="toast-in" style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>{toast}</div>}
+      {toast&&<div className="toast-in" style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:20,padding:"16px 28px",fontSize:16,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>{toast}</div>}
     </div>
   );
 }

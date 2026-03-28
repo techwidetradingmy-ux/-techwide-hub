@@ -31,6 +31,20 @@ const playNotifSound=()=>{
   }catch(e){console.warn("sound:",e);}
 };
 
+const playPositiveSound=()=>{
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [523,659,784,1047].forEach((freq,i)=>{
+      const o=ctx.createOscillator();const g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);
+      o.type="sine";o.frequency.value=freq;
+      const t=ctx.currentTime+i*0.11;
+      g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.22,t+0.04);g.gain.exponentialRampToValueAtTime(0.001,t+0.28);
+      o.start(t);o.stop(t+0.3);
+    });
+  }catch(e){console.warn("sound:",e);}
+};
+
 const playBubbleSound=()=>{
   try{
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
@@ -257,8 +271,16 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
         playNotifSound();
         if("Notification" in window&&Notification.permission==="granted"){try{new Notification(n.title,{body:n.body,icon:"/TECHWIDE_LOGO.png"});}catch(e){console.warn(e);}}
       })
-      // ── FIX: redemptions UPDATE realtime — catches status change to Approved ──
-      .on("postgres_changes",{event:"*",schema:"public",table:"redemptions",filter:`user_id=eq.${profile.id}`},()=>{
+      // ── FIX: redemptions UPDATE realtime — fires sound on Pending→Approved ──
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"redemptions",filter:`user_id=eq.${profile.id}`},payload=>{
+        if((payload.new?.status==="Approved"||payload.new?.status==="Delivered")&&payload.old?.status==="Pending"){
+          playPositiveSound();
+          setToast("🎁 Prize delivered! Check My Prizes.");
+          setTimeout(()=>setToast(null),3500);
+        }
+        supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});
+      })
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"redemptions",filter:`user_id=eq.${profile.id}`},()=>{
         supabase.from("redemptions").select("*").eq("user_id",profile.id).then(({data})=>{if(data)setMyRedemptions(data);});
       })
       .on("postgres_changes",{event:"*",schema:"public",table:"mission_claims",filter:`user_id=eq.${profile.id}`},()=>{
@@ -706,7 +728,7 @@ export default function UserApp({profile:init,session,onProfileUpdate,onSwitchAc
       </div>
 
       {toast&&(
-        <div className="toast-in" style={{position:"absolute",bottom:110,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:99,padding:"12px 24px",fontSize:15,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>
+        <div className="toast-in" style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"rgba(0,0,0,.82)",backdropFilter:"blur(16px)",borderRadius:20,padding:"16px 28px",fontSize:16,color:"#fff",fontWeight:600,whiteSpace:"nowrap",zIndex:50,pointerEvents:"none",maxWidth:"88vw",textAlign:"center"}}>
           {toast}
         </div>
       )}
